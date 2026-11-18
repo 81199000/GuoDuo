@@ -10,7 +10,8 @@ actor HGMediaCache {
     private let dir: URL
     private var inflight: [String: Task<URL, Error>] = [:]
     private var order: [String] = []
-    private let keep = 6
+    /// 推荐缓存 10 部（横竖各 5）+ 正在看的剧前后几集
+    private let keep = 20
     private let session: URLSession = {
         let c = URLSessionConfiguration.default
         c.timeoutIntervalForRequest = 30
@@ -26,12 +27,12 @@ actor HGMediaCache {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     }
 
-    func file(for vid: String, progress: (@Sendable (Phase) -> Void)? = nil) async throws -> URL {
+    func file(for vid: String, source: HGSource? = nil, progress: (@Sendable (Phase) -> Void)? = nil) async throws -> URL {
         if let offline = await HGDownloads.shared.localFile(vid) { return offline } // 已离线下载：直接播
         let target = dir.appendingPathComponent("\(vid).mp4")
         if FileManager.default.fileExists(atPath: target.path) { touch(vid); return target }
         if let task = inflight[vid] { return try await task.value }
-        let task = Task { try await self.prepare(vid: vid, target: target, progress: progress) }
+        let task = Task { try await self.prepare(vid: vid, target: target, source: source, progress: progress) }
         inflight[vid] = task
         defer { inflight[vid] = nil }
         let url = try await task.value
@@ -67,9 +68,16 @@ actor HGMediaCache {
         _ = try await prepare(vid: vid, target: target, progress: progress)
     }
 
-    private nonisolated func prepare(vid: String, target: URL, progress: (@Sendable (Phase) -> Void)?) async throws -> URL {
+    /// 已经下好解密的本地文件（不触发下载）
+    func cachedFile(_ vid: String) -> URL? {
+        let u = dir.appendingPathComponent("\(vid).mp4")
+        return FileManager.default.fileExists(atPath: u.path) ? u : nil
+    }
+
+    private nonisolated func prepare(vid: String, target: URL, source given: HGSource? = nil, progress: (@Sendable (Phase) -> Void)?) async throws -> URL {
         progress?(.resolving)
-        let source = try await HGAPI.source(vid)
+        let source: HGSource
+        if let given { source = given } else { source = try await HGAPI.source(vid) }
         var failure: Error = HGError.message("没有可用片源")
         // 源给的备用地址依次尝试；只换地址，不改签名与密钥。
         for variant in source.variants.prefix(4) {
