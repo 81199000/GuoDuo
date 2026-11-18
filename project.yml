@@ -2,12 +2,12 @@ name: HongGuo
 options:
   bundleIdPrefix: me.rrmm
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "18.4"
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: 0.5.3
-    CURRENT_PROJECT_VERSION: "19"
+    MARKETING_VERSION: 0.6.0
+    CURRENT_PROJECT_VERSION: "20"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ""
 targets:

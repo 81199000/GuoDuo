@@ -5,87 +5,168 @@ import SwiftUI
 /// 红果 App 自己的推荐流接口没逆向出来（上游也没有），这是上游「热播推荐 · 随机」同一思路。
 @MainActor @Observable
 final class HGFeedModel {
-    /// 全 App 一份：停在发现页时就在后台备好推荐的前几部，点进推荐直接是本地文件
+    /// 全 App 一份：打开 App 就在后台备片，点进推荐直接放本地文件
     static let shared = HGFeedModel()
 
+    /// 一部推荐：哪部剧、放第几集（剧池放完了改放第 2 集）、画幅、本地文件已就绪
     struct Item: Identifiable, Hashable {
         let series: HGSeries
+        let detail: HGDetail
+        let index: Int
+        let landscape: Bool
         var id: String { series.series_id }
+        var episode: HGEpisode { detail.episodes[index] }
     }
 
+    /// 老板定：横竖各备 5 部，全部下载解密完（共 10 部）推荐键才亮
+    static let perBucket = 5
+    /// 已经下好、还没放过的（按画幅分两桶）
+    private(set) var ready: [Bool: [Item]] = [true: [], false: []]
+    /// 推荐页正在滑的列表（只放当前姿态那一桶）
     private(set) var items: [Item] = []
-    private(set) var loading = false
+    private(set) var wantLandscape = false
+    var readyCount: Int { (ready[true]?.count ?? 0) + (ready[false]?.count ?? 0) + items.count }
+    var isReady: Bool { (ready[true]?.count ?? 0) + (ready[false]?.count ?? 0) >= Self.perBucket * 2 || unlocked }
+    /// 第一次凑齐 10 部后就一直亮（之后边看边补，不再变灰）
+    private(set) var unlocked = false
     private(set) var error: String?
-    /// 每部剧的第 1 集详情（集列表）：滑到附近才拉，拉过就缓存
-    private(set) var details: [String: HGDetail] = [:]
-    private var detailTasks: [String: Task<Void, Never>] = [:]
-    private var seen = Set<String>()
-    /// 每个类目下一次拉第几页
+
+    // 剧池
+    private var pool: [HGSeries] = []
+    private var poolSeen = Set<String>()
     private var nextPage: [HGCategory: Int] = [:]
     private var exhausted = Set<HGCategory>()
     private static let sources: [HGCategory] = [.hot, .real, .comic, .ai, .hotReal]
+    /// 第一轮（第 1 集）用完了：改从第 2 集推荐
+    private var round = 0
+    private var working = false
 
-    /// 剧池补货：每个类目各拉一页，合并去重、打乱；已经看过 / 收藏过的往后排
-    func refill() async {
-        guard !loading else { return }
-        loading = true; defer { loading = false }
-        var fresh: [HGSeries] = []
-        await withTaskGroup(of: [HGSeries].self) { group in
-            for c in Self.sources where !exhausted.contains(c) {
-                let page = nextPage[c] ?? 1
-                group.addTask {
-                    guard let r = try? await HGAPI.browse(c, page: page) else { return [] }
-                    return r.results
-                }
+    // MARK: 看过的（跨次启动记住，下次不再推荐同一部的同一集）
+
+    private static let watchedKey = "hg.feed.watched.v1"
+    /// "seriesID#集序号"
+    private var watched: Set<String> = Set(UserDefaults.standard.stringArray(forKey: watchedKey) ?? [])
+    private func key(_ id: String, _ index: Int) -> String { "\(id)#\(index)" }
+
+    /// 推荐页里真正看过（开播超过 3 秒）才记
+    func markWatched(_ item: Item) {
+        guard watched.insert(key(item.id, item.index)).inserted else { return }
+        UserDefaults.standard.set(Array(watched), forKey: Self.watchedKey)
+    }
+
+    // MARK: 后台备片
+
+    /// App 启动调一次；之后每放掉一部就自动补
+    func start() {
+        guard !working else { return }
+        working = true
+        Task { await fillLoop(); working = false }
+    }
+
+    private func need(_ l: Bool) -> Int {
+        let queued = (ready[l]?.count ?? 0) + (l == wantLandscape ? items.count - consumed : 0)
+        return Self.perBucket - queued
+    }
+    /// 推荐页已经划过的条数（当前那部算划过）
+    var consumed = 0
+
+    /// 一部一部来：取集列表 → 取源（拿画幅）→ 那一桶缺货才下载；两桶都满就停
+    private func fillLoop() async {
+        var misses = 0
+        while need(true) > 0 || need(false) > 0 {
+            guard let s = await nextCandidate() else {
+                if round == 0 { round = 1; poolSeen = []; pool = []; nextPage = [:]; exhausted = []; continue }
+                break
             }
-            for await batch in group { fresh += batch }
+            guard let d = try? await HGAPI.detail(s.series_id) else { misses += 1; continue }
+            let idx = round == 0 ? d.episodes.firstIndex { $0.locked != true }
+                                 : d.episodes.indices.dropFirst().first { d.episodes[$0].locked != true }
+            guard let idx, !watched.contains(key(s.series_id, idx)) else { continue }
+            guard let src = try? await HGAPI.source(d.episodes[idx].vid) else { continue }
+            let l = src.isLandscape ?? false
+            guard need(l) > 0 else { continue }            // 这一桶已经满了：跳过，找另一种画幅
+            guard (try? await HGMediaCache.shared.file(for: d.episodes[idx].vid, source: src)) != nil else { continue }
+            var series = s
+            series.episode_count = d.episodes.count
+            if (series.description ?? "").isEmpty { series.description = d.description }
+            let item = Item(series: series, detail: d, index: idx, landscape: l)
+            if l == wantLandscape && !items.isEmpty { items.append(item) } else { ready[l, default: []].append(item) }
+            if isReady { unlocked = true }
+            error = nil
+            _ = misses
         }
-        for c in Self.sources where !exhausted.contains(c) {
-            let p = (nextPage[c] ?? 1) + 1
-            if p > 20 { exhausted.insert(c) } else { nextPage[c] = p }
-        }
-        let lib = HGLibrary.shared
-        var unique: [HGSeries] = []
-        for s in fresh where s.source == .hongguo && !seen.contains(s.series_id) {
-            seen.insert(s.series_id); unique.append(s)
-        }
-        unique.shuffle()
-        // 没看过的在前，看过 / 收藏过的往后
-        let known = { (s: HGSeries) in lib.progress(for: s.id) != nil || lib.isFavorite(s.id) }
-        unique = unique.filter { !known($0) } + unique.filter(known)
-        if unique.isEmpty && items.isEmpty { error = "推荐加载失败，下拉重试" } else { error = nil }
-        items += unique.map(Item.init)
+        if readyCount == 0 { error = "推荐加载失败" }
     }
 
-    func reset() async {
-        items = []; details = [:]; seen = []; nextPage = [:]; exhausted = []
-        detailTasks.values.forEach { $0.cancel() }; detailTasks = [:]
-        await refill()
+    /// 剧池里下一部（没看过的、红果来源）；不够就翻下一页
+    private func nextCandidate() async -> HGSeries? {
+        for _ in 0..<6 {
+            if let i = pool.firstIndex(where: { _ in true }) { return pool.remove(at: i) }
+            var fresh: [HGSeries] = []
+            await withTaskGroup(of: [HGSeries].self) { group in
+                for c in Self.sources where !exhausted.contains(c) {
+                    let page = nextPage[c] ?? 1
+                    group.addTask { (try? await HGAPI.browse(c, page: page))?.results ?? [] }
+                }
+                for await batch in group { fresh += batch }
+            }
+            for c in Self.sources where !exhausted.contains(c) {
+                let p = (nextPage[c] ?? 1) + 1
+                if p > 20 { exhausted.insert(c) } else { nextPage[c] = p }
+            }
+            let unique = fresh.filter { $0.source == .hongguo && poolSeen.insert($0.series_id).inserted }
+            // 第一轮：看过第 1 集的直接不要；第二轮全要（第 2 集没看过）
+            pool = unique.shuffled().filter { round > 0 || !watched.contains(key($0.series_id, 0)) }
+            if fresh.isEmpty { return nil }
+        }
+        return nil
     }
 
-    /// 后台预热（打开 App 停在发现页时调）：拉剧池 → 前 3 部的集列表 → 前 2 部第 1 集一部接一部下好。
-    /// 一次只下一集，不跟发现页的封面 / 用户手动点开的播放抢网速。
-    private var warmed = false
-    func warmUp() async {
-        guard !warmed else { return }
-        warmed = true
-        if items.isEmpty { await refill() }
-        for it in items.prefix(3) { ensureDetail(it.id) }
-        for it in items.prefix(2) {
-            for _ in 0..<40 where details[it.id] == nil { try? await Task.sleep(for: .milliseconds(250)) }
-            guard let ep = details[it.id]?.episodes.first(where: { $0.locked != true }) else { continue }
-            _ = try? await HGMediaCache.shared.file(for: ep.vid)
+    // MARK: 推荐页取片
+
+    /// 进推荐 / 换姿态：把要的那一桶倒进列表（当前这部不动）
+    func setWant(landscape want: Bool, keep currentID: String?) {
+        let changed = want != wantLandscape
+        wantLandscape = want
+        if changed {
+            let keepIdx = currentID.flatMap { id in items.firstIndex { $0.id == id } }
+            let tail = keepIdx.map { Array(items[($0 + 1)...]) } ?? items
+            // 换下来的还没看的放回原来的桶
+            for it in tail where !watched.contains(key(it.id, it.index)) { ready[it.landscape, default: []].append(it) }
+            items = keepIdx.map { Array(items[...$0]) } ?? []
+            consumed = keepIdx ?? 0
         }
+        items += ready[want] ?? []
+        ready[want] = []
+        start()
     }
 
-    func ensureDetail(_ id: String) {
-        guard details[id] == nil, detailTasks[id] == nil else { return }
-        detailTasks[id] = Task { [weak self] in
-            let d = try? await HGAPI.detail(id)
-            guard let self else { return }
-            self.detailTasks[id] = nil
-            if let d { self.details[id] = d }
+    /// 推荐页划到第 idx 部：后面不够就补
+    func advanced(to idx: Int) {
+        consumed = idx
+        start()
+    }
+
+    /// 下拉刷新：已经在列表里但没看的放回桶里，列表从桶重新排
+    func reshuffle() {
+        for it in items where !watched.contains(key(it.id, it.index)) { ready[it.landscape, default: []].append(it) }
+        items = []; consumed = 0
+        ready[true]?.shuffle(); ready[false]?.shuffle()
+        setWant(landscape: wantLandscape, keep: nil)
+        items += ready[wantLandscape] ?? []; ready[wantLandscape] = []
+    }
+}
+
+/// 推荐要哪种画幅：横屏 / 竖屏半折叠（桌面）= 横屏片；竖屏 / 横屏半折叠（书本）= 竖屏片
+enum HGFeedPosture {
+    static func wantsLandscape(_ geo: GeometryProxy) -> Bool {
+        let w = geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing
+        let h = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+        if DYDuoMetrics.foldIsActive(geo) {
+            if let split = DYDuoMetrics.hingeSplit(geo) { return !split.book }
+            return w <= h          // 模拟器强制半折叠：窗口竖着 = 桌面姿态
         }
+        return w > h
     }
 }
 
@@ -108,15 +189,19 @@ struct HGFeedView: View {
         GeometryReader { outer in
           let geo = CGSize(width: max(0, outer.size.width + outer.safeAreaInsets.leading + outer.safeAreaInsets.trailing - (sideRail ? railReserve : 0)),
                            height: outer.size.height + outer.safeAreaInsets.top + outer.safeAreaInsets.bottom)
+          let posture = HGFeedPosture.wantsLandscape(outer)
           HStack(spacing: 0) {
             ZStack {
                 Color.black
                 if model.items.isEmpty {
-                    if model.loading { ProgressView().tint(.white) }
-                    else if let e = model.error {
-                        VStack(spacing: 12) {
+                    VStack(spacing: 12) {
+                        if let e = model.error {
                             Text(e).foregroundStyle(.white.opacity(0.7)).font(.footnote)
-                            Button("重试") { Task { await model.reset() } }.buttonStyle(.bordered).tint(HGTheme.accent)
+                            Button("重试") { model.start() }.buttonStyle(.bordered).tint(HGTheme.accent)
+                        } else {
+                            ProgressView().tint(.white)
+                            Text(posture ? "正在准备横屏推荐…" : "正在准备竖屏推荐…")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.6))
                         }
                     }
                 } else {
@@ -133,7 +218,10 @@ struct HGFeedView: View {
                     .scrollTargetBehavior(.paging)
                     .scrollPosition(id: $current)
                     .scrollIndicators(.hidden)
-                    .refreshable { await model.reset(); current = model.items.first?.id }
+                    .refreshable {
+                        session?.stop(); session = nil; sessionID = nil
+                        model.reshuffle(); current = model.items.first?.id
+                    }
                     .accessibilityIdentifier("hg.feed")
                 }
             }
@@ -142,16 +230,24 @@ struct HGFeedView: View {
             if sideRail { Color.black.frame(width: railReserve) }
           }
           .ignoresSafeArea()
+          .onChange(of: posture, initial: true) { _, want in
+              model.setWant(landscape: want, keep: current)
+              if current == nil || !model.items.contains(where: { $0.id == current }) { current = model.items.first?.id }
+          }
         }
         .ignoresSafeArea()
         .toolbarVisibility(.hidden, for: .navigationBar)
-        .task {
-            if model.items.isEmpty { await model.refill() }
-            if current == nil { current = model.items.first?.id }
-        }
         .onChange(of: current) { _, id in focus(id) }
-        .onChange(of: model.details) { _, _ in if session == nil || sessionID != current { focus(current) } }
-        .onAppear { active = true; session?.resumeIfSuspended() }
+        // 列表从空到有（切到还没备好的那种画幅、等它下完）：落到第一部
+        .onChange(of: model.items.first?.id) { _, first in if current == nil { current = first } }
+        // 开播 3 秒算看过：下次启动不再推荐同一集
+        .onChange(of: (session?.position ?? 0) >= 3) { _, watched in
+            if watched, let id = sessionID, let it = model.items.first(where: { $0.id == id }) { model.markWatched(it) }
+        }
+        .onAppear {
+            active = true
+            if session == nil { focus(current) } else { session?.resumeIfSuspended() }
+        }
         .onDisappear { active = false; session?.suspend() }
         .onChange(of: scenePhase) { _, p in
             if p == .background, !HGBackgroundPlayback.enabled, let s = session, !s.pip.active, !s.pip.starting { s.pauseForBackground() }
@@ -179,38 +275,24 @@ struct HGFeedView: View {
                 previous: { step(-1, from: item.id) }))
                 .id(item.id)
         } else {
-            // 相邻页：封面占位，滑动不黑屏
+            // 相邻页：封面占位（片子已经在本地，滑到就开播）
             ZStack {
                 HGCover(url: item.series.coverURL).blur(radius: 18).opacity(0.4)
-                VStack(spacing: 8) {
-                    Text(item.series.series_title).font(.headline).foregroundStyle(.white.opacity(0.85))
-                    ProgressView().tint(.white)
-                }
+                Text(item.series.series_title).font(.headline).foregroundStyle(.white.opacity(0.85))
             }
             .clipped()
             .allowsHitTesting(false)
         }
     }
 
-    /// 滑到某一部：停掉上一部、给这部建会话放第 1 集；顺手拉后两部的集列表并预下载下一部第 1 集
+    /// 滑到某一部：停掉上一部、给这部建会话。片子都是提前下好的本地文件，建好就能播
     private func focus(_ id: String?) {
         guard let id, let idx = model.items.firstIndex(where: { $0.id == id }) else { return }
-        for j in idx..<min(model.items.count, idx + 3) { model.ensureDetail(model.items[j].id) }
-        if idx >= model.items.count - 4 { Task { await model.refill() } }
-        if let nextID = model.items[safe: idx + 1]?.id, let d = model.details[nextID],
-           let ep = d.episodes.first(where: { $0.locked != true }) {
-            HGMediaCache.shared.prefetch(ep.vid)
-        }
-        guard sessionID != id else { return }
-        guard let d = model.details[id] else { return }   // 详情回来后 onChange(details) 再进来
-        guard let first = d.episodes.firstIndex(where: { $0.locked != true }) else {
-            advance(from: id); return                       // 整部锁着：直接跳下一部
-        }
+        model.advanced(to: idx)
+        guard sessionID != id, active else { return }
+        let it = model.items[idx]
         session?.stop()
-        var s = model.items[idx].series
-        s.episode_count = d.episodes.count
-        if (s.description ?? "").isEmpty { s.description = d.description }
-        let new = HGPlaybackSession(HGPlayerRequest(series: s, episodes: d.episodes, index: first, startAt: 0), feedMode: true)
+        let new = HGPlaybackSession(HGPlayerRequest(series: it.series, episodes: it.detail.episodes, index: it.index, startAt: 0), feedMode: true)
         new.onFeedEnd = { [id] in advance(from: id) }
         if !active || full != nil { new.suspend() }
         session = new
@@ -236,9 +318,9 @@ struct HGFeedView: View {
     }
 
     private func openFull(_ item: HGFeedModel.Item, episode: Int, at pos: Double) {
-        guard let d = model.details[item.id], let s = session else { return }
+        guard let s = session else { return }
         s.suspend()
-        full = HGPlayerRequest(series: s.series, episodes: d.episodes, index: episode, startAt: episode == s.index ? pos : 0)
+        full = HGPlayerRequest(series: s.series, episodes: item.detail.episodes, index: episode, startAt: episode == s.index ? pos : 0)
     }
 }
 

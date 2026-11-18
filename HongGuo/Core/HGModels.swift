@@ -72,6 +72,13 @@ struct HGVariant: Codable, Hashable {
 struct HGSource: Codable {
     let vid: String
     let variants: [HGVariant]
+    var width: Int?
+    var height: Int?
+    /// 片源画幅（取源就带回来，不用下载）；接口没给宽高时 nil
+    var isLandscape: Bool? {
+        guard let w = width, let h = height, w > 0, h > 0 else { return nil }
+        return w > h
+    }
 }
 
 struct HGDanmakuItem: Codable {

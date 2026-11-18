@@ -14,7 +14,7 @@ final class HGTabletopSwipeTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app.launch()
         let pad = app.descendants(matching: .any)["hg.console.pad"].firstMatch
-        XCTAssertTrue(pad.waitForExistence(timeout: 40), "推荐页没出触控板")
+        XCTAssertTrue(pad.waitForExistence(timeout: 120), "推荐页没出触控板")
         let playing = NSPredicate(format: "value != '0' AND value != '1' AND value != '2'")
         XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: playing, evaluatedWith: pad)], timeout: 60), .completed, "第一部没开播")
         let first = pad.label
