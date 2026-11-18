@@ -117,6 +117,8 @@ struct HGRootView: View {
     @State private var tab: HGRootTab = .feed
     @State private var router = HGRootRouter.shared
     @State private var storageDemo = false
+    /// 启动检查到的新版本（DouDuo 同款：关掉 / 去更新后这个版本不再自动弹）
+    @State private var launchUpdate: HGUpdate?
     var body: some View {
         GeometryReader { geo in
             let full = CGSize(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
@@ -146,6 +148,15 @@ struct HGRootView: View {
                 }
                 #endif
                 tab = .feed
+            }
+            .task {
+                // 等首屏稳定再查，不跟推荐流抢网络
+                try? await Task.sleep(for: .seconds(3))
+                launchUpdate = await HGUpdateChecker.checkAtLaunch()
+            }
+            .sheet(item: $launchUpdate, onDismiss: nil) { u in
+                HGUpdateSheet(update: u)
+                    .onDisappear { HGUpdateChecker.dismiss(u) }
             }
             .onChange(of: router.tabRequest) { _, t in
                 if let t { tab = t; router.tabRequest = nil }

@@ -48,6 +48,7 @@ struct HGMineView: View {
                 Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
             }
             .listRowBackground(HGTheme.surface)
+            HGAboutSection()
             Section {
                 Text("片源来自红果 / 西饭 / 河马公开接口，接口变化时可能失效。仅供个人学习使用。").font(.caption).foregroundStyle(HGTheme.textTertiary)
             }

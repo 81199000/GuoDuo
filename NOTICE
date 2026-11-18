@@ -1,0 +1,45 @@
+GuoDuo
+Copyright (C) 2026 GuoDuo contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License version 3 (GPL-3.0-only).
+See LICENSE for the full text.
+
+------------------------------------------------------------------------------
+Third-party code
+------------------------------------------------------------------------------
+
+core/upstream/  (GPL-3.0-only)
+  Copied from jackotom/hongguo-drama
+  https://github.com/jackotom/hongguo-drama
+  Commit: see core/UPSTREAM_COMMIT
+  Files are kept verbatim from upstream src/native/ (public.js from android/web/),
+  except that transport paths are rewired to core/shims/ for JavaScriptCore.
+  Per-file SPDX headers and attribution comments are preserved unchanged.
+
+  Upstream itself credits (see headers in each file):
+    - woshishiq1/drpys            (signing and Spade algorithms)
+    - N3urda/hongguoTV            (via which the above was adapted)
+    - tsukiyo-zero/hongguoTV      (ttEncrypt and registration fields)
+    - charlie901208/HGTV          (phone login, GPL-3.0-only)
+    - jayeeliu, PR #61            (export review limit, GPL-3.0)
+
+core/shims/
+  Follow the Native bridge conventions of upstream android/web/.
+
+Player, gesture, danmaku and storage components under HongGuo/Player and
+HongGuo/Storage are adapted from DouDuo (https://github.com/81199000/DouDuo,
+MIT License, Copyright (c) 2026 DouDuo contributors) and are distributed here
+under GPL-3.0 as part of this combined work.
+
+npm dependencies bundled into HongGuo/Resources/hgcore.js:
+  buffer (MIT), core-js (MIT), abortcontroller-polyfill (MIT).
+  Their license comments are kept at the end of hgcore.js.
+
+------------------------------------------------------------------------------
+Disclaimer
+------------------------------------------------------------------------------
+GuoDuo is an unofficial client and is not affiliated with, endorsed by, or
+connected to Hongguo / ByteDance, Xifan, Hema or any content provider.
+It hosts no video content. All trademarks belong to their respective owners.
+For personal study and research only.
