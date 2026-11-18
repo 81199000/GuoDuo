@@ -9,6 +9,7 @@ final class HGTabletopTests: XCTestCase {
     func testTabletopFlow() throws {
         let app = XCUIApplication()
         app.launchEnvironment["DOUDUO_FOLD"] = "1"
+        XCUIDevice.shared.orientation = .portrait
         app.launch()
         let any = app.descendants(matching: .any)
         // 首页：上信息 / 下选集
@@ -42,6 +43,12 @@ final class HGTabletopTests: XCTestCase {
         let back = app.buttons["hg.player.close"]
         print("HGTAB back=\(back.frame) play=\(app.buttons["hg.console.play"].frame) bar=\(any["hg.console.bar"].firstMatch.frame) tiles=\(app.buttons["hg.console.danmakuButton"].frame) more=\(app.buttons["hg.console.more"].frame) title=\(any["hg.console.title"].firstMatch.exists)")
         XCTAssertGreaterThan(back.frame.minY, console.frame.minY, "返回键不在下半屏")
+        // 控制要铺开：顶排在面板 20%~40%，播放键中心在 45%~65%（参考图 30% / 56%）
+        let rel = { (y: CGFloat) in (y - console.frame.minY) / console.frame.height }
+        let playC = app.buttons["hg.console.play"].frame.midY
+        print("HGTAB spread top=\(rel(back.frame.midY)) play=\(rel(playC)) bar=\(rel(any["hg.console.bar"].firstMatch.frame.midY))")
+        XCTAssertTrue((0.18...0.42).contains(rel(back.frame.midY)), "顶排位置不对")
+        XCTAssertTrue((0.42...0.66).contains(rel(playC)), "播放键位置不对")
         shot(app, "console-controls")
         // 暂停 / 继续
         app.buttons["hg.console.play"].tap(); sleep(1)
