@@ -48,12 +48,6 @@ actor HGMediaCache {
         return ok && DYStorageFiles.removeVideoWork()
     }
 
-    /// 已经下好解密的本地文件（不触发下载）；推荐流拿它截首帧当占位
-    func cachedFile(_ vid: String) -> URL? {
-        let u = dir.appendingPathComponent("\(vid).mp4")
-        return FileManager.default.fileExists(atPath: u.path) ? u : nil
-    }
-
     func prefetch(_ vid: String) {
         guard inflight[vid] == nil, !FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(vid).mp4").path) else { return }
         Task { _ = try? await self.file(for: vid) }

@@ -10,6 +10,7 @@ final class HGTabletopSwipeTests: XCTestCase {
     func testFeedPadSwipe() throws {
         let app = XCUIApplication()
         app.launchEnvironment["DOUDUO_FOLD"] = "1"
+        app.launchEnvironment["HG_START_TAB"] = "feed"
         XCUIDevice.shared.orientation = .portrait
         app.launch()
         let pad = app.descendants(matching: .any)["hg.console.pad"].firstMatch
