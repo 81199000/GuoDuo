@@ -13,6 +13,17 @@ struct HGPlayerRequest: Identifiable {
 
 /// 一部剧的播放会话：当前集、预载、断点、倍速、弹幕、锁屏信息。
 /// 只有一个 AVPlayer —— 竖滑翻页时换 item，避免多个解密文件同时占内存。
+/// 音频会话全进程只激活一次
+@MainActor enum HGAudioSession {
+    private static var done = false
+    static func activate() {
+        guard !done else { return }
+        done = true
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+}
+
 @MainActor @Observable
 final class HGPlaybackSession {
     let series: HGSeries
@@ -51,6 +62,9 @@ final class HGPlaybackSession {
     var onFeedEnd: (() -> Void)?
     /// 推荐页被切走 / 推了详情：加载完成也先别出声
     private(set) var suspended = false
+    /// 首帧已解好（预热完成或已开播）
+    private(set) var frameReady = false
+    private var primeObs: NSKeyValueObservation?
 
     init(_ r: HGPlayerRequest, feedMode: Bool = false) {
         self.feedMode = feedMode
@@ -67,9 +81,9 @@ final class HGPlaybackSession {
                 MainActor.assumeIsolated { self?.tick(t.seconds) }
             }
         }
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-        try? AVAudioSession.sharedInstance().setActive(true)
-        setupRemoteCommands()
+        HGAudioSession.activate()
+        // 预热中的（挂起）不抢锁屏 / 耳机按键，转正时 resumeIfSuspended 再挂
+        if !suspended { setupRemoteCommands() }
         // scenePhase 在 fullScreenCover 里偶尔不回调：UIKit 通知兜底
         if bgObserver == nil {
             bgObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
@@ -172,9 +186,27 @@ final class HGPlaybackSession {
         clock.userToggle(position, playing: false, rate: Double(effectiveRate))
     }
 
+    /// 暂停的 AVPlayer 不会自己解第一帧：item 就绪后 preroll，滑过来直接是画面、马上能播
+    private func prime(_ item: AVPlayerItem) {
+        primeObs?.invalidate(); primeObs = nil
+        let go: () -> Void = { [weak self] in
+            guard let self, self.suspended, self.player.currentItem === item, self.player.rate == 0 else { return }
+            // 不 preroll：真机实测 preroll 后起播，播到 1.25 秒必定跳回 0（预解的那段缓冲用完后管线重建）。
+            // item 已 readyToPlay、画面层已挂上，起播只差解第一帧（几十毫秒）
+            self.frameReady = true
+        }
+        if item.status == .readyToPlay { go(); return }
+        primeObs = item.observe(\.status, options: [.new]) { [weak self] it, _ in
+            guard it.status == .readyToPlay else { return }
+            Task { @MainActor in self?.primeObs?.invalidate(); self?.primeObs = nil; go() }
+        }
+    }
+
     func resumeIfSuspended() {
         guard suspended else { return }
         suspended = false
+        setupRemoteCommands()   // 上一部 stop() 会清掉所有远程按键，前台这部重新挂上
+        updateNowPlaying()
         guard player.currentItem != nil, failed == nil else { return }
         player.playImmediately(atRate: effectiveRate)
         isPlaying = true
@@ -192,6 +224,7 @@ final class HGPlaybackSession {
     func stop() {
         save(force: true)
         loadTask?.cancel(); danmakuTask?.cancel()
+        primeObs?.invalidate(); primeObs = nil
         player.pause()
         if feedMode { player.replaceCurrentItem(with: nil) }
         if let timeObserver { player.removeTimeObserver(timeObserver) }
@@ -199,10 +232,12 @@ final class HGPlaybackSession {
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         if let bgObserver { NotificationCenter.default.removeObserver(bgObserver) }
         bgObserver = nil
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        let c = MPRemoteCommandCenter.shared()
-        [c.playCommand, c.pauseCommand, c.togglePlayPauseCommand, c.nextTrackCommand, c.previousTrackCommand, c.changePlaybackPositionCommand]
-            .forEach { $0.removeTarget(nil) }
+        if !suspended {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            let c = MPRemoteCommandCenter.shared()
+            [c.playCommand, c.pauseCommand, c.togglePlayPauseCommand, c.nextTrackCommand, c.previousTrackCommand, c.changePlaybackPositionCommand]
+                .forEach { $0.removeTarget(nil) }
+        }
     }
 
     // MARK: 加载
@@ -210,7 +245,7 @@ final class HGPlaybackSession {
     private func load(_ i: Int, at offset: Double) {
         loadTask?.cancel()
         index = i; failed = nil; status = "正在获取片源…"
-        position = 0; duration = 0; danmaku = []; danmakuNotice = nil
+        position = 0; duration = 0; danmaku = []; danmakuNotice = nil; frameReady = false
         player.pause()
         player.replaceCurrentItem(with: nil)
         clock = DYDanmakuClock()
@@ -308,6 +343,7 @@ final class HGPlaybackSession {
         if suspended {
             isPlaying = false
             clock.seek(offset, playing: false, rate: Double(effectiveRate))
+            prime(item)
         } else {
             player.playImmediately(atRate: effectiveRate)
             isPlaying = true
@@ -319,6 +355,7 @@ final class HGPlaybackSession {
 
     private func tick(_ t: Double) {
         guard t.isFinite else { return }
+        if t > 0.05 && !frameReady { frameReady = true }
         position = t
         if let d = player.currentItem?.duration.seconds, d.isFinite, d > 0 { duration = d }
         isPlaying = player.timeControlStatus != .paused
@@ -338,6 +375,8 @@ final class HGPlaybackSession {
 
     private func setupRemoteCommands() {
         let c = MPRemoteCommandCenter.shared()
+        [c.playCommand, c.pauseCommand, c.togglePlayPauseCommand, c.nextTrackCommand, c.previousTrackCommand, c.changePlaybackPositionCommand]
+            .forEach { $0.removeTarget(nil) }
         c.playCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { if self?.player.timeControlStatus == .paused { self?.togglePlay() } }; return .success }
         c.pauseCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { if self?.player.timeControlStatus != .paused { self?.togglePlay() } }; return .success }
         c.togglePlayPauseCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { self?.togglePlay() }; return .success }
@@ -353,6 +392,7 @@ final class HGPlaybackSession {
     }
 
     private func updateNowPlaying() {
+        guard !suspended else { return }   // 预热中的别改锁屏信息
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: "第 \(episode.number) 集",
             MPMediaItemPropertyAlbumTitle: series.series_title,

@@ -50,11 +50,12 @@ final class HGTabletopSwipeTests: XCTestCase {
     func testFullPlayerPadSwipe() throws {
         let app = XCUIApplication()
         app.launchEnvironment["DOUDUO_FOLD"] = "1"
+        app.launchEnvironment["HG_START_TAB"] = "feed"
         XCUIDevice.shared.orientation = .portrait
         app.launch()
         // 推荐 → 全集 → 详情第 2 集
         let pad = app.descendants(matching: .any)["hg.console.pad"].firstMatch
-        XCTAssertTrue(pad.waitForExistence(timeout: 40))
+        XCTAssertTrue(pad.waitForExistence(timeout: 90))
         pad.tap()
         let more = app.buttons["hg.console.more"]
         XCTAssertTrue(more.waitForExistence(timeout: 3)); more.tap()

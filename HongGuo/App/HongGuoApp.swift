@@ -60,7 +60,7 @@ struct HGSideTabRail: View {
             Capsule().fill(.white.opacity(0.15)).frame(width: 24, height: 1)
             ForEach(HGRootTab.allCases, id: \.self) { t in
                 let on = t == selection
-                let locked = t == .feed && !HGFeedModel.shared.isReady
+                let locked = false
                 Button { if !locked { selection = t } } label: {
                     VStack(spacing: 3) {
                         Image(systemName: on && t != .search ? t.icon + ".fill" : t.icon)
@@ -134,7 +134,7 @@ struct HGRootView: View {
             let reserve = HGSideTabRail.reserve(trailingSafeArea: geo.safeAreaInsets.trailing)
             TabView(selection: $tab) {
                 ForEach(HGRootTab.allCases, id: \.self) { t in
-                    Tab(t == .feed && !feed.isReady ? "推荐 \(feed.readyCount)/10" : t.rawValue, systemImage: t.icon, value: t) {
+                    Tab(t.rawValue, systemImage: t.icon, value: t) {
                         stack { page(t) }
                             // 推荐页横屏不显示主菜单胶囊（视频右侧是点赞那排 + 返回键）
                             .environment(\.hgSideRail, sideRail && t != .feed)
@@ -145,24 +145,20 @@ struct HGRootView: View {
                             .toolbarVisibility(sideRail || t == .feed ? .hidden : .automatic, for: .tabBar)
                             .contentMargins(.trailing, sideRail && t != .feed ? reserve : 0, for: .scrollContent)
                     }
-                    .disabled(t == .feed && !feed.isReady)
                 }
             }
-            // 兜底：没备好时任何途径切到推荐都退回发现
-            .onChange(of: tab) { old, new in if new == .feed && !feed.isReady { tab = old == .feed ? .discover : old } }
             // 系统会把上次选中的标签恢复回来（DouDuo 也踩过）：冷启动固定回发现页
             .task {
                 #if DEBUG
                 if let t = ProcessInfo.processInfo.environment["HG_START_TAB"], let start = HGRootTab.allCases.first(where: { "\($0)" == t }) {
                     // 测试直接进推荐：等 10 部备好、推荐键亮了再切
-                    while start == .feed && !HGFeedModel.shared.isReady { try? await Task.sleep(for: .milliseconds(500)) }
                     tab = start; return
                 }
                 #endif
                 tab = .discover
             }
             .task {
-                // 停在发现页时后台备推荐：横竖各 5 部下好才亮推荐键（等首屏封面先出来，2 秒后再开始）
+                // 停在发现页时后台先备几部推荐（等首屏封面先出来，2 秒后再开始）
                 try? await Task.sleep(for: .seconds(2))
                 HGFeedModel.shared.start()
             }
