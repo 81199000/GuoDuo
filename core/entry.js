@@ -3,7 +3,9 @@ import { browseList } from './upstream/hongguo-app-catalog.js';
 import { searchApp } from './upstream/hongguo-app-search.js';
 import { fetchAppPlayUrl, signedMetadataRequest, requestJson } from './upstream/app-source.js';
 import { website, parseDetail } from './upstream/public.js';
-import { requestWindow, parsePage, toSeconds, cleanControl, setDeviceIdentityFile, MAX_TEXT_LEN } from './upstream/danmaku.js';
+import { parsePage, toSeconds, cleanControl, setDeviceIdentityFile, MAX_TEXT_LEN, BASE_URL, COMMENT_PATH, USER_AGENT } from './upstream/danmaku.js';
+import * as dmSign from './upstream/danmaku-sign.js';
+import axios from './shims/axios.cjs';
 import { fetchPublicDetails } from './upstream/public-details.js';
 import { createAccountService } from './upstream/account-session.js';
 import * as xifan from './upstream/xifan.js';
@@ -20,6 +22,45 @@ function wrap(callId, task) {
 const unwrap = r => { if (r && r.success === false) throw Object.assign(new Error(r.error || '加载失败'), { code: r.code || '' }); return r; };
 const controllers = new Map();
 const sourceOf = id => String(id).startsWith('xifan:') ? xifan : String(id).startsWith('hema:') ? hema : null;
+
+// 官方播放器同款请求体：count 200 + 服务端 cursor 续页（上游 requestWindow 固定 90 条且不带 cursor）。
+// 服务端按匿名设备分档下发弹幕（实测同一集：105 / 135 / 216 / 577 条，同设备档位固定）。
+// 首次用时拿当前这集第一窗试 5 个候选设备，留下给得最多的那个，钥匙串持久化。
+let dmIdentity = null;
+function newIdentity() { return { deviceId: dmSign.newDeviceId(), installId: dmSign.newDeviceId() }; }
+function dmDevice() {
+  if (dmIdentity) return dmIdentity;
+  try { const v = JSON.parse(Native.kvGet('hg.danmaku.identity.v2') || 'null'); if (v?.deviceId && v?.installId) return (dmIdentity = v); } catch (_) {}
+  return null;
+}
+async function calibrateDevice({ vid, bookId, duration, signal }) {
+  if (dmDevice()) return dmIdentity;
+  const cands = [0, 1, 2, 3, 4].map(newIdentity);
+  const counts = await Promise.all(cands.map(id => requestWindowWithCursor({ vid, bookId, start: 0, duration, cursor: '', signal, identity: id })
+    .then(j => j.data.data_list.length).catch(() => -1)));
+  const best = counts.indexOf(Math.max(...counts));
+  if (counts[best] < 0) throw new Error('弹幕接口不可用');
+  dmIdentity = { ...cands[best], calibrated: counts };
+  Native.kvSet('hg.danmaku.identity.v2', JSON.stringify(dmIdentity));
+  return dmIdentity;
+}
+async function requestWindowWithCursor({ vid, bookId, start, duration, cursor, signal, identity }) {
+  const stampMs = Date.now(), stamp = Math.floor(stampMs / 1000);
+  const nonce = Buffer.from(Native.random(dmSign.NONCE_BYTES), 'base64');
+  const { deviceId, installId } = identity || dmDevice();
+  const rawQuery = dmSign.buildQuery({ stampMs, deviceId, installId });
+  const body = { comment_source: 601, server_channel: 1000, group_id: vid, group_type: 30, comment_type: 20, sort: 1, count: 200,
+    cursor: cursor || '', aid: 8662, compliance_status: 0,
+    business_param: { book_id: bookId, start_offset_time: start, playlet_item_duration: duration, need_danmaku_guide_type: [1, 3, 4, 2] } };
+  const r = await axios({ url: `${BASE_URL}${COMMENT_PATH(vid)}?${rawQuery}`, method: 'POST', data: JSON.stringify(body), signal, timeout: 15000,
+    responseType: 'text', transformResponse: [d => d], maxRedirects: 0,
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', 'X-XS-From-Web': '0', 'Sdk-Version': '2',
+      'Content-Type': 'application/json; charset=utf-8', 'Comment-Source': '601', 'Server-Channel': '1000',
+      ...dmSign.signCommentHeaders({ rawQuery, stamp, nonce }) } });
+  const j = JSON.parse(r.data);
+  if (String(j?.code) !== '0' || !Array.isArray(j?.data?.data_list)) throw new Error('弹幕接口响应无效');
+  return j;
+}
 
 // 弹幕匿名标识需跨重启复用；钥匙串一条。
 setDeviceIdentityFile('hg.danmaku.identity');
@@ -84,24 +125,34 @@ globalThis.HG = {
       } finally { controllers.delete(callId); }
     });
   },
-  // 分时弹幕按 30 秒窗口取：startMs=0 取第一窗，返回 next 供播放到附近时再取下一窗（DouDuo 同款）。
+  // 分时弹幕：服务端按 30 秒一窗下发，同一窗再用 cursor 续页；每页 200 条（官方播放器的上限），
+  // 并带上本集真实时长（openhongguo 实测：时长给大了会白翻空窗）。一次把整集拉完再返回。
   danmaku(callId, sid, vid, startMs, durationMs) {
     const controller = new AbortController(); controllers.set(callId, controller);
     wrap(callId, async () => {
       try {
-        const start = Math.max(0, Number(startMs) || 0);
-        const duration = Math.max(60000, Math.min(24 * 3600 * 1000, Number(durationMs) || 3600000));
-        const payload = await requestWindow({ vid: String(vid), bookId: String(sid), start, duration, signal: controller.signal })
-          .catch(e => { throw Object.assign(new Error('弹幕源暂不可用'), { code: 'DANMAKU_UNAVAILABLE', cause: e }); });
-        const { items, nextMs, hasMore } = parsePage(payload, String(vid));
-        const out = [];
-        for (const it of items) {
-          const t = toSeconds(it.timeRaw); const text = cleanControl(it.text);
-          if (t === null || !text || text.length > MAX_TEXT_LEN) continue;
-          out.push({ time: t, text, color: it.color, mode: it.mode });
+        const duration = Math.max(30000, Math.min(24 * 3600 * 1000, Number(durationMs) || 3600000));
+        let start = Math.max(0, Number(startMs) || 0), cursor = '', reported = 0;
+        const out = [], seen = new Set();
+        await calibrateDevice({ vid: String(vid), bookId: String(sid), duration, signal: controller.signal });
+        for (let page = 0; page < 60 && start < duration; page++) {
+          const payload = await requestWindowWithCursor({ vid: String(vid), bookId: String(sid), start, duration, cursor, signal: controller.signal })
+            .catch(e => { if (out.length) return null; throw Object.assign(new Error('弹幕源暂不可用'), { code: 'DANMAKU_UNAVAILABLE', cause: e }); });
+          if (!payload) break;
+          const { items, nextMs, hasMore } = parsePage(payload, String(vid));
+          for (const it of items) {
+            const t = toSeconds(it.timeRaw); const text = cleanControl(it.text);
+            if (t === null || !text || text.length > MAX_TEXT_LEN) continue;
+            const key = `${t.toFixed(3)}|${text}`; if (seen.has(key)) continue; seen.add(key);
+            out.push({ time: t, text, color: it.color, mode: it.mode });
+          }
+          try { reported = JSON.parse(payload?.data?.common_list_info?.cursor || '{}').danmaku_count || reported; } catch (_) {}
+          if (!hasMore || nextMs === null || nextMs <= start) break;
+          cursor = String(payload?.data?.common_list_info?.cursor || '');
+          start = nextMs;
         }
-        const next = nextMs !== null && nextMs > start && hasMore !== false ? nextMs : null;
-        return { items: out, next };
+        out.sort((a, b) => a.time - b.time);
+        return { items: out, next: null, reported };
       } finally { controllers.delete(callId); }
     });
   },

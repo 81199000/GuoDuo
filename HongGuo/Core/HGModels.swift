@@ -163,7 +163,7 @@ enum HGAPI {
     static func danmaku(series: String, vid: String, startMs: Int, durationMs: Int) async throws -> (items: [DYDanmaku], next: Int?) {
         struct R: Codable { let items: [HGDanmakuItem]; let next: Int? }
         let r = try core.decode(R.self, try await core.call("danmaku", [series, vid, startMs, durationMs]))
-        let items = r.items.map { d in DYDanmaku(id: "\(vid)-\(Int(d.time * 1000))-\(d.text.hashValue)", text: d.text, offset: d.time) }
+        let items = r.items.enumerated().map { i, d in DYDanmaku(id: "\(vid)-\(i)-\(Int(d.time * 1000))", text: d.text, offset: d.time) }
         return (items, r.next)
     }
 

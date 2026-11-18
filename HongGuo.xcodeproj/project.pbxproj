@@ -20,6 +20,7 @@
 		492C9A670DB13F9C06B7F011 /* HGKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C93B035ABEAD2EB863C24 /* HGKeychain.swift */; };
 		49FA5DA4AEF09A647279EEAC /* HGConsolePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E90C0DB3E0CB3C06EBC423 /* HGConsolePane.swift */; };
 		5775BD7AB5FD261DA6D52D5F /* HGMediaCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0090B4685D32319D9E2379CC /* HGMediaCache.swift */; };
+		64E467E5DCBC4B78E2361A43 /* HGTabletopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */; };
 		67BA49D1C11F6D3651BC89FE /* HGModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCB4AE89C633049C3792826 /* HGModels.swift */; };
 		6D813D79404D333367CA45DF /* HGDownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */; };
 		760087ABF7564DB45D82D71F /* DYDuoLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713E6EDFF2D60896235A2A32 /* DYDuoLayout.swift */; };
@@ -36,6 +37,7 @@
 		C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 734656AB064DDD880E3510F9 /* HGPostureTests.swift */; };
 		C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB216E63F437213FB239626 /* HGNativeCrypto.swift */; };
 		CC31E78C419C9013DC80ECC8 /* HGMineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA34D56203BB82C3E2F95C /* HGMineView.swift */; };
+		D31128F45578A62D3EC54966 /* HGTabletop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20261A567433EA51E32A4681 /* HGTabletop.swift */; };
 		DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */; };
 		E0D0C9987C1F9875D390EEC1 /* HGDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */; };
 		E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10360A81DE829C3660CD38CF /* HGTheme.swift */; };
@@ -57,6 +59,7 @@
 		124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYPictureInPicture.swift; sourceTree = "<group>"; };
 		13E90C0DB3E0CB3C06EBC423 /* HGConsolePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGConsolePane.swift; sourceTree = "<group>"; };
 		1FCB4AE89C633049C3792826 /* HGModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGModels.swift; sourceTree = "<group>"; };
+		20261A567433EA51E32A4681 /* HGTabletop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTabletop.swift; sourceTree = "<group>"; };
 		28EFA5F5726071B966B0AD66 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYLiveAdaptiveLayout.swift; sourceTree = "<group>"; };
 		3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGEpisodePlayer.swift; sourceTree = "<group>"; };
@@ -72,6 +75,7 @@
 		7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDetailView.swift; sourceTree = "<group>"; };
 		8F6C93B035ABEAD2EB863C24 /* HGKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGKeychain.swift; sourceTree = "<group>"; };
 		8FC264E72C0F41CF058F2ABF /* DYDeskLight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDeskLight.swift; sourceTree = "<group>"; };
+		98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTabletopTests.swift; sourceTree = "<group>"; };
 		A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCencDecryptor.swift; sourceTree = "<group>"; };
 		B7EA34D56203BB82C3E2F95C /* HGMineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMineView.swift; sourceTree = "<group>"; };
 		B8A47294DDC1661DBE333D4F /* HongGuoUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HongGuoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -132,6 +136,7 @@
 			children = (
 				E5077CA7284996E39E525152 /* HGFlowTests.swift */,
 				734656AB064DDD880E3510F9 /* HGPostureTests.swift */,
+				98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */,
 			);
 			path = HongGuoUITests;
 			sourceTree = "<group>";
@@ -158,6 +163,7 @@
 				D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */,
 				D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */,
 				B7EA34D56203BB82C3E2F95C /* HGMineView.swift */,
+				20261A567433EA51E32A4681 /* HGTabletop.swift */,
 				10360A81DE829C3660CD38CF /* HGTheme.swift */,
 			);
 			path = UI;
@@ -315,6 +321,7 @@
 			files = (
 				4333D747EADBFAA931839304 /* HGFlowTests.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,
+				64E467E5DCBC4B78E2361A43 /* HGTabletopTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -347,6 +354,7 @@
 				C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */,
 				115DE648C4BA61CAE4FB65FE /* HGPlayerScreen.swift in Sources */,
 				213C1C18EB8F4FFB719BFE8A /* HGPlayerSheets.swift in Sources */,
+				D31128F45578A62D3EC54966 /* HGTabletop.swift in Sources */,
 				E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */,
 				828EF0ACED39D4092D79971F /* HongGuoApp.swift in Sources */,
 				4673B8FE8D5B89A89D5D7DCC /* PlayerGestureView.swift in Sources */,
@@ -467,7 +475,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -487,7 +495,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.3.1;
+				MARKETING_VERSION = 0.3.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -550,7 +558,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -564,7 +572,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.3.1;
+				MARKETING_VERSION = 0.3.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
