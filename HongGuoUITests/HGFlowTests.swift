@@ -50,8 +50,22 @@ final class HGFlowTests: XCTestCase {
         app.swipeDown(velocity: .fast)
         sleep(1)
 
-        // 选集面板切第 4 集
-        app.buttons["hg.rail.episodes"].tap()
+        // 右侧栏只剩 点赞 / 评论 / 收藏 / 放大缩小 / 更多
+        for id in ["hg.rail.likes", "hg.rail.comments", "hg.rail.favorite", "hg.rail.fill", "hg.rail.more"] {
+            XCTAssertTrue(app.buttons[id].exists, "缺少 \(id)")
+        }
+        for id in ["hg.rail.episodes", "hg.rail.speed", "hg.rail.danmaku", "hg.rail.clean", "hg.rail.pip"] {
+            XCTAssertFalse(app.buttons[id].exists, "\(id) 应收进更多")
+        }
+        XCTAssertTrue(app.buttons["hg.rail.likes"].frame.minY > 140, "右侧栏顶部被状态栏挡住")
+        attach(app, "rail")
+
+        // 更多 → 选集，切第 4 集
+        app.buttons["hg.rail.more"].tap()
+        let pick = app.buttons["hg.more.episodes"]
+        XCTAssertTrue(pick.waitForExistence(timeout: 3), "更多面板没有打开")
+        attach(app, "more-menu")
+        pick.tap()
         let ep4 = app.buttons["4"].firstMatch
         XCTAssertTrue(ep4.waitForExistence(timeout: 5))
         ep4.tap()
@@ -67,7 +81,9 @@ final class HGFlowTests: XCTestCase {
         sleep(1)
         attach(app, "fit-mode")
         app.buttons["hg.rail.fill"].tap()
-        app.buttons["hg.rail.clean"].tap()
+        app.buttons["hg.rail.more"].tap()
+        XCTAssertTrue(app.buttons["hg.more.clean"].waitForExistence(timeout: 3))
+        app.buttons["hg.more.clean"].tap()
         XCTAssertTrue(app.buttons["hg.player.exitClean"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["hg.rail.favorite"].exists, "清屏后右侧栏应隐藏")
         attach(app, "clean")

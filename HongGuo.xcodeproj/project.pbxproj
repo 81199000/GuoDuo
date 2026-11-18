@@ -12,6 +12,7 @@
 		127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */; };
 		1DE989258E72ED5BFD0C9F78 /* hgcore.js in Resources */ = {isa = PBXBuildFile; fileRef = 536D20075F82248682811BB9 /* hgcore.js */; };
 		213C1C18EB8F4FFB719BFE8A /* HGPlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */; };
+		3D2FC6CB034D422F15BCE87C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1A08138DB57EA101DA32C4E /* Assets.xcassets */; };
 		4333D747EADBFAA931839304 /* HGFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5077CA7284996E39E525152 /* HGFlowTests.swift */; };
 		45EF4CC31758C434F09DD797 /* DYDanmakuEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */; };
 		4673B8FE8D5B89A89D5D7DCC /* PlayerGestureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5E7CA87A880A2C1D3EFEDF /* PlayerGestureView.swift */; };
@@ -69,6 +70,7 @@
 		D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDiscoverView.swift; sourceTree = "<group>"; };
 		DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYVideoFit.swift; sourceTree = "<group>"; };
 		DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDownloads.swift; sourceTree = "<group>"; };
+		E1A08138DB57EA101DA32C4E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E5077CA7284996E39E525152 /* HGFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFlowTests.swift; sourceTree = "<group>"; };
 		EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerSheets.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -161,6 +163,7 @@
 		FA1BDA3DBE45957CFF989C02 /* HongGuo */ = {
 			isa = PBXGroup;
 			children = (
+				E1A08138DB57EA101DA32C4E /* Assets.xcassets */,
 				28EFA5F5726071B966B0AD66 /* Info.plist */,
 				034C2A20E509BEC0C4866D82 /* App */,
 				A734163291F0EC7E0226F355 /* Core */,
@@ -255,6 +258,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3D2FC6CB034D422F15BCE87C /* Assets.xcassets in Resources */,
 				1DE989258E72ED5BFD0C9F78 /* hgcore.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -435,7 +439,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -455,7 +459,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -518,7 +522,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -532,7 +536,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

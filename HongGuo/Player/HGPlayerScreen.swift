@@ -15,7 +15,7 @@ struct HGPlayerScreen: View {
     @State private var clean = false               // 清屏（全屏）：只留画面
     @State private var showComments = false
     @State private var showEpisodes = false
-    @State private var showSpeed = false
+    @State private var showMore = false
     @State private var seeking = false
     @State private var seekPreview: Double = 0
     @State private var seekAnchor: Double = 0
@@ -67,14 +67,10 @@ struct HGPlayerScreen: View {
             HGCommentSheet(series: session.series, episode: session.episode)
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showMore) { moreSheet.presentationDetents([.height(300)]).presentationDragIndicator(.visible) }
         .sheet(isPresented: $showEpisodes) {
             HGEpisodeSheet(session: session) { showEpisodes = false }
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
-        }
-        .confirmationDialog("倍速", isPresented: $showSpeed, titleVisibility: .visible) {
-            ForEach(Self.rates, id: \.self) { r in
-                Button(r == session.rate ? "✓ \(rateText(r))" : rateText(r)) { session.setRate(r) }
-            }
         }
         .onAppear { session.start() }
         .onDisappear { session.stop(); setOrientation(landscape: false) }
@@ -181,41 +177,80 @@ struct HGPlayerScreen: View {
         .shadow(color: .black.opacity(0.35), radius: 3)
     }
 
+    /// DouDuo 同款：上面只留点赞、评论、收藏、放大缩小，其余收进「更多」（Duo 外屏放得下，不被状态栏挡）。
     private var rail: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             let fav = library.isFavorite(session.series.id)
             let stat = session.episodeStat
             if session.series.source == .hongguo {
                 let liked = library.isLiked(session.episode.vid)
                 railButton(liked ? "heart.fill" : "heart", count(stat?.likes.map { $0 + (liked ? 1 : 0) }) ?? "点赞",
                            tint: liked ? HGTheme.accent : .white, id: "hg.rail.likes") { toggleLike() }
+                railButton("ellipsis.bubble.fill", count(stat?.comments) ?? "热评", id: "hg.rail.comments") { showComments = true }
             }
             railButton(fav ? "star.fill" : "star", count(session.stats?.follows) ?? (fav ? "已收藏" : "收藏"),
                        tint: fav ? HGTheme.accent : .white, id: "hg.rail.favorite") {
                 library.toggleFavorite(session.series)
             }
             .accessibilityValue(fav ? "已收藏" : "未收藏")
-            if session.series.source == .hongguo {
-                railButton("text.bubble.fill", count(stat?.comments) ?? "热评", id: "hg.rail.comments") { showComments = true }
-            }
-            railButton(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "弹幕开" : "弹幕关", id: "hg.rail.danmaku") {
-                danmakuOn.toggle()
-            }
-            railButton("list.number", "选集", id: "hg.rail.episodes") { showEpisodes = true }
-            railButton("gauge.with.dots.needle.67percent", session.rate == 1 ? "倍速" : rateText(session.rate), id: "hg.rail.speed") { showSpeed = true }
             railButton(fillWidth ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", fillWidth ? "完整" : "铺满", id: "hg.rail.fill") {
                 fillWidth.toggle(); userScale = 1
             }
-            if session.videoAspect > 1.05 {
-                railButton("rotate.right", landscape ? "竖屏" : "横屏", id: "hg.rail.rotate") { setOrientation(landscape: !landscape) }
+            moreMenu
+        }
+    }
+
+    /// 「更多」：DouDuo 选项面板式的底部弹层（Menu 放在分页 ScrollView 上会被手势层吞掉）。
+    private var moreMenu: some View {
+        railButton("ellipsis", "更多", id: "hg.rail.more") { showMore = true }
+    }
+
+    private var moreSheet: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(session.title).font(.headline).lineLimit(1)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 16) {
+                moreItem("list.number", "选集", id: "hg.more.episodes") { showMore = false; showEpisodes = true }
+                moreItem(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "关弹幕" : "开弹幕", on: danmakuOn, id: "hg.more.danmaku") { danmakuOn.toggle() }
+                moreItem("arrow.up.left.and.arrow.down.right.rectangle", "全屏", id: "hg.more.clean") {
+                    showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
+                }
+                if session.pip.supported {
+                    moreItem("pip.enter", "画中画", id: "hg.more.pip") { showMore = false; session.pip.start() }
+                }
+                if session.videoAspect > 1.05 {
+                    moreItem("rotate.right", landscape ? "竖屏" : "横屏", id: "hg.more.rotate") { showMore = false; setOrientation(landscape: !landscape) }
+                }
             }
-            railButton("arrow.up.left.and.arrow.down.right.rectangle", "全屏", id: "hg.rail.clean") {
-                withAnimation(.easeOut(duration: 0.2)) { clean = true }
+            Text("倍速").font(.subheadline).foregroundStyle(HGTheme.textSecondary)
+            HStack(spacing: 8) {
+                ForEach(Self.rates, id: \.self) { r in
+                    let on = r == session.rate
+                    Button { session.setRate(r) } label: {
+                        Text(String(format: "%g×", r)).font(.subheadline.weight(on ? .semibold : .regular).monospacedDigit())
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .background(on ? HGTheme.accent : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
+                            .foregroundStyle(on ? Color.white : HGTheme.textPrimary)
+                    }
+                    .accessibilityIdentifier("hg.more.rate.\(r)")
+                }
             }
-            if session.pip.supported {
-                railButton("pip.enter", "画中画", id: "hg.rail.pip") { session.pip.start() }
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(HGTheme.surface)
+    }
+
+    private func moreItem(_ icon: String, _ title: String, on: Bool = false, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon).font(.title3).frame(width: 52, height: 52)
+                    .background(on ? HGTheme.accent.opacity(0.2) : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+                    .foregroundStyle(on ? HGTheme.accent : HGTheme.textPrimary)
+                Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary)
             }
         }
+        .accessibilityIdentifier(id)
     }
 
     private func railButton(_ icon: String, _ label: String, tint: Color = .white, id: String, action: @escaping () -> Void) -> some View {
@@ -371,7 +406,7 @@ struct HGVideoLayer: UIViewRepresentable {
         v.playerLayer.player = player
         v.fillWidth = fillWidth
         v.pip = pip
-        pip.attach(to: v.playerLayer, enabled: true, onBackgroundClose: {}, onUnavailable: {})
+        pip.prepareManual(layer: v.playerLayer)   // 不建控制器：退出 App 不会自动画中画
         return v
     }
     func updateUIView(_ v: HGPlayerLayerView, context: Context) {

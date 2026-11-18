@@ -77,10 +77,26 @@ final class DYPictureInPicture: NSObject, ObservableObject, @MainActor AVPicture
         }
     }
 
-    /// 播放页「画中画」按钮：手动进入。
+    /// 红果：画中画只在点按钮时才建控制器；平时不存在控制器，系统就无从在退出 App 时自动进入。
+    private weak var manualLayer: AVPlayerLayer?
+    func prepareManual(layer: AVPlayerLayer) { manualLayer = layer }
+
     func start() {
-        guard let controller, controller.isPictureInPicturePossible, !active, !starting else { return }
-        controller.startPictureInPicture()
+        guard supported, !active, !starting, let layer = manualLayer ?? self.layer else { return }
+        attach(to: layer, enabled: true, onBackgroundClose: onBackgroundClose ?? {}, onUnavailable: onUnavailable ?? {})
+        controller?.canStartPictureInPictureAutomaticallyFromInline = false
+        starting = true
+        fallbackTask?.cancel()
+        fallbackTask = Task { [weak self] in
+            // 控制器刚建好时 isPictureInPicturePossible 还是 false，等它就绪（最多 2 秒）
+            for _ in 0..<20 {
+                guard let self, !Task.isCancelled else { return }
+                if let c = self.controller, c.isPictureInPicturePossible { c.startPictureInPicture(); return }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            self?.starting = false
+            self?.invalidate()
+        }
     }
 
     func returnToInline() {
@@ -126,6 +142,7 @@ final class DYPictureInPicture: NSObject, ObservableObject, @MainActor AVPicture
                                     failedToStartPictureInPictureWithError error: Error) {
         starting = false
         active = false
+        if !allowsAutomaticStart { Task { @MainActor [weak self] in self?.invalidate() } }
         #if DEBUG
         HGLog.log("DDPIP failed \(error.localizedDescription)")
         #endif
@@ -135,6 +152,7 @@ final class DYPictureInPicture: NSObject, ObservableObject, @MainActor AVPicture
     func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
         starting = false
         active = false
+        defer { if !allowsAutomaticStart { Task { @MainActor [weak self] in self?.invalidate() } } }
         #if DEBUG
         HGLog.log("DDPIP stopped restoring=\(restoring)")
         #endif

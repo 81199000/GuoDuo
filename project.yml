@@ -6,8 +6,8 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: 0.2.1
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: 0.2.2
+    CURRENT_PROJECT_VERSION: "4"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ""
 targets:
@@ -27,6 +27,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: me.rrmm.hongguo
         PRODUCT_NAME: HongGuo
         INFOPLIST_KEY_CFBundleDisplayName: 红果自用
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
