@@ -8,6 +8,16 @@ struct DYDanmaku: Identifiable, Decodable, Equatable {
     let offset: Double      // 秒
 }
 
+extension DYDanmaku {
+    /// 合并分窗拉到的弹幕：按 id 去重，按时间排序（搬自 DouDuo）
+    static func merged(_ a: [DYDanmaku], _ b: [DYDanmaku]) -> [DYDanmaku] {
+        var seen = Set<String>()
+        var out: [DYDanmaku] = []
+        for d in a + b where seen.insert(d.id).inserted { out.append(d) }
+        return out.sorted { $0.offset < $1.offset }
+    }
+}
+
 enum DYBoostTiming {
     static let holdSeconds: Double = 0.3
 }
@@ -162,3 +172,38 @@ struct DYDanmakuClock {
     }
 }
 
+
+/// 抖音同款滚动弹幕：所有弹幕同一速度从右往左飘（同速 → 同一轨道里后面的永远追不上前面的）。
+/// 轨道按「前一条尾巴已经完全进屏 + 间距」分配，整条视频一次排好（布局只在弹幕列表 / 屏幕宽变化时重算）；
+/// 某个时刻所有轨道都满就丢掉这一条（抖音也是这样）。
+/// 位置用 TimelineView(.animation) 逐帧算（跟屏幕刷新率走，ProMotion 上 120Hz），不靠 SwiftUI 补间动画。
+struct DYDanmakuLayer: View {
+    let items: [DYDanmaku]
+    let clock: DYDanmakuClock
+    let topInset: CGFloat
+    @AppStorage(DYDanmakuPolicy.densityKey) private var densityRaw = DYDanmakuPolicy.Density.standard.rawValue
+    @AppStorage(DYDanmakuPolicy.deduplicateKey) private var deduplicate = true
+
+    private var renderItems: [DYDanmaku] {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["DOUDUO_DM_STRESS"] == "1" {
+            return (0..<600).map { DYDanmaku(id: "stress-\($0)", text: "弹幕流畅度测试 \($0)", offset: Double($0) * 0.15) }
+        }
+        #endif
+        return items
+    }
+
+    var body: some View {
+        GeometryReader { g in
+            let density = DYDanmakuPolicy.Density(rawValue: densityRaw) ?? .standard
+            let region = DYDanmakuPolicy.region(height: g.size.height, topInset: topInset, density: density)
+            // 字号变大后轨道变高：按新行高重算这块区域能放几条轨道
+            let lanes = min(density.maxLanes, Int(max(0, (region.bottom - region.top) / DYDanmakuStyle.laneHeight)))
+            DYDanmakuLiveSurface(items: renderItems, clock: clock, regionTop: region.top,
+                                 regionHeight: max(0, region.bottom - region.top), lanes: lanes,
+                                 density: density, deduplicate: deduplicate)
+                .frame(width: g.size.width, height: g.size.height)
+        }
+        .allowsHitTesting(false)
+    }
+}

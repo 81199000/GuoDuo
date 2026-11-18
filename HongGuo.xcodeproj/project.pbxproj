@@ -8,19 +8,26 @@
 
 /* Begin PBXBuildFile section */
 		07BDF6E2CDD207FB701FF6D5 /* HGDiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */; };
+		115DE648C4BA61CAE4FB65FE /* HGPlayerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */; };
 		127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */; };
 		1DE989258E72ED5BFD0C9F78 /* hgcore.js in Resources */ = {isa = PBXBuildFile; fileRef = 536D20075F82248682811BB9 /* hgcore.js */; };
+		213C1C18EB8F4FFB719BFE8A /* HGPlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */; };
 		4333D747EADBFAA931839304 /* HGFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5077CA7284996E39E525152 /* HGFlowTests.swift */; };
 		45EF4CC31758C434F09DD797 /* DYDanmakuEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */; };
 		4673B8FE8D5B89A89D5D7DCC /* PlayerGestureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5E7CA87A880A2C1D3EFEDF /* PlayerGestureView.swift */; };
 		492C9A670DB13F9C06B7F011 /* HGKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C93B035ABEAD2EB863C24 /* HGKeychain.swift */; };
 		5775BD7AB5FD261DA6D52D5F /* HGMediaCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0090B4685D32319D9E2379CC /* HGMediaCache.swift */; };
 		67BA49D1C11F6D3651BC89FE /* HGModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCB4AE89C633049C3792826 /* HGModels.swift */; };
+		6D813D79404D333367CA45DF /* HGDownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */; };
+		7E02BE75A1C0B70A44D0D53E /* HGDownloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */; };
 		828EF0ACED39D4092D79971F /* HongGuoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 788133021D40CA13E6BF8B34 /* HongGuoApp.swift */; };
+		850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */; };
 		8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */; };
-		91D5C9E422605567E862BD44 /* HGPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FB4B718BEBA36124E8E62C /* HGPlayerView.swift */; };
+		9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */; };
+		B9F9F7759CAF97B09EF948EB /* HGEpisodePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */; };
 		BAC747AB7AF77014EE49FD13 /* HGLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */; };
 		C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB216E63F437213FB239626 /* HGNativeCrypto.swift */; };
+		CC31E78C419C9013DC80ECC8 /* HGMineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA34D56203BB82C3E2F95C /* HGMineView.swift */; };
 		DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */; };
 		E0D0C9987C1F9875D390EEC1 /* HGDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */; };
 		E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10360A81DE829C3660CD38CF /* HGTheme.swift */; };
@@ -39,8 +46,11 @@
 /* Begin PBXFileReference section */
 		0090B4685D32319D9E2379CC /* HGMediaCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMediaCache.swift; sourceTree = "<group>"; };
 		10360A81DE829C3660CD38CF /* HGTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTheme.swift; sourceTree = "<group>"; };
+		124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYPictureInPicture.swift; sourceTree = "<group>"; };
 		1FCB4AE89C633049C3792826 /* HGModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGModels.swift; sourceTree = "<group>"; };
 		28EFA5F5726071B966B0AD66 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGEpisodePlayer.swift; sourceTree = "<group>"; };
+		40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerScreen.swift; sourceTree = "<group>"; };
 		4F5E7CA87A880A2C1D3EFEDF /* PlayerGestureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerGestureView.swift; sourceTree = "<group>"; };
 		4FB216E63F437213FB239626 /* HGNativeCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGNativeCrypto.swift; sourceTree = "<group>"; };
 		52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDanmakuSupport.swift; sourceTree = "<group>"; };
@@ -50,13 +60,17 @@
 		7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDetailView.swift; sourceTree = "<group>"; };
 		8F6C93B035ABEAD2EB863C24 /* HGKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGKeychain.swift; sourceTree = "<group>"; };
 		A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCencDecryptor.swift; sourceTree = "<group>"; };
+		B7EA34D56203BB82C3E2F95C /* HGMineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMineView.swift; sourceTree = "<group>"; };
 		B8A47294DDC1661DBE333D4F /* HongGuoUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HongGuoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8A74B9EC6CD10FCA8D71AD1 /* HongGuo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HongGuo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGLibrary.swift; sourceTree = "<group>"; };
 		CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDanmakuEngine.swift; sourceTree = "<group>"; };
-		D0FB4B718BEBA36124E8E62C /* HGPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerView.swift; sourceTree = "<group>"; };
+		D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDownloadsView.swift; sourceTree = "<group>"; };
 		D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDiscoverView.swift; sourceTree = "<group>"; };
+		DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYVideoFit.swift; sourceTree = "<group>"; };
+		DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDownloads.swift; sourceTree = "<group>"; };
 		E5077CA7284996E39E525152 /* HGFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFlowTests.swift; sourceTree = "<group>"; };
+		EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerSheets.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -81,6 +95,11 @@
 			children = (
 				CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */,
 				52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */,
+				124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */,
+				DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */,
+				3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */,
+				40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */,
+				EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */,
 				4F5E7CA87A880A2C1D3EFEDF /* PlayerGestureView.swift */,
 			);
 			path = Player;
@@ -99,6 +118,7 @@
 			children = (
 				A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */,
 				7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */,
+				DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */,
 				8F6C93B035ABEAD2EB863C24 /* HGKeychain.swift */,
 				B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */,
 				0090B4685D32319D9E2379CC /* HGMediaCache.swift */,
@@ -113,7 +133,8 @@
 			children = (
 				7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */,
 				D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */,
-				D0FB4B718BEBA36124E8E62C /* HGPlayerView.swift */,
+				D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */,
+				B7EA34D56203BB82C3E2F95C /* HGMineView.swift */,
 				10360A81DE829C3660CD38CF /* HGTheme.swift */,
 			);
 			path = UI;
@@ -277,16 +298,23 @@
 			files = (
 				45EF4CC31758C434F09DD797 /* DYDanmakuEngine.swift in Sources */,
 				DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */,
+				9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */,
+				850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */,
 				8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */,
 				127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */,
 				E0D0C9987C1F9875D390EEC1 /* HGDetailView.swift in Sources */,
 				07BDF6E2CDD207FB701FF6D5 /* HGDiscoverView.swift in Sources */,
+				7E02BE75A1C0B70A44D0D53E /* HGDownloads.swift in Sources */,
+				6D813D79404D333367CA45DF /* HGDownloadsView.swift in Sources */,
+				B9F9F7759CAF97B09EF948EB /* HGEpisodePlayer.swift in Sources */,
 				492C9A670DB13F9C06B7F011 /* HGKeychain.swift in Sources */,
 				BAC747AB7AF77014EE49FD13 /* HGLibrary.swift in Sources */,
 				5775BD7AB5FD261DA6D52D5F /* HGMediaCache.swift in Sources */,
+				CC31E78C419C9013DC80ECC8 /* HGMineView.swift in Sources */,
 				67BA49D1C11F6D3651BC89FE /* HGModels.swift in Sources */,
 				C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */,
-				91D5C9E422605567E862BD44 /* HGPlayerView.swift in Sources */,
+				115DE648C4BA61CAE4FB65FE /* HGPlayerScreen.swift in Sources */,
+				213C1C18EB8F4FFB719BFE8A /* HGPlayerSheets.swift in Sources */,
 				E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */,
 				828EF0ACED39D4092D79971F /* HongGuoApp.swift in Sources */,
 				4673B8FE8D5B89A89D5D7DCC /* PlayerGestureView.swift in Sources */,
@@ -332,6 +360,7 @@
 				INFOPLIST_FILE = HongGuo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "红果自用";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把下载好的剧集存到相册";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -357,6 +386,7 @@
 				INFOPLIST_FILE = HongGuo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "红果自用";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把下载好的剧集存到相册";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -405,7 +435,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -425,7 +455,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -488,7 +518,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -502,7 +532,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
