@@ -3,6 +3,11 @@ import SwiftUI
 /// 本集热评面板（DouDuo DYCommentPanel 经典样式）：标题「N 条评论」居中 + 右侧关闭、分隔线、
 /// 头像 32 / 昵称 caption 次要色 / 正文 subheadline / 时间 caption2 / 右侧点赞列。
 /// 内容只放官网公开的前 15 条热评（老板定）；总数取 App 详情接口的本集评论数。
+enum HGCommentPolicy {
+    /// 官网只公开每部剧前 5 集的分集页（第 6 集起 302 到 pc_locked_episode），热评只有这几集拿得到
+    static let publicEpisodes = 5
+}
+
 struct HGCommentPanel: View {
     let series: HGSeries
     let episode: HGEpisode
@@ -11,6 +16,8 @@ struct HGCommentPanel: View {
     var fillsPane = false
     var trailingInset: CGFloat = 0
     var horizontalStatus = false
+    /// 横屏侧滑面板：整块（含列表）右滑都能关；标题栏顶部让出状态栏，关闭键放左边不被信号 / 电量挡
+    var swipeRightClosesAnywhere = false
     @State private var data: HGComments?
     @State private var error: String?
 
@@ -44,6 +51,8 @@ struct HGCommentPanel: View {
         .background(fillsPane ? Color(uiColor: .secondarySystemBackground) : .clear)
         .environment(\.colorScheme, .dark)
         .clipped()
+        .modifier(DYPanelDismissGesture(isAtTop: false, allowsSwipeRight: swipeRightClosesAnywhere,
+                                        onClose: swipeRightClosesAnywhere ? onClose : nil))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("hg.comments.panel")
         .task(id: episode.vid) { await load() }
@@ -71,8 +80,10 @@ struct HGCommentPanel: View {
         VStack(spacing: 0) {
             Group {
                 if horizontalStatus {
+                    // 关闭键在左（右上角是信号 / 电量），整行压在状态栏下面
                     HStack(spacing: 4) { closeButton; title; Spacer(minLength: 0) }
-                        .frame(minHeight: max(44, DYDuoMetrics.windowSafeTop))
+                        .frame(minHeight: 44)
+                        .padding(.top, DYDuoMetrics.windowSafeTop)
                 } else {
                     ZStack(alignment: .trailing) { title.frame(maxWidth: .infinity); closeButton }
                         .frame(minHeight: 44)

@@ -15,6 +15,28 @@ struct HGDiscoverView: View {
     private let columns = [GridItem(.adaptive(minimum: 104, maximum: 180), spacing: 12, alignment: .top)]
 
     var body: some View {
+        GeometryReader { geo in
+            if let split = HGTabletop.split(geo), !items.isEmpty {
+                HGDiscoverTabletop(items: items, split: split,
+                                   loadMore: { Task { await loadMore() } },
+                                   openDetail: { openSeries = $0 })
+            } else {
+                regular
+            }
+        }
+        .task(id: "\(category.rawValue)|\(genre)") { await reload() }
+        .onChange(of: category) { _, _ in genre = ""; genres = [] }
+        .navigationTitle("发现")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showShare = true } label: { Image(systemName: "link") }.accessibilityIdentifier("hg.share")
+            }
+        }
+        .sheet(isPresented: $showShare) { HGShareLinkSheet { openSeries = $0; showShare = false }.presentationDetents([.height(240)]) }
+        .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
+    }
+
+    private var regular: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 chips(HGCategory.allCases.map { ($0.rawValue, $0.title) }, selected: category.rawValue, prefix: "hg.category") {
@@ -39,16 +61,6 @@ struct HGDiscoverView: View {
             .padding(.vertical, 8)
         }
         .refreshable { await reload() }
-        .task(id: "\(category.rawValue)|\(genre)") { await reload() }
-        .onChange(of: category) { _, _ in genre = ""; genres = [] }
-        .navigationTitle("发现")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showShare = true } label: { Image(systemName: "link") }.accessibilityIdentifier("hg.share")
-            }
-        }
-        .sheet(isPresented: $showShare) { HGShareLinkSheet { openSeries = $0; showShare = false }.presentationDetents([.height(240)]) }
-        .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
     }
 
     private func chips(_ options: [(String, String)], selected: String, small: Bool = false, prefix: String, pick: @escaping (String) -> Void) -> some View {

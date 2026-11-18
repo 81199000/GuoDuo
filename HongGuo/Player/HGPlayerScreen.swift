@@ -17,6 +17,8 @@ struct HGPlayerScreen: View {
     @State private var showComments = false
     @State private var showEpisodes = false
     @State private var showMore = false
+    @State private var commentTip = false
+    @State private var commentTipTask: Task<Void, Never>?
     /// 评论是否占着一侧（侧滑 / 半折常驻）：本视图自己的 body 里算出来，不能用环境值读回自己
     @State private var commentsInPane = false
     /// 桌面姿态操作台在：弹幕搬到操作台上，视频上不再画
@@ -54,7 +56,8 @@ struct HGPlayerScreen: View {
                 if layout.resident && !layout.sideBySide {
                     // 竖屏半折叠（桌面）：下半屏 = 全黑操作台
                     HGConsolePane(session: session, deskLight: $deskLight, danmakuOn: danmakuOn,
-                                  bottomInset: DYDuoMetrics.windowBottomInset)
+                                  bottomInset: DYDuoMetrics.windowBottomInset,
+                                  column: AnyView(consoleColumn))
                         .frame(width: layout.paneSize.width, height: layout.paneSize.height)
                         .clipped()
                         .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
@@ -73,9 +76,9 @@ struct HGPlayerScreen: View {
                 } else if layout.showsPane {
                     HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
                                    onClose: { showComments = false },
-                                   fillsPane: true, trailingInset: layout.trailingInset)
+                                   fillsPane: true, trailingInset: layout.trailingInset,
+                                   horizontalStatus: true, swipeRightClosesAnywhere: true)
                         .id(session.episode.vid)
-                        .padding(.top, !DYDuoMetrics.isDuoHardware && layout.sideBySide ? DYDuoMetrics.windowSafeTop : 0)
                         .frame(width: layout.paneSize.width, height: layout.paneSize.height)
                         .clipped()
                         .overlay(alignment: .leading) {
@@ -199,7 +202,7 @@ struct HGPlayerScreen: View {
                 if session.boosting || session.lockedBoost { boostBadge }
                 if seeking && !consoleShown { seekOverlay }
                 statusOverlay
-                if clean { exitCleanButton } else if !commentsInPane { chrome(ep) } else { paneChrome }
+                if clean { exitCleanButton } else if consoleShown { EmptyView() } else if !commentsInPane { chrome(ep) } else { paneChrome }
             } else {
                 // 相邻页只显示封面占位，滑动时不黑屏
                 HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
@@ -253,6 +256,43 @@ struct HGPlayerScreen: View {
         .foregroundStyle(.white)
     }
 
+    /// 第 5 集以后：评论按钮旁边弹一个小气泡，2.5 秒自动收
+    private func showCommentTip() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        commentTipTask?.cancel()
+        withAnimation(.snappy) { commentTip = true }
+        commentTipTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) { commentTip = false }
+        }
+    }
+
+    /// 评论按钮左侧的提示气泡（锚在菜单栏上，跟着栏走：视频上 / 操作台右栏都适用）
+    private var commentTipBubble: some View {
+        Text("第 \(HGCommentPolicy.publicEpisodes) 集以后的评论，目前不支持观看")
+            .font(.caption.weight(.medium)).foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .ddMediaGlassCapsule()
+            .fixedSize()
+            .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .trailing)))
+            .accessibilityIdentifier("hg.comments.lockedTip")
+    }
+
+    /// 桌面姿态操作台右侧竖栏：返回键在上，下面就是视频上那根 DouDuo 菜单栏
+    private var consoleColumn: some View {
+        VStack(spacing: 12) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.backward").font(.title2.weight(.medium)).foregroundStyle(.white)
+                    .frame(width: 44, height: 44).contentShape(Circle()).ddMediaGlassCircle()
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("hg.player.close")
+            rail
+        }
+        .environment(\.horizontalSizeClass, .compact)
+    }
+
     /// 评论占一侧时视频上只留返回键（DouDuo：评论打开 / 常驻时按钮栏直接隐藏）
     private var paneChrome: some View {
         VStack {
@@ -301,8 +341,12 @@ struct HGPlayerScreen: View {
             items.append(.init(id: "hg.rail.likes", icon: liked ? "heart.fill" : "heart",
                                text: stat?.likes.map { DDMedia.count($0 + (liked ? 1 : 0)) } ?? "",
                                tint: liked ? DDMedia.danger : .white) { toggleLike() })
+            let locked = session.episode.number > HGCommentPolicy.publicEpisodes
             items.append(.init(id: "hg.rail.comments", icon: "ellipsis.bubble",
-                               text: stat?.comments.map(DDMedia.count) ?? "") { showComments = true })
+                               text: stat?.comments.map(DDMedia.count) ?? "",
+                               tint: locked ? .white.opacity(0.45) : .white) {
+                if locked { showCommentTip() } else { showComments = true }
+            })
         }
         items.append(.init(id: "hg.rail.favorite", icon: fav ? "star.fill" : "star",
                            text: session.stats?.follows.map { DDMedia.count($0 + (fav ? 1 : 0)) } ?? "",
@@ -312,6 +356,14 @@ struct HGPlayerScreen: View {
             flash(fillWidth ? "铺满：开" : "完整画面")
         })
         return DDActionRail(items: items) { showMore = true }
+            .overlay(alignment: .topLeading) {
+                if commentTip {
+                    // 宽 0 + 右对齐：气泡从栏左边缘往左长，不会出屏
+                    commentTipBubble
+                        .frame(width: 0, height: 34, alignment: .trailing)
+                        .offset(x: -10, y: 92 - 17)
+                }
+            }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("hg.rail")
             .accessibilityValue(fav ? "已收藏" : "未收藏")

@@ -194,45 +194,34 @@ final class HGPlaybackSession {
         }
     }
 
-    /// 分窗拉弹幕：先拉开头一窗，播放进度接近已拉范围末尾 10 秒内再拉下一窗（一窗约 30 秒、上千条）。
-    private var danmakuNext: Int?
+    /// 弹幕：等本集时长出来后一次拉完整集（核心里按 30 秒窗 + cursor 续页，每页 200 条）。
     private var danmakuVid = ""
-    private var danmakuFetching = false
+    private var startAtForDanmaku: Double = 0
 
     private func loadDanmaku(_ vid: String) {
         danmakuTask?.cancel()
-        danmakuNext = 0; danmakuVid = vid; danmakuFetching = false
-        guard series.source == .hongguo else { danmakuNext = nil; danmakuNotice = "该来源没有弹幕"; return }
-        fetchDanmakuWindow(from: max(0, Int(startAtForDanmaku * 1000)))
-    }
-
-    private var startAtForDanmaku: Double = 0
-
-    private func fetchDanmakuWindow(from start: Int) {
-        guard !danmakuFetching else { return }
-        danmakuFetching = true
-        let sid = series.series_id, vid = danmakuVid
-        let dur = duration > 0 ? Int(duration * 1000) + 5000 : 3_600_000
+        danmakuVid = vid
+        guard series.source == .hongguo else { danmakuNotice = "该来源没有弹幕"; return }
+        let sid = series.series_id
         danmakuTask = Task { [weak self] in
+            // 时长：先等播放器给出（最多 8 秒），拿不到按 1 小时
+            var dur = 0.0
+            for _ in 0..<40 {
+                guard let self, !Task.isCancelled else { return }
+                if self.duration > 0 { dur = self.duration; break }
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            let durationMs = dur > 0 ? Int(dur * 1000) + 1000 : 3_600_000
             do {
-                let r = try await HGAPI.danmaku(series: sid, vid: vid, startMs: start, durationMs: dur)
+                let r = try await HGAPI.danmaku(series: sid, vid: vid, startMs: 0, durationMs: durationMs)
                 guard let self, !Task.isCancelled, self.danmakuVid == vid else { return }
-                self.danmaku = DYDanmaku.merged(self.danmaku, r.items)
-                self.danmakuNext = r.next
-                self.danmakuNotice = self.danmaku.isEmpty && r.next == nil ? "本集暂无弹幕" : nil
-                self.danmakuFetching = false
+                self.danmaku = r.items
+                self.danmakuNotice = r.items.isEmpty ? "本集暂无弹幕" : nil
             } catch {
                 guard let self, !Task.isCancelled, self.danmakuVid == vid else { return }
-                self.danmakuFetching = false
-                self.danmakuNext = nil
-                if self.danmaku.isEmpty { self.danmakuNotice = "弹幕源暂不可用" }
+                self.danmakuNotice = "弹幕源暂不可用"
             }
         }
-    }
-
-    private func pumpDanmaku() {
-        guard let next = danmakuNext, !danmakuFetching, position * 1000 > Double(next) - 10_000 else { return }
-        fetchDanmakuWindow(from: next)
     }
 
     private func attach(_ file: URL, offset: Double) {
@@ -276,7 +265,6 @@ final class HGPlaybackSession {
         isPlaying = player.timeControlStatus != .paused
         clock.sync(t, playing: isPlaying, rate: Double(player.rate > 0 ? player.rate : effectiveRate))
         save(force: false)
-        pumpDanmaku()
         if Int(t * 4) % 4 == 0 { updateNowPlaying() }
     }
 

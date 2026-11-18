@@ -10,15 +10,18 @@ struct HGConsolePane: View {
     @Binding var deskLight: Bool
     var danmakuOn: Bool
     var bottomInset: CGFloat
+    /// 右侧竖栏内容（返回键 + DouDuo 液态玻璃菜单栏），由播放页传进来
+    var column: AnyView = AnyView(EmptyView())
 
     @State private var seeking = false
     @State private var anchor: Double = 0
     @State private var target: Double = 0
-    @State private var dragStartX: CGFloat?
+    private let columnWidth: CGFloat = 54 + 12 * 2
 
     var body: some View {
         GeometryReader { g in
-            ZStack {
+            let pad = CGSize(width: max(0, g.size.width - columnWidth), height: g.size.height)
+            ZStack(alignment: .topLeading) {
                 Color.black
                 if deskLight {
                     DYDeskLight()
@@ -27,37 +30,68 @@ struct HGConsolePane: View {
                         .allowsHitTesting(false)
                         .accessibilityIdentifier("hg.console.deskLight")
                 }
+                // 弹幕铺满整个操作台宽度（从右栏下面飞过也行，栏是玻璃）
                 if danmakuOn && !seeking {
                     HGConsoleDanmaku(items: session.danmaku, clock: session.clock)
                         .accessibilityElement()
                         .accessibilityIdentifier("hg.console.danmaku")
                         .accessibilityValue("\(session.danmaku.count)")
                 }
-                if seeking { preview(in: g.size) } else { idleHint }
+                touchArea(pad)
+                    .frame(width: pad.width, height: pad.height)
+                rightColumn(height: g.size.height)
+                    .offset(x: pad.width)
+                lightButton
+                    .position(x: pad.width - 25 - 4, y: g.size.height - max(bottomInset, 12) - 25)
             }
-            .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 8)
-                .onChanged { v in
-                    if !seeking {
-                        seeking = true; anchor = session.position; target = anchor
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
-                    let d = session.duration
-                    guard d > 0 else { return }
-                    target = max(0, min(d, anchor + Double(v.translation.width / max(g.size.width, 1)) * d * 0.9))
-                    session.requestPreview(target)
-                }
-                .onEnded { _ in
-                    if seeking { session.seek(to: target); session.endPreview() }
-                    seeking = false
-                })
-            .simultaneousGesture(TapGesture().onEnded { if !seeking { session.togglePlay() } })
-            .overlay(alignment: .bottomTrailing) { lightButton.padding(.trailing, 16).padding(.bottom, max(bottomInset, 16)) }
-            .overlay(alignment: .bottomLeading) { progress.padding(.leading, 16).padding(.trailing, 84).padding(.bottom, max(bottomInset, 16) + 18) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("hg.console")
-        .accessibilityValue("pos=\(Int(session.position))")
+    }
+
+    /// 左侧触控板：滑动快进退、轻点暂停；预览 / 提示 / 进度条都在这块里
+    private func touchArea(_ size: CGSize) -> some View {
+        ZStack {
+            Color.clear
+            if seeking { preview(in: size) } else { idleHint }
+        }
+        .contentShape(Rectangle())
+        .gesture(DragGesture(minimumDistance: 8)
+            .onChanged { v in
+                if !seeking {
+                    seeking = true; anchor = session.position; target = anchor
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+                let d = session.duration
+                guard d > 0 else { return }
+                target = max(0, min(d, anchor + Double(v.translation.width / max(size.width, 1)) * d * 0.9))
+                session.requestPreview(target)
+            }
+            .onEnded { _ in
+                if seeking { session.seek(to: target); session.endPreview() }
+                seeking = false
+            })
+        .simultaneousGesture(TapGesture().onEnded { if !seeking { session.togglePlay() } })
+        .overlay(alignment: .bottom) { progress.padding(.leading, 16).padding(.trailing, 70).padding(.bottom, max(bottomInset, 12) + 20) }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("hg.console.pad")
+    }
+
+    /// 右侧竖栏：返回键在最上，下面菜单栏（点赞 / 评论 / 收藏 / 铺满 + 更多），最底金光投影开关。
+    /// 台面矮时整列等比缩，保证不被裁。
+    private func rightColumn(height: CGFloat) -> some View {
+        let natural: CGFloat = 44 + 12 + 330
+        let avail = height - max(bottomInset, 12) - 12
+        let scale = min(1, max(0.72, avail / natural))
+        return VStack(spacing: 12) {
+            column
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 12)
+        .padding(.bottom, max(bottomInset, 12))
+        .frame(width: columnWidth / scale, height: height / scale)
+        .scaleEffect(scale)
+        .frame(width: columnWidth, height: height)
     }
 
     private var idleHint: some View {

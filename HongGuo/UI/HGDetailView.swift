@@ -23,6 +23,22 @@ struct HGDetailView: View {
     }
 
     var body: some View {
+        GeometryReader { geo in
+            if let split = HGTabletop.split(geo) {
+                HGDetailTabletop(series: resolvedSeries, detail: detail, split: split,
+                                 current: library.progress(for: series.id)?.episodeIndex,
+                                 resumeTitle: continueTitle) { start(at: $0, resume: $1) }
+            } else {
+                regular
+            }
+        }
+        .background(HGTheme.background)
+        .navigationBarTitleDisplayMode(.inline)
+        .task { if detail == nil { await load() } }
+        .fullScreenCover(item: $playing) { req in HGPlayerScreen(request: req) }
+    }
+
+    private var regular: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top, spacing: 14) {
@@ -108,10 +124,6 @@ struct HGDetailView: View {
             }
             .padding()
         }
-        .background(HGTheme.background)
-        .navigationBarTitleDisplayMode(.inline)
-        .task { if detail == nil { await load() } }
-        .fullScreenCover(item: $playing) { req in HGPlayerScreen(request: req) }
     }
 
     @ViewBuilder private func badge(_ ep: HGEpisode) -> some View {
