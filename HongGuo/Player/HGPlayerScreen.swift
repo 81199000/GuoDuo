@@ -803,8 +803,18 @@ struct HGVideoLayer: UIViewRepresentable {
     let player: AVPlayer
     let fillWidth: Bool
     let pip: DYPictureInPicture
+    /// 同一个 AVPlayer 复用同一块画面层：推荐页预热的下一部转正时，页面从「预热画面」换成完整播放页，
+    /// 新建 AVPlayerLayer 会让解码管线重建（真机：起播 1.5 秒、播 1 秒跳回开头）。挪同一个 view 过去就不重建
+    private static let views = NSMapTable<AVPlayer, HGPlayerLayerView>.weakToWeakObjects()
+
     func makeUIView(context: Context) -> HGPlayerLayerView {
+        if let v = Self.views.object(forKey: player) {
+            v.removeFromSuperview()
+            v.fillWidth = fillWidth
+            return v
+        }
         let v = HGPlayerLayerView()
+        Self.views.setObject(v, forKey: player)
         v.playerLayer.player = player
         v.fillWidth = fillWidth
         v.pip = pip

@@ -12,6 +12,8 @@ actor HGMediaCache {
     private var order: [String] = []
     /// 推荐缓存 10 部（横竖各 5）+ 正在看的剧前后几集
     private let keep = 20
+    /// 推荐存货占的名额（10 部）；其余 10 个名额给正在看的剧
+    private static let pinBudget = 10
     private let session: URLSession = {
         let c = URLSessionConfiguration.default
         c.timeoutIntervalForRequest = 30
@@ -23,8 +25,25 @@ actor HGMediaCache {
 
     init() {
         dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("episodes", isDirectory: true)
-        try? FileManager.default.removeItem(at: dir) // 上次退出遗留的缓存不复用：签名 URL 早已过期，明文也不长期留存
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // 上次的缓存留着（推荐存货下次打开直接用）；只清半截文件，按修改时间重建淘汰顺序
+        let fm = FileManager.default
+        let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        for f in files where f.pathExtension == "part" { try? fm.removeItem(at: f) }
+        order = files.filter { $0.pathExtension == "mp4" }
+            .sorted { (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate ?? .distantPast) ?? .distantPast
+                    < (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate ?? .distantPast) ?? .distantPast }
+            .map { $0.deletingPathExtension().lastPathComponent }
+    }
+
+    /// 推荐存货：淘汰时跳过
+    private var pinned = Set<String>()
+    func setPinned(_ vids: Set<String>) { pinned = vids }
+
+    /// 同步判断（不进 actor）：推荐存货恢复时用
+    nonisolated static func hasFile(_ vid: String) -> Bool {
+        let d = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("episodes", isDirectory: true)
+        return FileManager.default.fileExists(atPath: d.appendingPathComponent("\(vid).mp4").path)
     }
 
     func file(for vid: String, source: HGSource? = nil, progress: (@Sendable (Phase) -> Void)? = nil) async throws -> URL {
@@ -57,8 +76,11 @@ actor HGMediaCache {
     private func touch(_ vid: String) {
         order.removeAll { $0 == vid }
         order.append(vid)
-        while order.count > keep {
-            let old = order.removeFirst()
+        var i = 0
+        while order.count - pinned.count > keep - Self.pinBudget, i < order.count {
+            let old = order[i]
+            if pinned.contains(old) { i += 1; continue }
+            order.remove(at: i)
             try? FileManager.default.removeItem(at: dir.appendingPathComponent("\(old).mp4"))
         }
     }
