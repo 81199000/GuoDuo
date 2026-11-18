@@ -208,6 +208,7 @@ struct DYStorageScreen: View {
         defer { clearing = false }
 
         let videos = await HGMediaCache.shared.clearForStorage()
+        let covers = await ImageCache.shared.clear()
         URLCache.shared.removeAllCachedResponses()
         let images = DYStorageFiles.removeIfPresent(
             FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -215,7 +216,7 @@ struct DYStorageScreen: View {
                 .appendingPathComponent("fsCachedData", isDirectory: true))
 
         await updateUsage()
-        cleanupSucceeded = videos && images
+        cleanupSucceeded = videos && images && covers
     }
 
     private static let byteFormatter: ByteCountFormatter = {
