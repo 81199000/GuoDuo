@@ -24,7 +24,7 @@ final class HGFlowTests: XCTestCase {
         let comments = app.buttons["hg.rail.comments"]
         let hasCount = expectation(for: NSPredicate(format: "label MATCHES '.*[0-9].*'"), evaluatedWith: comments)
         XCTAssertEqual(XCTWaiter().wait(for: [hasCount], timeout: 10), .completed, "评论数未显示")
-        print("HGSTATS comments=\(comments.label) likes=\(app.buttons["hg.rail.likes"].label) fav=\(app.buttons["hg.rail.favorite"].label)")
+        print("HGSTATS comments=\(comments.label) likes=\(app.buttons["hg.rail.likes"].label) fav=\(app.buttons["hg.rail.favorite"].label) railFrame=\(app.otherElements["hg.rail"].frame) window=\(app.windows.firstMatch.frame)")
 
         // 拖进度条：出现预览画面
         let bar = app.otherElements["hg.player.progress"].firstMatch
@@ -91,12 +91,12 @@ final class HGFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["hg.rail.favorite"].waitForExistence(timeout: 3))
 
         // 收藏：点两次，状态应来回切换（上次运行可能已收藏）
-        let fav = app.buttons["hg.rail.favorite"]
-        let before = fav.value as? String
-        fav.tap()
-        XCTAssertNotEqual(app.buttons["hg.rail.favorite"].value as? String, before, "收藏状态未切换")
+        let rail = app.otherElements["hg.rail"]
+        let before = rail.value as? String
         app.buttons["hg.rail.favorite"].tap()
-        XCTAssertEqual(app.buttons["hg.rail.favorite"].value as? String, before, "收藏状态未切回")
+        XCTAssertNotEqual(app.otherElements["hg.rail"].value as? String, before, "收藏状态未切换")
+        app.buttons["hg.rail.favorite"].tap()
+        XCTAssertEqual(app.otherElements["hg.rail"].value as? String, before, "收藏状态未切回")
 
         // 退出，下载第 1 集
         app.buttons["hg.player.close"].tap()
@@ -105,8 +105,8 @@ final class HGFlowTests: XCTestCase {
         dl.tap()
         app.buttons["hg.episode.1"].tap()
         app.buttons["hg.detail.download.confirm"].tap()
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.tabBars.buttons["我的"].tap()
+        back(app)
+        (app.tabBars.buttons["我的"].exists ? app.tabBars.buttons["我的"] : app.buttons["我的"].firstMatch).tap()
         let entry = app.buttons["hg.mine.downloads"]
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
         entry.tap()
@@ -115,7 +115,7 @@ final class HGFlowTests: XCTestCase {
         attach(app, "downloads")
 
         // 红果扫码登录：二维码出现即可（确认需要真人手机扫码）
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        back(app)
         app.buttons["hg.mine.login"].tap()
         XCTAssertTrue(app.staticTexts["等待扫码…"].waitForExistence(timeout: 15), "二维码未加载")
         attach(app, "login-qr")
@@ -126,6 +126,12 @@ final class HGFlowTests: XCTestCase {
         let surface = app.otherElements["hg.player.surface"]
         let e = expectation(for: NSPredicate(format: "value == %@", "playing-\(n)"), evaluatedWith: surface)
         return XCTWaiter().wait(for: [e], timeout: 60) == .completed
+    }
+
+    /// iPhone 是导航栏返回键；Duo 外屏系统竖栏里叫 BackButton
+    private func back(_ app: XCUIApplication) {
+        let nav = app.navigationBars.buttons.element(boundBy: 0)
+        if nav.exists { nav.tap() } else { app.buttons["BackButton"].firstMatch.tap() }
     }
 
     private func attach(_ app: XCUIApplication, _ name: String) {

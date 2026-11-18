@@ -5,6 +5,7 @@ import AVKit
 struct HGPlayerScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var hSize
     @State private var session: HGPlaybackSession
     @State private var page: Int?
     @State private var library = HGLibrary.shared
@@ -145,64 +146,88 @@ struct HGPlayerScreen: View {
         (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.top ?? 47
     }
 
+    /// DouDuo 默认模式布局：左下信息、右侧玻璃按钮栏底部对齐，左右 12pt，底部给进度条留位；返回键是玻璃圆。
     private func chrome(_ ep: HGEpisode) -> some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
-                    Button { dismiss() } label: { Image(systemName: "chevron.left").font(.title3.weight(.semibold)).frame(width: 36, height: 36) }
-                        .accessibilityIdentifier("hg.player.close")
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.backward")
+                            .font(.title2.weight(.medium))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Circle())
+                            .ddMediaGlassCircle()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("hg.player.close")
                     Spacer()
                     if let notice = session.danmakuNotice, danmakuOn {
-                        Text(notice).font(.caption2).foregroundStyle(.white.opacity(0.6))
+                        Text(notice).font(.caption2).foregroundStyle(DDMedia.onMediaSecondary).ddMediaLabelShadow()
                     }
                 }
-                .padding(.horizontal, 12).padding(.top, safeTop)
+                .padding(.horizontal, DDMedia.chromeSidePadding).padding(.top, safeTop)
                 Spacer()
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(session.series.series_title).font(.headline)
-                    HStack(spacing: 10) {
-                        Text("第 \(ep.number) 集 / 共 \(session.episodes.count) 集")
-                        if let plays = count(session.stats?.plays) { Text("\(plays)次播放") }
-                    }
-                    .font(.subheadline).foregroundStyle(.white.opacity(0.75))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 16).padding(.trailing, 84)
-                progressBar.padding(.top, 10).padding(.bottom, 28)
             }
-            rail.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 10).padding(.bottom, 110)
+            // DouDuo 默认模式的数值：栏整体 offset(x: -9)（compact）、栏底 56、整行离底 max(安全区,18)+36；进度条在这 36 里
+            HStack(alignment: .bottom, spacing: 12) {
+                info(ep)
+                Spacer(minLength: 0)
+                rail
+                    .offset(x: hSize == .compact ? -9 : 0)
+                    .padding(.bottom, 56)
+            }
+            .padding(.horizontal, DDMedia.chromeSidePadding)
+            .padding(.bottom, max(safeBottom, 18) + 36)
+            progressBar.padding(.bottom, max(safeBottom, 18) + 4)
         }
         .foregroundStyle(.white)
-        .shadow(color: .black.opacity(0.35), radius: 3)
     }
 
-    /// DouDuo 同款：上面只留点赞、评论、收藏、放大缩小，其余收进「更多」（Duo 外屏放得下，不被状态栏挡）。
-    private var rail: some View {
-        VStack(spacing: 16) {
-            let fav = library.isFavorite(session.series.id)
-            let stat = session.episodeStat
-            if session.series.source == .hongguo {
-                let liked = library.isLiked(session.episode.vid)
-                railButton(liked ? "heart.fill" : "heart", count(stat?.likes.map { $0 + (liked ? 1 : 0) }) ?? "点赞",
-                           tint: liked ? HGTheme.accent : .white, id: "hg.rail.likes") { toggleLike() }
-                railButton("ellipsis.bubble.fill", count(stat?.comments) ?? "热评", id: "hg.rail.comments") { showComments = true }
+    private var safeBottom: CGFloat {
+        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.bottom ?? 34
+    }
+
+    /// 左下信息：剧名（加粗）+ 集数 / 播放量（次要色），DouDuo 信息区同款字号与阴影
+    private func info(_ ep: HGEpisode) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(session.series.series_title).font(.subheadline.weight(.semibold)).lineLimit(1)
+            HStack(spacing: 8) {
+                Text("第 \(ep.number) 集 · 共 \(session.episodes.count) 集")
+                if let plays = session.stats?.plays { Text("\(DDMedia.count(plays))次播放") }
             }
-            railButton(fav ? "star.fill" : "star", count(session.stats?.follows) ?? (fav ? "已收藏" : "收藏"),
-                       tint: fav ? HGTheme.accent : .white, id: "hg.rail.favorite") {
-                library.toggleFavorite(session.series)
+            .font(.subheadline).foregroundStyle(DDMedia.onMediaSecondary)
+            if let d = session.series.description, !d.isEmpty {
+                Text(d).font(.subheadline).foregroundStyle(.white).lineLimit(2)
             }
-            .accessibilityValue(fav ? "已收藏" : "未收藏")
-            railButton(fillWidth ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", fillWidth ? "完整" : "铺满", id: "hg.rail.fill") {
-                fillWidth.toggle(); userScale = 1
-            }
-            moreMenu
         }
+        .ddMediaLabelShadow()
     }
 
-    /// 「更多」：DouDuo 选项面板式的底部弹层（Menu 放在分页 ScrollView 上会被手势层吞掉）。
-    private var moreMenu: some View {
-        railButton("ellipsis", "更多", id: "hg.rail.more") { showMore = true }
+    /// DouDuo 同款右侧栏：玻璃胶囊（点赞 / 评论 / 收藏 / 铺满）+ 玻璃圆「更多」
+    private var rail: some View {
+        let fav = library.isFavorite(session.series.id)
+        let liked = library.isLiked(session.episode.vid)
+        let stat = session.episodeStat
+        var items: [DDActionRail.Item] = []
+        if session.series.source == .hongguo {
+            items.append(.init(id: "hg.rail.likes", icon: liked ? "heart.fill" : "heart",
+                               text: stat?.likes.map { DDMedia.count($0 + (liked ? 1 : 0)) } ?? "",
+                               tint: liked ? DDMedia.danger : .white) { toggleLike() })
+            items.append(.init(id: "hg.rail.comments", icon: "ellipsis.bubble",
+                               text: stat?.comments.map(DDMedia.count) ?? "") { showComments = true })
+        }
+        items.append(.init(id: "hg.rail.favorite", icon: fav ? "star.fill" : "star",
+                           text: session.stats?.follows.map { DDMedia.count($0 + (fav ? 1 : 0)) } ?? "",
+                           tint: fav ? DDMedia.warning : .white) { library.toggleFavorite(session.series) })
+        items.append(.init(id: "hg.rail.fill", icon: "fit", text: "", fitInward: !fillWidth) {
+            fillWidth.toggle(); userScale = 1
+            flash(fillWidth ? "铺满：开" : "完整画面")
+        })
+        return DDActionRail(items: items) { showMore = true }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("hg.rail")
+            .accessibilityValue(fav ? "已收藏" : "未收藏")
     }
 
     private var moreSheet: some View {
@@ -253,16 +278,6 @@ struct HGPlayerScreen: View {
         .accessibilityIdentifier(id)
     }
 
-    private func railButton(_ icon: String, _ label: String, tint: Color = .white, id: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: 26, weight: .semibold)).foregroundStyle(tint).frame(height: 30)
-                Text(label).font(.caption2.weight(.medium))
-            }
-            .frame(width: 60)
-        }
-        .accessibilityIdentifier(id)
-    }
 
     private var progressBar: some View {
         GeometryReader { g in
@@ -381,13 +396,6 @@ struct HGPlayerScreen: View {
         scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
     }
 
-    /// 抖音式计数：1.2万 / 3.5亿
-    private func count(_ n: Int?) -> String? {
-        guard let n else { return nil }
-        if n >= 100_000_000 { return String(format: "%.1f亿", Double(n) / 1e8).replacingOccurrences(of: ".0", with: "") }
-        if n >= 10_000 { return String(format: "%.1f万", Double(n) / 1e4).replacingOccurrences(of: ".0", with: "") }
-        return "\(n)"
-    }
 
     private func rateText(_ r: Float) -> String { String(format: "%g×", r) }
     private func fmt(_ t: Double) -> String {
