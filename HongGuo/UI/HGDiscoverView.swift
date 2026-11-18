@@ -12,6 +12,8 @@ struct HGDiscoverView: View {
     @State private var showShare = false
     @State private var openSeries: HGSeries?
     @State private var tabletop = false
+    @Environment(\.hgSideRail) private var sideRail
+    @State private var router = HGRootRouter.shared
     @State private var loadedKey = ""
 
     private let columns = [GridItem(.adaptive(minimum: 104, maximum: 180), spacing: 12, alignment: .top)]
@@ -47,10 +49,13 @@ struct HGDiscoverView: View {
         .navigationTitle("发现")
         .navigationBarTitleDisplayMode(tabletop ? .inline : .automatic)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showShare = true } label: { Image(systemName: "link") }.accessibilityIdentifier("hg.share")
+            if !sideRail {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showShare = true } label: { Image(systemName: "link") }.accessibilityIdentifier("hg.share")
+                }
             }
         }
+        .onChange(of: router.shareTick) { _, _ in showShare = true }
         .sheet(isPresented: $showShare) { HGShareLinkSheet { openSeries = $0; showShare = false }.presentationDetents([.height(240)]) }
         .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
     }

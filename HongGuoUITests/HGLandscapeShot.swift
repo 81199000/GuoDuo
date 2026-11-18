@@ -2,6 +2,7 @@ import XCTest
 final class HGLandscapeShot: XCTestCase {
     func testLandscapeChrome() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "discover"
         app.launch()
         XCUIDevice.shared.orientation = .landscapeLeft
         sleep(1)

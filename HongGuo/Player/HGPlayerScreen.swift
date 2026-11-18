@@ -2,6 +2,19 @@ import SwiftUI
 import AVKit
 
 /// DouDuo 式竖滑短剧播放页：一集一页，上下滑切集；手势层原样用 DouDuo 的 PlayerGestureView。
+/// 推荐流把一屏播放页嵌进来时提供的回调
+struct HGFeedHooks {
+    /// 进整部剧（带上当前进度，第 1 集接着放）
+    var openSeries: (Double) -> Void
+    /// 书本姿态右侧选集：直接跳到第 i 集
+    var openEpisode: (Int) -> Void
+    /// 横屏返回键：推荐页回到发现
+    var back: () -> Void = {}
+    /// 桌面姿态触控板上下滑：下一部 / 上一部
+    var next: () -> Void = {}
+    var previous: () -> Void = {}
+}
+
 struct HGPlayerScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -12,6 +25,13 @@ struct HGPlayerScreen: View {
 
     @AppStorage("hg.danmaku.on") private var danmakuOn = true
     @AppStorage("hg.fillWidth") private var fillWidth = true
+    /// 极简模式（DouDuo 同款）：不显示菜单栏和标题，只留右下一颗带进度外圈的返回圆键；
+    /// 单击圆键弹菜单、按住看标题，点屏幕暂停时显示详情
+    @AppStorage("hg.minimal") private var minimal = false
+    /// 菜单栏顶边（屏幕坐标，未下推前）；外屏竖屏信号圈比安全区伸得更下，栏顶要躲开它
+    @State private var railTopY: CGFloat = 999
+    @State private var railPush: CGFloat = 0
+    @State private var peek = false
 
     @State private var clean = false               // 清屏（全屏）：只留画面
     @State private var showComments = false
@@ -39,9 +59,19 @@ struct HGPlayerScreen: View {
 
     private static let rates: [Float] = [0.75, 1.0, 1.25, 1.5, 2.0, 3.0]
 
+    /// 推荐流：外面传进来的会话（一部剧一个），竖滑由外层推荐页接管，本页只画一屏
+    private let feed: HGFeedHooks?
+
     init(request: HGPlayerRequest) {
         _session = State(initialValue: HGPlaybackSession(request))
         _page = State(initialValue: request.index)
+        feed = nil
+    }
+
+    init(feedSession: HGPlaybackSession, hooks: HGFeedHooks) {
+        _session = State(initialValue: feedSession)
+        _page = State(initialValue: feedSession.index)
+        feed = hooks
     }
 
     /// DouDuo DYCommentStage / DYCommentPlayerLayout 同一套几何（原样搬的 DYCommentPaneMetrics）：
@@ -62,10 +92,18 @@ struct HGPlayerScreen: View {
                                   danmakuOn: $danmakuOn, danmakuInConsole: $danmakuInConsole,
                                   creaseTop: layout.creaseInset,
                                   bottomInset: DYDuoMetrics.windowBottomInset,
-                                  onBack: { dismiss() },
-                                  onEpisodes: { showEpisodes = true },
+                                  onBack: { if let feed { feed.back() } else { dismiss() } },
+                                  onEpisodes: { if let feed { feed.openSeries(session.position) } else { showEpisodes = true } },
                                   onMore: { showMore = true },
-                                  flash: { flash($0) })
+                                  flash: { flash($0) },
+                                  onNext: {
+                                      if let feed { feed.next() }
+                                      else if session.hasNext { session.next() } else { flash("已经是最后一集") }
+                                  },
+                                  onPrevious: {
+                                      if let feed { feed.previous() }
+                                      else if session.index > 0 { session.previous() } else { flash("已经是第一集") }
+                                  })
                         .frame(width: layout.paneSize.width, height: layout.paneSize.height)
                         .clipped()
                         .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
@@ -85,7 +123,8 @@ struct HGPlayerScreen: View {
                         .accessibilityIdentifier("hg.comments.side")
                 } else if layout.resident && layout.sideBySide {
                     // 横屏半折叠（书本）：右半屏 = 选集
-                    HGEpisodeSheet(session: session, close: {}, fillsPane: true, trailingInset: layout.trailingInset)
+                    HGEpisodeSheet(session: session, close: {}, fillsPane: true, trailingInset: layout.trailingInset,
+                                   onPick: feed.map { f in { i in f.openEpisode(i) } })
                         .padding(.top, DYDuoMetrics.isDuoHardware ? 0 : DYDuoMetrics.windowSafeTop)
                         .frame(width: layout.paneSize.width, height: layout.paneSize.height)
                         .clipped()
@@ -135,14 +174,42 @@ struct HGPlayerScreen: View {
             HGEpisodeSheet(session: session) { showEpisodes = false }
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
         }
-        .onAppear { session.start() }
-        .onDisappear { session.stop(); setOrientation(landscape: false) }
+        .onAppear {
+            if feed == nil { session.start() }
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["HG_DEMO_PAUSE"] == "1" {
+                Task {
+                    for _ in 0..<40 {   // 等真正开播（取源 + 下载要几秒），再播 3 秒后暂停
+                        try? await Task.sleep(for: .seconds(1))
+                        if session.isPlaying && session.position > 3 { session.togglePlay(); return }
+                    }
+                }
+            }
+            if ProcessInfo.processInfo.environment["HG_DEMO_COMMENTS"] == "1" {
+                Task { try? await Task.sleep(for: .seconds(6)); showComments = true }
+            }
+            #endif
+        }
+        .onDisappear { if feed == nil { session.stop(); setOrientation(landscape: false) } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.active, !session.pip.starting { session.pauseForBackground() }
         }
     }
 
-    private var pager: some View {
+    @ViewBuilder private var pager: some View {
+        if feed != nil {
+            GeometryReader { geo in
+                pageView(session.index, session.episode, size: geo.size)
+                    .frame(width: geo.size.width, height: geo.size.height)
+            }
+            .ignoresSafeArea()
+            .background(Color.black)
+        } else {
+            episodePager
+        }
+    }
+
+    private var episodePager: some View {
         GeometryReader { geo in
           ScrollViewReader { proxy in
             ScrollView(.vertical) {
@@ -201,9 +268,9 @@ struct HGPlayerScreen: View {
                         session.requestPreview(seekPreview)
                     },
                     onSeekEnded: { if seeking { session.seek(to: seekPreview); seeking = false; session.endPreview() } },
-                    onEdgeChanged: { edgeOffset = $0 },
+                    onEdgeChanged: { if feed == nil { edgeOffset = $0 } },
                     onEdgeEnded: { dx, v, w in
-                        if dx > w * 0.3 || v > 800 { dismiss() } else { withAnimation(.spring(duration: 0.25)) { edgeOffset = 0 } }
+                        if feed == nil, dx > w * 0.3 || v > 800 { dismiss() } else { withAnimation(.spring(duration: 0.25)) { edgeOffset = 0 } }
                     },
                     verticalFirst: true,
                     onPinchBegan: {},
@@ -242,19 +309,21 @@ struct HGPlayerScreen: View {
 
     /// DouDuo 默认模式布局：左下信息、右侧玻璃按钮栏底部对齐，左右 12pt，底部给进度条留位；返回键是玻璃圆。
     private func chrome(_ ep: HGEpisode) -> some View {
-        ZStack(alignment: .bottom) {
+        // 横屏（宽 > 高）：返回键并到右侧菜单栏最上面（跟首页右侧胶囊一个位置逻辑）
+        let wide = isLandscapeWindow
+        // 返回键放到右侧菜单栏最上面：推荐页横竖屏都这样；完整播放页只在横屏这样
+        let backOnRail = wide || feed != nil
+        // 极简：菜单栏不变；标题平时隐藏（暂停 / 按住返回键时显示），进度条画成返回键外圈
+        let paused = !session.isPlaying && session.status == nil && session.failed == nil && !seeking
+        let showInfo = !minimal || peek || paused
+        // 矮屏（外屏横屏只有 ~466pt 高）：菜单栏整列放不下会顶出屏幕上沿 →
+        // 先把栏底的 56 让出来（栏往下移），还不够再整列等比缩小，保证返回键到「更多」全在屏内
+        let fit = railFit(backOnRail: backOnRail)
+        let push = max(0, (max(safeTop, 12) + statusClearance) - railTopY)
+        return ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.backward")
-                            .font(.title2.weight(.medium))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Circle())
-                            .ddMediaGlassCircle()
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("hg.player.close")
+                    if !backOnRail { backButton }
                     Spacer()
                     if let notice = session.danmakuNotice, danmakuOn {
                         Text(notice).font(.caption2).foregroundStyle(DDMedia.onMediaSecondary).ddMediaLabelShadow()
@@ -265,17 +334,130 @@ struct HGPlayerScreen: View {
             }
             // DouDuo 默认模式的数值：栏整体 offset(x: -9)（compact）、栏底 56、整行离底 max(安全区,18)+36；进度条在这 36 里
             HStack(alignment: .bottom, spacing: 12) {
-                info(ep)
+                if showInfo { info(ep).transition(.opacity).accessibilityIdentifier("hg.player.info") }
                 Spacer(minLength: 0)
-                rail
-                    .offset(x: hSize == .compact ? -9 : 0)
-                    .padding(.bottom, 56)
+                VStack(spacing: DDMedia.actionGroupSpacing) {
+                    if backOnRail {
+                        backButton.frame(width: DDMedia.actionColumnWidth)
+                    }
+                    rail
+                }
+                // DouDuo 默认模式同款：先按系统右侧栏（横屏状态栏列）让位，再按遮挡区（外屏摄像头）微调
+                .offset(x: DYDuoMetrics.actionRailHorizontalOffset(
+                    isRegular: hSize == .regular, trailingInset: systemColumnInset,
+                    columnWidth: DDMedia.actionColumnWidth, outerPadding: DDMedia.chromeSidePadding))
+                .scaleEffect(fit.scale, anchor: .bottomTrailing)
+                .background(GeometryReader { g in
+                    Color.clear.onChange(of: g.frame(in: .global).minY, initial: true) { _, y in
+                        // 只记"没被推之前"的位置：减掉当前推量，避免推完再推的抖动
+                        let raw = y - railPush
+                        if abs(raw - railTopY) > 1 { railTopY = raw }
+                    }
+                })
+                .offset(x: hSize == .compact ? -9 : 0, y: push)
+                .onChange(of: push, initial: true) { _, p in railPush = p }
+                .padding(.bottom, fit.bottom)
             }
             .padding(.horizontal, DDMedia.chromeSidePadding)
             .padding(.bottom, max(safeBottom, 18) + 36)
-            progressBar.padding(.bottom, max(safeBottom, 18) + 4)
+            if !minimal { progressBar.padding(.bottom, max(safeBottom, 18) + 4) }
         }
         .foregroundStyle(.white)
+        .animation(.easeOut(duration: 0.15), value: showInfo)
+    }
+
+    /// 菜单栏顶边离屏幕上沿至少多少。Duo 外屏竖屏真机实测：窗口安全区顶读出来是 0，
+    /// 右上信号 / 时间 / 电量胶囊实际占到 y≈120pt（截图 360px ÷ 3）→ 栏顶压到 168pt 以下，留 ~48pt 空隙；
+    /// 内屏 / 普通 iPhone 信号在安全区里，安全区下再空 16 就够
+    private var statusClearance: CGFloat {
+        guard DYDuoMetrics.isDuoHardware,
+              let w = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size,
+              w.width < 600 else { return 16 }
+        return w.width < w.height ? 156 : 16
+    }
+
+    /// 菜单栏整列的自然高度（DDActionRail 的数值：每格有字 50 / 无字 36，格距 9，胶囊上下 8，胶囊到「更多」12，「更多」50）
+    private func railFit(backOnRail: Bool) -> (bottom: CGFloat, scale: CGFloat) {
+        let window = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size ?? .zero
+        var cells: [CGFloat] = []
+        if feed != nil { cells.append(50) }
+        if session.series.source == .hongguo { cells += [50, 50] }
+        cells += [50, 36]
+        var natural = cells.reduce(0, +) + CGFloat(max(0, cells.count - 1)) * DDMedia.actionItemSpacing + 16
+        natural += DDMedia.actionGroupSpacing + 50
+        if backOnRail { natural += 44 + DDMedia.actionGroupSpacing }
+        // 栏下面固定要留的：进度条那 36 + 底部安全区；
+        // 栏上面要躲开右上角的信号 / 时间圈：顶部安全区再加 16pt 间隙（外屏的信号圈比安全区还往下伸）
+        let below = max(safeBottom, 18) + 36
+        let above = max(safeTop, 12) + statusClearance
+        let room = window.height - below - above
+        guard window.height > 0 else { return (56, 1) }
+        if room >= natural + 56 { return (56, 1) }
+        let bottom = max(8, room - natural)
+        let scale = min(1, max(0.6, (room - bottom) / natural))
+        return (bottom, scale)
+    }
+
+    /// 系统右侧栏宽（横屏时状态栏竖在右边）：全屏播放层读到的安全区为 0，只能读窗口（DouDuo systemColumnInset 同款）
+    private var systemColumnInset: CGFloat {
+        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive }
+            .flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.right ?? 0
+    }
+
+    private var isLandscapeWindow: Bool {
+        guard let w = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size else { return false }
+        return w.width > w.height
+    }
+
+    @ViewBuilder private var backButton: some View {
+        if minimal { ringBackButton } else {
+            Button { goBack() } label: {
+                Image(systemName: "chevron.backward")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+                    .ddMediaGlassCircle()
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("hg.player.close")
+        }
+    }
+
+    private func goBack() { if let feed { feed.back() } else { dismiss() } }
+
+    /// 极简返回键：DouDuo 极简入口同款——外圈是视频进度（环 50pt、线宽 3.2、底轨 22%，12 点顺时针，拖进度变粗）；
+    /// 单击返回，按住显示标题、松手消失
+    private var ringBackButton: some View {
+        let d: CGFloat = 50, lw: CGFloat = 3.2
+        let pos = seeking ? seekPreview : session.position
+        let frac = session.duration > 0 ? min(1, max(0, pos / session.duration)) : 0
+        return ZStack {
+            Image(systemName: "chevron.backward")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: d - 8, height: d - 8)
+                .ddMediaGlassCircle()
+            Circle().stroke(.white.opacity(0.22), lineWidth: lw).padding(lw / 2)
+            Circle()
+                .trim(from: 0, to: max(frac, 0.004))
+                .stroke(.white, style: StrokeStyle(lineWidth: seeking ? lw + 1.5 : lw, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .padding(lw / 2)
+                .animation(.linear(duration: 0.25), value: frac)
+        }
+        .frame(width: d, height: d)
+        .contentShape(Circle())
+        .modifier(DDPressHold(threshold: 0.35, onPressChanged: { pressing in
+            withAnimation(.easeOut(duration: pressing ? 0.1 : 0.15)) { peek = pressing }
+        }, onTap: { goBack() }))
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("返回")
+        .accessibilityIdentifier("hg.player.close")
+        .accessibilityValue("\(Int(frac * 100))%")
+        .accessibilityAction { goBack() }
     }
 
     /// 第 5 集以后：评论按钮旁边弹一个小气泡，2.5 秒自动收
@@ -360,7 +542,7 @@ struct HGPlayerScreen: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(session.series.series_title).font(.subheadline.weight(.semibold)).lineLimit(1)
             HStack(spacing: 8) {
-                Text("第 \(ep.number) 集 · 共 \(session.episodes.count) 集")
+                Text(feed == nil ? "第 \(ep.number) 集 · 共 \(session.episodes.count) 集" : "推荐 · 第 \(ep.number) 集")
                 if let plays = session.stats?.plays { Text("\(DDMedia.count(plays))次播放") }
             }
             .font(.subheadline).foregroundStyle(DDMedia.onMediaSecondary)
@@ -377,6 +559,9 @@ struct HGPlayerScreen: View {
         let liked = library.isLiked(session.episode.vid)
         let stat = session.episodeStat
         var items: [DDActionRail.Item] = []
+        if let feed {
+            items.append(.init(id: "hg.feed.watchAll", icon: "rectangle.stack", text: "全集") { feed.openSeries(session.position) })
+        }
         if session.series.source == .hongguo {
             items.append(.init(id: "hg.rail.likes", icon: liked ? "heart.fill" : "heart",
                                text: stat?.likes.map { DDMedia.count($0 + (liked ? 1 : 0)) } ?? "",
@@ -414,8 +599,16 @@ struct HGPlayerScreen: View {
             Text(session.title).font(.headline).lineLimit(1)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 16) {
                 if consoleShown { socialItems }
-                moreItem("list.number", "选集", id: "hg.more.episodes") { showMore = false; showEpisodes = true }
+                moreItem("list.number", feed == nil ? "选集" : "看全集", id: "hg.more.episodes") {
+                    showMore = false
+                    if let feed { feed.openSeries(session.position) } else { showEpisodes = true }
+                }
                 moreItem(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "关弹幕" : "开弹幕", on: danmakuOn, id: "hg.more.danmaku") { danmakuOn.toggle() }
+                moreItem("rectangle", minimal ? "退出极简" : "极简模式", on: minimal, id: "hg.more.minimal") {
+                    showMore = false
+                    withAnimation(.easeOut(duration: 0.2)) { minimal.toggle() }
+                    flash(minimal ? "极简模式：按住返回键看标题，暂停时显示详情" : "已退出极简")
+                }
                 moreItem("arrow.up.left.and.arrow.down.right.rectangle", "全屏", id: "hg.more.clean") {
                     showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
                 }

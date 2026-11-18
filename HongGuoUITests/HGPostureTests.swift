@@ -5,6 +5,7 @@ final class HGPostureTests: XCTestCase {
     func testCommentsInCurrentPosture() throws {
         let app = XCUIApplication()
         if let fold = ProcessInfo.processInfo.environment["TEST_RUNNER_HG_FOLD"] ?? ProcessInfo.processInfo.environment["HG_FOLD"] { app.launchEnvironment["DOUDUO_FOLD"] = fold }
+        app.launchEnvironment["HG_START_TAB"] = "discover"
         app.launch()
         if (ProcessInfo.processInfo.environment["TEST_RUNNER_HG_LANDSCAPE"] ?? "") == "1" {
             XCUIDevice.shared.orientation = .landscapeLeft

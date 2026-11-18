@@ -4,6 +4,7 @@ import XCTest
 final class HGFlowTests: XCTestCase {
     func testPlayerPhase2() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "discover"
         app.launch()
         let card = app.buttons.matching(NSPredicate(format: "label CONTAINS '集'")).element(boundBy: 0)
         XCTAssertTrue(card.waitForExistence(timeout: 20), "发现页没有剧集")

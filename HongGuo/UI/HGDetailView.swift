@@ -34,7 +34,6 @@ struct HGDetailView: View {
         }
         .background(HGTheme.background)
         .navigationBarTitleDisplayMode(.inline)
-        .dyDisableVerticalToolbar()
         .task { if detail == nil { await load() } }
         .fullScreenCover(item: $playing) { req in HGPlayerScreen(request: req) }
     }
