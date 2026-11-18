@@ -147,19 +147,29 @@ struct HGConsolePane: View {
 
     // MARK: 控制层
 
+    /// 控制层按参考图比例铺满整块下半屏（之前间距封顶 22pt，全挤到底部）：
+    /// 参考图量出来：顶排在面板 ~30% 处，中排 ~56%，进度条 ~79%，底排贴底。
+    /// 多出来的高度 60% 给顶部留白、各 20% 给两段排间距；中排（播放 + 两侧长按圈）随高度放大。
     private var controlsLayer: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: creaseTop + 6)
-            topRow
-            Spacer(minLength: 8).frame(maxHeight: 22)
-            middleRow
-            Spacer(minLength: 8).frame(maxHeight: 22)
-            progressRow
-            Spacer().frame(height: 10)
-            bottomRow
+        GeometryReader { g in
+            let fixed: CGFloat = 40 + 28 + 10 + 40
+            let avail = max(0, g.size.height - creaseTop - bottomPad - fixed)
+            let middleH = min(200, max(72, avail * 0.42))
+            let rest = max(0, avail - middleH)
+            VStack(spacing: 0) {
+                Color.clear.frame(height: creaseTop + rest * 0.5)
+                topRow
+                Color.clear.frame(height: rest * 0.25)
+                middleRow(height: middleH)
+                Color.clear.frame(height: rest * 0.25)
+                progressRow
+                Color.clear.frame(height: 10)
+                bottomRow
+            }
+            .padding(.horizontal, side)
+            .padding(.bottom, bottomPad)
+            .frame(width: g.size.width, height: g.size.height, alignment: .top)
         }
-        .padding(.horizontal, side)
-        .padding(.bottom, bottomPad)
         .overlay(alignment: .bottom) { popoverView.padding(.bottom, bottomPad + 48) }
     }
 
@@ -184,9 +194,9 @@ struct HGConsolePane: View {
         .frame(height: 40)
     }
 
-    private var middleRow: some View {
+    private func middleRow(height: CGFloat) -> some View {
         HStack(spacing: 0) {
-            boostZone(0)
+            boostZone(0, height: height)
             Spacer(minLength: 4)
             HStack(spacing: 18) {
                 roundButton("gobackward.10", size: 52, glyph: 22, id: "hg.console.back10") {
@@ -200,25 +210,28 @@ struct HGConsolePane: View {
                 }
             }
             Spacer(minLength: 4)
-            boostZone(1)
+            boostZone(1, height: height)
         }
-        .frame(height: 72)
+        .frame(height: height)
     }
 
     /// 两侧长按区：按住 2× 快进，松手恢复（DouDuo 长按加速同款倍率）
-    private func boostZone(_ s: Int) -> some View {
+    /// 参考图：两侧大圆一半探出屏幕边，圆高约等于中排高度的 1.15 倍
+    private func boostZone(_ s: Int, height: CGFloat) -> some View {
         let active = boostSide == s
+        let d = max(150, height * 1.15)
+        let zoneW: CGFloat = 92
         return ZStack {
             Circle()
                 .fill(.white.opacity(active ? 0.1 : 0.035))
                 .overlay(Circle().stroke(.white.opacity(0.07), lineWidth: 1))
-                .frame(width: 190, height: 190)
-                .offset(x: s == 0 ? -62 : 62)
+                .frame(width: d, height: d)
+                .offset(x: (s == 0 ? -1 : 1) * (d / 2 - zoneW + side + 4))
             Text(active ? "2× 快进中" : "长按快进")
                 .font(.caption).foregroundStyle(.white.opacity(active ? 0.9 : 0.4))
-                .offset(x: s == 0 ? -8 : 8)
+                .offset(x: s == 0 ? -6 : 6)
         }
-        .frame(width: 84, height: 72)
+        .frame(width: zoneW, height: height)
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 0)
             .onChanged { _ in
