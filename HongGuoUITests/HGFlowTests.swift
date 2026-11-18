@@ -41,13 +41,16 @@ final class HGFlowTests: XCTestCase {
         XCTAssertFalse(springboard.otherElements["PIPUIView"].exists || springboard.windows["PictureInPicture"].exists, "切后台自动进入了画中画")
         app.activate()
         XCTAssertTrue(app.buttons["hg.rail.comments"].waitForExistence(timeout: 5))
+        // 没开听书模式：退出后应已暂停（不再出声），回来停在暂停状态
+        XCTAssertEqual(app.otherElements["hg.player.surface"].value as? String, "idle", "退出 App 后仍在播放")
+        app.otherElements["hg.player.surface"].tap()   // 单击继续播放，后续步骤照常
 
         // 热评面板
         app.buttons["hg.rail.comments"].tap()
-        XCTAssertTrue(app.staticTexts["本集热评"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["hg.comments.title"].waitForExistence(timeout: 5))
         sleep(3)
         attach(app, "comments")
-        app.swipeDown(velocity: .fast)
+        app.buttons["hg.comments.close"].tap()
         sleep(1)
 
         // 右侧栏只剩 点赞 / 评论 / 收藏 / 放大缩小 / 更多

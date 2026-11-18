@@ -8,7 +8,7 @@ struct HGMineView: View {
     @State private var cloudError: String?
     @State private var showLogin = false
     @State private var resume: HGPlayerRequest?
-    @AppStorage("hg.bgPlay") private var bgPlay = true
+    @AppStorage("hg.bgPlay.v2") private var bgPlay = false
 
     var body: some View {
         List {
@@ -41,7 +41,7 @@ struct HGMineView: View {
                     }
                 }
                 .accessibilityIdentifier("hg.mine.downloads")
-                Toggle("切到后台继续播放", isOn: $bgPlay).tint(HGTheme.accent)
+                Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
             }
             .listRowBackground(HGTheme.surface)
             Section {
