@@ -46,25 +46,40 @@ final class HGPlaybackSession {
     private var lastSaved = Date.distantPast
     private let library = HGLibrary.shared
 
-    init(_ r: HGPlayerRequest) {
+    /// 推荐流：每部只放第 1 集；放完交给推荐流翻下一部，不记观看历史、不预载本剧第 2 集
+    let feedMode: Bool
+    var onFeedEnd: (() -> Void)?
+    /// 推荐页被切走 / 推了详情：加载完成也先别出声
+    private(set) var suspended = false
+
+    init(_ r: HGPlayerRequest, feedMode: Bool = false) {
+        self.feedMode = feedMode
         series = r.series; episodes = r.episodes; index = r.index; startAt = r.startAt
         player.automaticallyWaitsToMinimizeStalling = false
         player.allowsExternalPlayback = true
-        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] t in
-            MainActor.assumeIsolated { self?.tick(t.seconds) }
+        attachObservers()
+    }
+    private var bgObserver: NSObjectProtocol?
+
+    private func attachObservers() {
+        if timeObserver == nil {
+            timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] t in
+                MainActor.assumeIsolated { self?.tick(t.seconds) }
+            }
         }
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
         setupRemoteCommands()
         // scenePhase 在 fullScreenCover 里偶尔不回调：UIKit 通知兜底
-        bgObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, !HGBackgroundPlayback.enabled, !self.pip.active, !self.pip.starting else { return }
-                self.pauseForBackground()
+        if bgObserver == nil {
+            bgObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, !HGBackgroundPlayback.enabled, !self.pip.active, !self.pip.starting else { return }
+                    self.pauseForBackground()
+                }
             }
         }
     }
-    private var bgObserver: NSObjectProtocol?
 
     var episode: HGEpisode { episodes[index] }
     var title: String { "\(series.series_title) · 第 \(episode.number) 集" }
@@ -72,8 +87,13 @@ final class HGPlaybackSession {
     var rate: Float { library.rate }
     var effectiveRate: Float { boosting || lockedBoost ? 2 : library.rate }
 
+    private var started = false
     func start() {
-        load(index, at: startAt)
+        // 第二次 start（推荐页切 tab 回来）：从停下的位置接着放
+        let resumeAt = started && position > 1 ? position : startAt
+        if started { attachObservers() }
+        started = true
+        load(index, at: resumeAt)
         guard series.source == .hongguo else { return }
         let sid = series.series_id
         Task { [weak self] in self?.stats = try? await HGAPI.stats(series: sid) }
@@ -145,6 +165,22 @@ final class HGPlaybackSession {
 
     func retry() { load(index, at: position) }
 
+    func suspend() {
+        suspended = true
+        player.pause()
+        isPlaying = false
+        clock.userToggle(position, playing: false, rate: Double(effectiveRate))
+    }
+
+    func resumeIfSuspended() {
+        guard suspended else { return }
+        suspended = false
+        guard player.currentItem != nil, failed == nil else { return }
+        player.playImmediately(atRate: effectiveRate)
+        isPlaying = true
+        clock.userToggle(position, playing: true, rate: Double(effectiveRate))
+    }
+
     /// 退出 App：没开听书模式、也不在画中画 → 停声音。回来不自动续播（和 DouDuo 一致，避免突然出声）。
     func pauseForBackground() {
         player.pause()
@@ -157,10 +193,12 @@ final class HGPlaybackSession {
         save(force: true)
         loadTask?.cancel(); danmakuTask?.cancel()
         player.pause()
+        if feedMode { player.replaceCurrentItem(with: nil) }
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         timeObserver = nil
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         if let bgObserver { NotificationCenter.default.removeObserver(bgObserver) }
+        bgObserver = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         let c = MPRemoteCommandCenter.shared()
         [c.playCommand, c.pauseCommand, c.togglePlayPauseCommand, c.nextTrackCommand, c.previousTrackCommand, c.changePlaybackPositionCommand]
@@ -179,6 +217,7 @@ final class HGPlaybackSession {
         let vid = episodes[i].vid
         if episodes[i].locked == true {
             status = nil; failed = "本集在来源平台需要解锁，暂不能播放"
+            if feedMode { onFeedEnd?() }
             return
         }
         startAtForDanmaku = offset
@@ -197,11 +236,13 @@ final class HGPlaybackSession {
                 }
                 guard let self, !Task.isCancelled, self.index == i else { return }
                 self.attach(file, offset: offset)
-                if self.hasNext, self.episodes[i + 1].locked != true { await HGMediaCache.shared.prefetch(self.episodes[i + 1].vid) }
+                if !self.feedMode, self.hasNext, self.episodes[i + 1].locked != true { await HGMediaCache.shared.prefetch(self.episodes[i + 1].vid) }
             } catch {
                 guard let self, !Task.isCancelled, self.index == i else { return }
                 self.status = nil
                 self.failed = error.localizedDescription
+                // 推荐流：放不了的（只有 ByteVC2、要解锁、取源失败）直接跳下一部，不停在报错页
+                if self.feedMode { self.onFeedEnd?() }
             }
         }
     }
@@ -243,6 +284,7 @@ final class HGPlaybackSession {
         endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                if self.feedMode { self.isPlaying = false; self.onFeedEnd?(); return }
                 if self.hasNext { self.next() } else { self.save(force: true, finished: true); self.isPlaying = false }
             }
         }
@@ -263,9 +305,14 @@ final class HGPlaybackSession {
         }
         if offset > 1 { player.seek(to: CMTime(seconds: offset, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) }
         status = nil
-        player.playImmediately(atRate: effectiveRate)
-        isPlaying = true
-        clock.seek(offset, playing: true, rate: Double(effectiveRate))
+        if suspended {
+            isPlaying = false
+            clock.seek(offset, playing: false, rate: Double(effectiveRate))
+        } else {
+            player.playImmediately(atRate: effectiveRate)
+            isPlaying = true
+            clock.seek(offset, playing: true, rate: Double(effectiveRate))
+        }
         save(force: true)
         updateNowPlaying()
     }
@@ -281,6 +328,7 @@ final class HGPlaybackSession {
     }
 
     private func save(force: Bool, finished: Bool = false) {
+        guard !feedMode else { return }
         guard force || Date().timeIntervalSince(lastSaved) > 5 else { return }
         lastSaved = Date()
         library.record(series, episode: index, position: finished ? 0 : (duration > 0 && position > duration - 2 ? 0 : position))
@@ -293,7 +341,9 @@ final class HGPlaybackSession {
         c.playCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { if self?.player.timeControlStatus == .paused { self?.togglePlay() } }; return .success }
         c.pauseCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { if self?.player.timeControlStatus != .paused { self?.togglePlay() } }; return .success }
         c.togglePlayPauseCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { self?.togglePlay() }; return .success }
-        c.nextTrackCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { self?.next() }; return .success }
+        c.nextTrackCommand.addTarget { [weak self] _ in
+            MainActor.assumeIsolated { if self?.feedMode == true { self?.onFeedEnd?() } else { self?.next() } }; return .success
+        }
         c.previousTrackCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { self?.previous() }; return .success }
         c.changePlaybackPositionCommand.addTarget { [weak self] e in
             guard let e = e as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }

@@ -32,6 +32,8 @@ final class HGDownloads {
     }
 
     private(set) var all: [Series] = []
+    /// 储存空间页监听：离线视频增删后重新统计
+    private(set) var storageRevision = 0
     private var worker: Task<Void, Never>?
     private let root: URL
     private let index: URL
@@ -151,6 +153,7 @@ final class HGDownloads {
     }
 
     private func save() {
+        storageRevision &+= 1
         if let data = try? JSONEncoder().encode(all) { try? data.write(to: index, options: .atomic) }
     }
 

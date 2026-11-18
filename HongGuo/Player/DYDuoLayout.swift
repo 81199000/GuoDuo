@@ -429,3 +429,97 @@ struct DYHingeStateRoot: ViewModifier {
         }
     }
 }
+
+
+// MARK: - DouDuo DYRailReservedNudge（原样搬）：按系统遮挡区（外屏摄像头 / 状态栏列）把按钮栏挪开
+struct DYRailReservedNudge: ViewModifier {
+    var railEdge: HorizontalEdge? = nil
+    var verticalSpace: ClosedRange<CGFloat>? = nil
+    var disabled = false
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *), !disabled {
+            DYRailReservedNudgeBox(railEdge: railEdge, verticalSpace: verticalSpace) { content }
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 27.1, *)
+private struct DYRailReservedNudgeBox<Content: View>: View {
+    var railEdge: HorizontalEdge?
+    var verticalSpace: ClosedRange<CGFloat>?
+    @Environment(\.layoutDirection) private var layoutDirection
+    @ViewBuilder var content: () -> Content
+    @State private var nudge: CGSize = .zero
+
+    var body: some View {
+        content()
+            .offset(nudge)
+            // Observe geometry changes, including reserved-region changes without a resize.
+            // Measure the unshifted wrapper so our own translation cannot cause feedback.
+            .background {
+                Color.clear
+                    .onGeometryChange(for: CGSize.self) { proxy in
+                        DYReservedNudge.offset(in: proxy, railEdge: railEdge, layoutDirection: layoutDirection, verticalSpace: verticalSpace)
+                    } action: { new in
+                        if hypot(new.width - nudge.width, new.height - nudge.height) > 0.5 { nudge = new }
+                    }
+            }
+    }
+}
+
+@available(iOS 27.1, *)
+enum DYReservedNudge {
+    /// 在视图自己的坐标里，把和遮挡区相交的部分挪到最近的一侧。摄像头优先向下，符合外屏「小幅下移」。
+    static func offset(in proxy: GeometryProxy, railEdge: HorizontalEdge? = nil,
+                       layoutDirection: LayoutDirection = .leftToRight, verticalSpace: ClosedRange<CGFloat>? = nil) -> CGSize {
+        let local = CGRect(origin: .zero, size: proxy.size)
+        guard local.width > 1, local.height > 1 else { return .zero }
+        var box = local
+        var acc = CGSize.zero
+        for region in proxy.reservedRegions(kind: .occlusion, layoutDirectionBehavior: .fixed) where region.isActive && region.frame.intersects(box) {
+            let d = clear(box, region.frame, preferDown: true, railEdge: railEdge, layoutDirection: layoutDirection, verticalSpace: verticalSpace.map { ($0.lowerBound - acc.height)...($0.upperBound - acc.height) })
+            acc.width += d.width
+            acc.height += d.height
+            box = box.offsetBy(dx: d.width, dy: d.height)
+        }
+        for region in proxy.reservedRegions(kind: .division, layoutDirectionBehavior: .fixed) where region.isActive && region.frame.intersects(box) {
+            let d = clear(box, region.frame, preferDown: false, railEdge: railEdge, layoutDirection: layoutDirection, verticalSpace: verticalSpace.map { ($0.lowerBound - acc.height)...($0.upperBound - acc.height) })
+            acc.width += d.width
+            acc.height += d.height
+            box = box.offsetBy(dx: d.width, dy: d.height)
+        }
+        return acc
+    }
+
+    private static func clear(_ box: CGRect, _ region: CGRect, preferDown: Bool,
+                              railEdge: HorizontalEdge?, layoutDirection: LayoutDirection, verticalSpace: ClosedRange<CGFloat>?) -> CGSize {
+        let left = CGSize(width: region.minX - box.maxX, height: 0)
+        let right = CGSize(width: region.maxX - box.minX, height: 0)
+        let up = CGSize(width: 0, height: region.minY - box.maxY)
+        let down = CGSize(width: 0, height: region.maxY - box.minY)
+        let mag: (CGSize) -> CGFloat = { abs($0.width) + abs($0.height) }
+        // Edge rails must move inward rather than taking a shorter path offscreen.
+        let candidates: [CGSize]
+        if let railEdge {
+            let onLeft = (railEdge == .leading) == (layoutDirection == .leftToRight)
+            // Occlusions above an edge rail move it down within the same column.
+            if preferDown {
+                if verticalSpace?.contains(down.height) ?? true { return down }
+                if verticalSpace?.contains(up.height) ?? true { return up }
+                // No vertical slot can fit the complete rail: keep every control onscreen.
+                return onLeft ? right : left
+            }
+            candidates = [onLeft ? right : left, up, down].filter {
+                verticalSpace?.contains($0.height) ?? true
+            }
+        } else {
+            candidates = [left, right, up, down]
+        }
+        let best = candidates.min { mag($0) < mag($1) } ?? .zero
+        if preferDown, (verticalSpace?.contains(down.height) ?? true), mag(down) <= mag(best) + 24 { return down }
+        return best
+    }
+}
+

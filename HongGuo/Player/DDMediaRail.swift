@@ -145,3 +145,40 @@ struct DDActionRail: View {
         .accessibilityIdentifier(item.id)
     }
 }
+
+
+/// DouDuo DDPressHold 原样：按住 ≥ threshold 秒算长按，抬手前一直保持；不满 threshold 抬手算单击。
+struct DDPressHold: ViewModifier {
+    let threshold: Double
+    var onHoldChanged: (Bool) -> Void = { _ in }
+    let onPressChanged: (Bool) -> Void
+    let onTap: () -> Void
+    @State private var startedAt: Date?
+    @State private var holding = false
+    @State private var timer: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content.gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard startedAt == nil else { return }
+                    startedAt = Date()
+                    onPressChanged(true)
+                    timer = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: UInt64(threshold * 1_000_000_000))
+                        guard !Task.isCancelled, startedAt != nil else { return }
+                        holding = true
+                        onHoldChanged(true)
+                    }
+                }
+                .onEnded { value in
+                    timer?.cancel(); timer = nil
+                    let wasHolding = holding
+                    let moved = abs(value.translation.width) >= 20 || abs(value.translation.height) >= 20
+                    startedAt = nil; holding = false
+                    if wasHolding { onHoldChanged(false) }
+                    if !wasHolding, !moved { onTap() }
+                    onPressChanged(false)
+                })
+    }
+}

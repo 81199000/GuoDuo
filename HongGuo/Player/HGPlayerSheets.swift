@@ -146,6 +146,8 @@ struct HGEpisodeSheet: View {
     /// 书本半折叠常驻：铺满右半屏、深色、让开右侧系统栏
     var fillsPane = false
     var trailingInset: CGFloat = 0
+    /// 推荐流：点集不在本会话里换集，而是打开整部剧
+    var onPick: ((Int) -> Void)? = nil
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -158,7 +160,7 @@ struct HGEpisodeSheet: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 8)], spacing: 8) {
                         ForEach(Array(session.episodes.enumerated()), id: \.element.id) { i, ep in
-                            Button { session.go(to: i); close() } label: {
+                            Button { if let onPick { onPick(i) } else { session.go(to: i) }; close() } label: {
                                 Text("\(ep.number)").font(.subheadline.monospacedDigit())
                                     .frame(maxWidth: .infinity, minHeight: 40)
                                     .background(i == session.index ? HGTheme.accent : HGTheme.surfaceHigh,

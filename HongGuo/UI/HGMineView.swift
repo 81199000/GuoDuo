@@ -41,6 +41,10 @@ struct HGMineView: View {
                     }
                 }
                 .accessibilityIdentifier("hg.mine.downloads")
+                NavigationLink { DYStorageScreen() } label: {
+                    Label("储存空间", systemImage: "internaldrive")
+                }
+                .accessibilityIdentifier("hg.mine.storage")
                 Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
             }
             .listRowBackground(HGTheme.surface)

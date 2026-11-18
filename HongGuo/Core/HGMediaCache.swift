@@ -39,6 +39,15 @@ actor HGMediaCache {
         return url
     }
 
+    /// 储存空间页「清理缓存」：停掉在下的、删掉整集缓存目录重建（正在播放的那集 AVPlayer 已打开文件句柄，照常播完）
+    func clearForStorage() -> Bool {
+        inflight.values.forEach { $0.cancel() }
+        inflight.removeAll()
+        order.removeAll()
+        let ok = DYStorageFiles.resetCacheDirectory(dir)
+        return ok && DYStorageFiles.removeVideoWork()
+    }
+
     func prefetch(_ vid: String) {
         guard inflight[vid] == nil, !FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(vid).mp4").path) else { return }
         Task { _ = try? await self.file(for: vid) }

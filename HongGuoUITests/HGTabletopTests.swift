@@ -10,6 +10,7 @@ final class HGTabletopTests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["DOUDUO_FOLD"] = "1"
         XCUIDevice.shared.orientation = .portrait
+        app.launchEnvironment["HG_START_TAB"] = "discover"
         app.launch()
         let any = app.descendants(matching: .any)
         // 首页：上片库网格 / 下选集
@@ -126,6 +127,7 @@ final class HGTabletopTests: XCTestCase {
     /// 宽屏横屏：侧滑评论在列表区右滑能关；关闭键不在右上状态栏区
     func testLandscapeCommentsSwipeClose() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "discover"
         app.launch()
         XCUIDevice.shared.orientation = .landscapeLeft
         let card = app.buttons.matching(NSPredicate(format: "label CONTAINS '集'")).element(boundBy: 0)

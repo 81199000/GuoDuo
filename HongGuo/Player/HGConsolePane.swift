@@ -21,6 +21,9 @@ struct HGConsolePane: View {
     var onEpisodes: () -> Void
     var onMore: () -> Void
     var flash: (String) -> Void
+    /// 触控板上下滑：上滑下一部 / 下一集，下滑上一部 / 上一集
+    var onNext: () -> Void = {}
+    var onPrevious: () -> Void = {}
 
     @State private var seeking = false
     @State private var anchor: Double = 0
@@ -35,6 +38,8 @@ struct HGConsolePane: View {
     @State private var boostSide: Int?
     @State private var boostTask: Task<Void, Never>?
     @State private var boostPending = false
+    /// 一次拖动只认一个方向：横 = 快进退，竖 = 切视频
+    @State private var dragAxis: Axis?
     enum Popover { case danmaku, rate }
 
     private static let rates: [Float] = [0.75, 1.0, 1.25, 1.5, 2.0, 3.0]
@@ -103,16 +108,31 @@ struct HGConsolePane: View {
     private func pad(_ size: CGSize) -> some View {
         Color.clear
             .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 8)
+            .gesture(DragGesture(minimumDistance: 10)
                 .onChanged { v in
                     guard !locked else { return }
+                    if dragAxis == nil {
+                        dragAxis = abs(v.translation.width) > abs(v.translation.height) ? .horizontal : .vertical
+                    }
+                    guard dragAxis == .horizontal else { return }
                     if !seeking { beginSeek() }
                     let d = session.duration
                     guard d > 0 else { return }
                     target = max(0, min(d, anchor + Double(v.translation.width / max(size.width, 1)) * d * 0.9))
                     session.requestPreview(target)
                 }
-                .onEnded { _ in endSeek() })
+                .onEnded { v in
+                    defer { dragAxis = nil }
+                    guard !locked else { return }
+                    if dragAxis == .vertical {
+                        // DouDuo 竖滑翻页的手感：位移 60pt 或甩出去（预测 180pt）就翻
+                        let dy = v.translation.height, p = v.predictedEndTranslation.height
+                        if dy < -60 || p < -180 { UIImpactFeedbackGenerator(style: .light).impactOccurred(); onNext() }
+                        else if dy > 60 || p > 180 { UIImpactFeedbackGenerator(style: .light).impactOccurred(); onPrevious() }
+                        return
+                    }
+                    endSeek()
+                })
             .simultaneousGesture(TapGesture().onEnded {
                 if locked { showLockHint(); return }
                 guard !seeking else { return }
@@ -120,6 +140,7 @@ struct HGConsolePane: View {
                 controlsShown.toggle()
             })
             .accessibilityIdentifier("hg.console.pad")
+            .accessibilityLabel("sid=\(session.series.series_id) ep=\(session.episode.number)")
             .accessibilityValue("\(Int(session.position))")
     }
 
