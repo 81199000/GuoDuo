@@ -53,6 +53,9 @@ final class HGCore: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         } as @convention(block) (String, Int) -> String?)
         def("request", { [weak self] (id: Int, raw: String) in self?.request(id: id, raw: raw) } as @convention(block) (Int, String) -> Void)
         def("cancel", { [weak self] (id: Int) in self?.tasks.removeValue(forKey: id)?.cancel() } as @convention(block) (Int) -> Void)
+        def("kvGet", { (k: String) -> String? in HGKeychain.get(k) } as @convention(block) (String) -> String?)
+        def("kvSet", { (k: String, v: String) in HGKeychain.set(k, v) } as @convention(block) (String, String) -> Void)
+        def("kvDel", { (k: String) in HGKeychain.delete(k) } as @convention(block) (String) -> Void)
         def("done", { [weak self] (callId: Int, json: String) in self?.finish(callId: callId, json: json) } as @convention(block) (Int, String) -> Void)
         ctx.setObject(native, forKeyedSubscript: "Native" as NSString)
 
@@ -100,9 +103,14 @@ final class HGCore: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
                 let http = response as? HTTPURLResponse
                 var headers: [String: Any] = [:]
                 if let loc = http?.value(forHTTPHeaderField: "Location") { headers["location"] = loc }
-                if let cookie = http?.value(forHTTPHeaderField: "Set-Cookie") { headers["set-cookie"] = [cookie] }
+                // URLSession 把多条 Set-Cookie 合并成一行，按 HTTPCookie 拆开还原成 name=value。
+                if let http, let fields = http.allHeaderFields as? [String: String],
+                   fields.keys.contains(where: { $0.caseInsensitiveCompare("Set-Cookie") == .orderedSame }) {
+                    headers["set-cookie"] = HTTPCookie.cookies(withResponseHeaderFields: fields, for: url).map { "\($0.name)=\($0.value)" }
+                }
                 let status = http?.statusCode ?? 0
-                let body = (200..<300).contains(status) ? String(decoding: data ?? Data(), as: UTF8.self) : ""
+                let payload = (200..<300).contains(status) ? (data ?? Data()) : Data()
+                let body = obj["binary"] as? Bool == true ? payload.base64EncodedString() : String(decoding: payload, as: UTF8.self)
                 self.reply(id, ["status": status, "headers": headers, "data": body])
             }
         }
