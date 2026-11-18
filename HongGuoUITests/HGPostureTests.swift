@@ -70,7 +70,10 @@ final class HGPostureTests: XCTestCase {
             return
         }
         if any["hg.episodes.resident"].exists {
-            print("HGBOOK episodes frame=\(any["hg.episodes.resident"].firstMatch.frame) video=\(surface.frame)")
+            let rail = app.buttons["hg.rail.likes"]
+            print("HGBOOK episodes frame=\(any["hg.episodes.resident"].firstMatch.frame) video=\(surface.frame) rail=\(rail.frame) more=\(app.buttons["hg.rail.more"].frame)")
+            XCTAssertTrue(rail.exists, "书本姿态视频上没有菜单栏")
+            XCTAssertGreaterThan(rail.frame.midX, surface.frame.midX, "菜单栏不在视频右边")
             shot(app, "book-episodes")
             app.buttons["hg.ep.3"].firstMatch.tap()
             let e3 = expectation(for: NSPredicate(format: "value == 'playing-3'"), evaluatedWith: surface)
