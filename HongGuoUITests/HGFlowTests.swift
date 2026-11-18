@@ -20,6 +20,28 @@ final class HGFlowTests: XCTestCase {
         sleep(4)
         attach(app, "player-ep2-danmaku")
 
+        // 官方统计：评论数 / 点赞数显示成数字（不是「热评」「点赞」占位）
+        let comments = app.buttons["hg.rail.comments"]
+        let hasCount = expectation(for: NSPredicate(format: "label MATCHES '.*[0-9].*'"), evaluatedWith: comments)
+        XCTAssertEqual(XCTWaiter().wait(for: [hasCount], timeout: 10), .completed, "评论数未显示")
+        print("HGSTATS comments=\(comments.label) likes=\(app.buttons["hg.rail.likes"].label) fav=\(app.buttons["hg.rail.favorite"].label)")
+
+        // 拖进度条：出现预览画面
+        let bar = app.otherElements["hg.player.progress"].firstMatch
+        let start = bar.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        let mid = bar.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: mid, withVelocity: 200, thenHoldForDuration: 1.5)
+        attach(app, "seek-preview")
+
+        // 切后台：不应自动进入画中画（回来后仍是播放页，而不是系统画中画窗）
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        attach(springboard, "background")
+        XCTAssertFalse(springboard.otherElements["PIPUIView"].exists || springboard.windows["PictureInPicture"].exists, "切后台自动进入了画中画")
+        app.activate()
+        XCTAssertTrue(app.buttons["hg.rail.comments"].waitForExistence(timeout: 5))
+
         // 热评面板
         app.buttons["hg.rail.comments"].tap()
         XCTAssertTrue(app.staticTexts["本集热评"].waitForExistence(timeout: 5))
@@ -54,11 +76,11 @@ final class HGFlowTests: XCTestCase {
 
         // 收藏：点两次，状态应来回切换（上次运行可能已收藏）
         let fav = app.buttons["hg.rail.favorite"]
-        let before = fav.label.contains("已收藏")
+        let before = fav.value as? String
         fav.tap()
-        XCTAssertTrue(app.buttons["hg.rail.favorite"].label.contains("已收藏") != before, "收藏状态未切换")
+        XCTAssertNotEqual(app.buttons["hg.rail.favorite"].value as? String, before, "收藏状态未切换")
         app.buttons["hg.rail.favorite"].tap()
-        XCTAssertTrue(app.buttons["hg.rail.favorite"].label.contains("已收藏") == before, "收藏状态未切回")
+        XCTAssertEqual(app.buttons["hg.rail.favorite"].value as? String, before, "收藏状态未切回")
 
         // 退出，下载第 1 集
         app.buttons["hg.player.close"].tap()
@@ -91,6 +113,7 @@ final class HGFlowTests: XCTestCase {
     }
 
     private func attach(_ app: XCUIApplication, _ name: String) {
+        _ = app
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
     }
 }

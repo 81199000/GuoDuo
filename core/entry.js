@@ -1,7 +1,7 @@
 import { Buffer } from 'buffer/';
 import { browseList } from './upstream/hongguo-app-catalog.js';
 import { searchApp } from './upstream/hongguo-app-search.js';
-import { fetchAppPlayUrl } from './upstream/app-source.js';
+import { fetchAppPlayUrl, signedMetadataRequest, requestJson } from './upstream/app-source.js';
 import { website, parseDetail } from './upstream/public.js';
 import { requestWindow, parsePage, toSeconds, cleanControl, setDeviceIdentityFile, MAX_TEXT_LEN } from './upstream/danmaku.js';
 import { fetchPublicDetails } from './upstream/public-details.js';
@@ -105,6 +105,19 @@ globalThis.HG = {
       } finally { controllers.delete(callId); }
     });
   },
+  // App 剧集详情：每集评论数 / 点赞数，整剧追剧数 / 播放量（官网第 6 集以后不公开，只能走 App 签名接口）。
+  stats(callId, sid) { wrap(callId, async () => {
+    const body = { series_id: String(sid), biz_param: { caller_scene: 'single_col', detail_page_version: 0, from_video_id: '',
+      need_all_video_definition: false, need_mp4_align: false, source: 4, video_id_type: 1 } };
+    const s = signedMetadataRequest('/novel/player/video_detail/v1/', {}, body);
+    const j = await requestJson(s.url, { method: 'POST', headers: s.headers, data: s.body }, Date.now() + 10000);
+    if (!j || Number(j.code) !== 0) throw new Error('剧集统计不可用');
+    const vd = j.data?.video_data || {};
+    if (String(vd.series_id_str || vd.series_id || sid) !== String(sid)) throw new Error('剧集统计不匹配');
+    const n = v => Number.isFinite(Number(v)) ? Number(v) : null;
+    return { follows: n(vd.followed_cnt), plays: n(vd.series_play_cnt),
+      episodes: (vd.video_list || []).map(e => ({ vid: String(e.vid), comments: n(e.comment_count), likes: n(e.digged_count) })) };
+  }); },
   // 官网公开页的本集热评（最多 15 条）+ 本集点赞、本剧收藏数。
   comments(callId, sid, vid) { wrap(callId, async () => {
     const d = unwrap(await fetchPublicDetails(String(sid), String(vid), { reviewsLimit: 15 }));

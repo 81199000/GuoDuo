@@ -30,6 +30,11 @@ final class HGPlaybackSession {
     var danmakuNotice: String?
     var clock = DYDanmakuClock()
     var lockedBoost = false
+    /// 官方统计（App 详情接口）：本剧追剧数 / 播放量，每集评论数 / 点赞数
+    var stats: HGSeriesStats?
+    var seekPreviewImage: UIImage?
+    private var imageGenerator: AVAssetImageGenerator?
+    private var lastPreviewAt = Date.distantPast
     var boosting = false
     let pip = DYPictureInPicture()
 
@@ -59,7 +64,27 @@ final class HGPlaybackSession {
     var rate: Float { library.rate }
     var effectiveRate: Float { boosting || lockedBoost ? 2 : library.rate }
 
-    func start() { load(index, at: startAt) }
+    func start() {
+        load(index, at: startAt)
+        guard series.source == .hongguo else { return }
+        let sid = series.series_id
+        Task { [weak self] in self?.stats = try? await HGAPI.stats(series: sid) }
+    }
+
+    var episodeStat: HGEpisodeStat? { stats?.episodes.first { $0.vid == episode.vid } }
+
+    /// 拖动进度时的预览画面（DouDuo 同款：节流 0.15 秒取一帧）。本地明文文件，取帧很快。
+    func requestPreview(_ t: Double) {
+        guard let gen = imageGenerator, Date().timeIntervalSince(lastPreviewAt) > 0.15 else { return }
+        lastPreviewAt = Date()
+        gen.cancelAllCGImageGeneration()
+        gen.generateCGImagesAsynchronously(forTimes: [NSValue(time: CMTime(seconds: t, preferredTimescale: 600))]) { [weak self] _, cg, _, result, _ in
+            guard result == .succeeded, let cg else { return }
+            let img = UIImage(cgImage: cg)
+            Task { @MainActor in self?.seekPreviewImage = img }
+        }
+    }
+    func endPreview() { seekPreviewImage = nil }
 
     func go(to i: Int) {
         guard episodes.indices.contains(i), i != index else { return }
@@ -204,6 +229,13 @@ final class HGPlaybackSession {
             }
         }
         player.replaceCurrentItem(with: item)
+        let gen = AVAssetImageGenerator(asset: item.asset)
+        gen.appliesPreferredTrackTransform = true
+        gen.maximumSize = CGSize(width: 360, height: 360)
+        gen.requestedTimeToleranceBefore = CMTime(seconds: 0.5, preferredTimescale: 600)
+        gen.requestedTimeToleranceAfter = CMTime(seconds: 0.5, preferredTimescale: 600)
+        imageGenerator = gen
+        seekPreviewImage = nil
         Task { [weak self] in
             if let track = try? await AVURLAsset(url: file).loadTracks(withMediaType: .video).first,
                let (size, transform) = try? await track.load(.naturalSize, .preferredTransform) {
