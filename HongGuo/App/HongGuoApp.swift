@@ -40,6 +40,8 @@ struct HGRootView: View {
             content()
                 .background(HGTheme.background)
                 .navigationDestination(for: HGSeries.self) { HGDetailView(series: $0) }
+                // DouDuo 同款：半折叠时系统会把导航栏改成竖排工具条，返回键跑到侧边找不到 → 关掉
+                .dyDisableVerticalToolbar()
         }
     }
 }

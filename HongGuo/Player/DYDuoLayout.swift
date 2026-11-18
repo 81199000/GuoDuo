@@ -325,6 +325,8 @@ struct DYCommentPaneMetrics {
     let paneSize: CGSize
     let paneOrigin: CGPoint
     let trailingInset: CGFloat
+    /// 桌面姿态：折痕带从窗格顶部往下占掉的高度（窗格从折痕中线开始，内容要躲开折痕）
+    var creaseInset: CGFloat = 0
 
     init(_ geo: GeometryProxy, isPresented: Bool, allowsResident: Bool = true,
          paneFraction: CGFloat? = nil, keepsSideBySide: Bool = false) {
@@ -347,6 +349,7 @@ struct DYCommentPaneMetrics {
                     DYDuoMetrics.trailingOcclusionInset(geo, pane: hinge.panel))
             } else {
                 let split = hinge.panel.minY
+                if let raw = DYDuoMetrics.hingeSplit(geo) { creaseInset = max(0, raw.panel.minY - split) }
                 paneOrigin = CGPoint(x: -geo.safeAreaInsets.leading, y: split)
                 paneSize = CGSize(width: w + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
                                   height: h + bottomExtension - split)
@@ -369,6 +372,7 @@ struct DYCommentPaneMetrics {
             paneW = 0
         }
         let paneH = tableFold ? h * 0.45 : 0
+        if tableFold { creaseInset = 12 }   // 模拟器回退：假装折痕带 24，下半占一半
         videoSize = CGSize(width: w - paneW, height: h - paneH)
         trailingInset = geo.safeAreaInsets.trailing
         // Keyboard insets must not be added back to the panel height. Keep the

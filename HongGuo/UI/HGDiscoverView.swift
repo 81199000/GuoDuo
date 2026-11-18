@@ -11,22 +11,41 @@ struct HGDiscoverView: View {
     @State private var error: String?
     @State private var showShare = false
     @State private var openSeries: HGSeries?
+    @State private var tabletop = false
+    @State private var loadedKey = ""
 
     private let columns = [GridItem(.adaptive(minimum: 104, maximum: 180), spacing: 12, alignment: .top)]
 
     var body: some View {
         GeometryReader { geo in
-            if let split = HGTabletop.split(geo), !items.isEmpty {
-                HGDiscoverTabletop(items: items, split: split,
-                                   loadMore: { Task { await loadMore() } },
-                                   openDetail: { openSeries = $0 })
+            if let crease = HGTabletop.crease(geo), !items.isEmpty {
+                // 桌面姿态：标题收成小标题，分类条保留在最上面，下面一部一部翻
+                VStack(spacing: 0) {
+                    chips(HGCategory.allCases.map { ($0.rawValue, $0.title) }, selected: category.rawValue, small: true, prefix: "hg.category") {
+                        category = HGCategory(rawValue: $0) ?? .hot
+                    }
+                    .padding(.vertical, 4)
+                    HGDiscoverTabletop(items: items, crease: HGTabletop.Crease(top: crease.top - 36, bottom: crease.bottom - 36),
+                                       loadMore: { Task { await loadMore() } },
+                                       openDetail: { openSeries = $0 })
+                        .id(category.rawValue)
+                }
+                .onAppear { tabletop = true }
+                .onDisappear { tabletop = false }
             } else {
                 regular
             }
         }
-        .task(id: "\(category.rawValue)|\(genre)") { await reload() }
+        // 返回首页时不重拉（否则列表清空 → 桌面布局闪回普通网格、翻到哪部也丢了）
+        .task(id: "\(category.rawValue)|\(genre)") {
+            let key = "\(category.rawValue)|\(genre)"
+            guard key != loadedKey || items.isEmpty else { return }
+            loadedKey = key
+            await reload()
+        }
         .onChange(of: category) { _, _ in genre = ""; genres = [] }
         .navigationTitle("发现")
+        .navigationBarTitleDisplayMode(tabletop ? .inline : .automatic)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showShare = true } label: { Image(systemName: "link") }.accessibilityIdentifier("hg.share")

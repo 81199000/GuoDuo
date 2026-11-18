@@ -21,7 +21,9 @@ final class HGTabletopTests: XCTestCase {
         any["hg.tabletop.info"].firstMatch.tap()
         sleep(2)
         XCTAssertTrue(app.buttons["hg.tabletop.resume"].waitForExistence(timeout: 15), "详情页没有桌面布局")
-        print("HGTAB detail info=\(any["hg.tabletop.info"].firstMatch.frame) eps=\(any["hg.tabletop.episodes"].firstMatch.frame)")
+        let info = any["hg.tabletop.info"].firstMatch.frame, eps = any["hg.tabletop.episodes"].firstMatch.frame
+        print("HGTAB detail info=\(info) eps=\(eps) gap=\(eps.minY - info.maxY)")
+        XCTAssertGreaterThanOrEqual(eps.minY - info.maxY, 20, "详情页信息区压到折痕了")
         shot(app, "detail")
         // 播放第 6 集 → 操作台
         let ep6 = app.buttons["hg.episode.6"]
@@ -31,20 +33,77 @@ final class HGTabletopTests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [e], timeout: 60), .completed)
         let console = any["hg.console"].firstMatch
         XCTAssertTrue(console.waitForExistence(timeout: 5))
-        let back = app.buttons["hg.player.close"], comments = app.buttons["hg.rail.comments"]
-        XCTAssertTrue(back.exists && comments.exists)
-        print("HGTAB console=\(console.frame) back=\(back.frame) comments=\(comments.frame) more=\(app.buttons["hg.rail.more"].frame) light=\(any["hg.console.light"].firstMatch.frame) video=\(surface.frame)")
+        sleep(3)
+        print("HGTAB console=\(console.frame) state=\(console.value ?? "-") video=\(surface.frame) brackets=\(any["hg.console.brackets"].firstMatch.exists)")
+        shot(app, "console-idle")
+        // 轻点呼出控制
+        any["hg.console.pad"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["hg.console.play"].waitForExistence(timeout: 2), "轻点没呼出控制")
+        let back = app.buttons["hg.player.close"]
+        print("HGTAB back=\(back.frame) play=\(app.buttons["hg.console.play"].frame) bar=\(any["hg.console.bar"].firstMatch.frame) tiles=\(app.buttons["hg.console.danmakuButton"].frame) more=\(app.buttons["hg.console.more"].frame) title=\(any["hg.console.title"].firstMatch.exists)")
         XCTAssertGreaterThan(back.frame.minY, console.frame.minY, "返回键不在下半屏")
-        XCTAssertGreaterThan(back.frame.minX, console.frame.midX, "返回键不在右边")
+        shot(app, "console-controls")
+        // 暂停 / 继续
+        app.buttons["hg.console.play"].tap(); sleep(1)
+        XCTAssertEqual(surface.value as? String, "idle", "暂停键无效")
+        app.buttons["hg.console.play"].tap(); sleep(1)
+        // +10
+        func pos() -> Int { Int((any["hg.console.pad"].firstMatch.value as? String) ?? "") ?? -1 }
+        let p0 = pos(); app.buttons["hg.console.fwd10"].tap(); sleep(1)
+        let p1 = pos(); print("HGTAB fwd10 \(p0)->\(p1)")
+        XCTAssertGreaterThanOrEqual(p1, p0 + 8, "+10 无效")
+        // 弹幕位置：切到触控区
+        app.buttons["hg.console.danmakuButton"].tap()
+        XCTAssertTrue(app.buttons["hg.console.danmaku.console"].waitForExistence(timeout: 2))
+        shot(app, "console-danmaku-popover")
+        app.buttons["hg.console.danmaku.console"].tap(); sleep(1)
+        XCTAssertEqual(app.buttons["hg.console.danmaku.console"].value as? String, "on")
+        // 环境光
+        let amb = app.buttons["hg.console.ambient"]; let before = amb.value as? String
+        amb.tap(); sleep(1); XCTAssertNotEqual(app.buttons["hg.console.ambient"].value as? String, before)
+        app.buttons["hg.console.ambient"].tap()
+        // 收起后弹幕在触控区
+        app.buttons["hg.console.danmakuButton"].tap()   // 再点一次关 popover
         sleep(6)
-        print("HGTAB danmaku=\(any["hg.console.danmaku"].firstMatch.value ?? "-")")
-        shot(app, "console")
-        // 第 6 集评论锁
-        comments.tap()
-        XCTAssertTrue(any["hg.comments.lockedTip"].firstMatch.waitForExistence(timeout: 2), "第 6 集没出锁定提示")
-        XCTAssertFalse(any["hg.comments.title"].firstMatch.exists, "第 6 集评论不该展开")
-        print("HGTAB tip=\(any["hg.comments.lockedTip"].firstMatch.frame) label=\(any["hg.comments.lockedTip"].firstMatch.label)")
-        shot(app, "locked-tip")
+        print("HGTAB after-hide state=\(console.value ?? "-") consoleDanmaku=\(any["hg.console.danmaku"].firstMatch.exists) videoDanmaku=\(any["hg.player.danmaku"].firstMatch.exists)")
+        shot(app, "console-danmaku-in-pad")
+        // 拖动快进
+        let p2 = pos()
+        let padEl = any["hg.console.pad"].firstMatch
+        padEl.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: padEl.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)), withVelocity: 300, thenHoldForDuration: 1.5)
+        sleep(1)
+        let p3 = pos(); print("HGTAB drag \(p2)->\(p3)")
+        // 锁定
+        padEl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["hg.console.lock"].waitForExistence(timeout: 2))
+        app.buttons["hg.console.lock"].tap(); sleep(1)
+        XCTAssertEqual(console.value as? String, "locked")
+        padEl.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7)).tap()
+        XCTAssertTrue(app.buttons["hg.console.unlock"].waitForExistence(timeout: 2), "锁定后没出解锁")
+        shot(app, "console-locked")
+        app.buttons["hg.console.unlock"].tap(); sleep(1)
+        // 更多里有评论：第 6 集提示
+        app.buttons["hg.console.more"].tap()
+        XCTAssertTrue(app.buttons["hg.more.comments"].waitForExistence(timeout: 3), "更多里没有评论")
+        XCTAssertTrue(app.buttons["hg.more.like"].exists && app.buttons["hg.more.favorite"].exists)
+        shot(app, "more")
+        app.buttons["hg.more.comments"].tap(); sleep(1)
+        XCTAssertFalse(any["hg.comments.title"].firstMatch.exists)
+        app.swipeDown(); sleep(1)
+        // 返回 → 详情 → 首页
+        padEl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["hg.player.close"].waitForExistence(timeout: 2))
+        app.buttons["hg.player.close"].tap(); sleep(2)
+        XCTAssertTrue(app.buttons["hg.tabletop.resume"].waitForExistence(timeout: 5), "没回到详情")
+        let navBack = app.navigationBars.buttons.element(boundBy: 0)
+        print("HGTAB navBack exists=\(navBack.exists) frame=\(navBack.frame) label=\(navBack.label)")
+        XCTAssertTrue(navBack.exists, "详情页找不到返回键")
+        navBack.tap(); sleep(2)
+        XCTAssertTrue(app.navigationBars["发现"].waitForExistence(timeout: 3), "回不到首页")
+        sleep(2)
+        XCTAssertTrue(any["hg.tabletop.info"].firstMatch.exists, "回首页后不是上下布局")
+        shot(app, "back-home")
     }
 
     /// 宽屏横屏：侧滑评论在列表区右滑能关；关闭键不在右上状态栏区

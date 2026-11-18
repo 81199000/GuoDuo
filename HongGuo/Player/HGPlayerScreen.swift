@@ -24,6 +24,9 @@ struct HGPlayerScreen: View {
     /// 桌面姿态操作台在：弹幕搬到操作台上，视频上不再画
     @State private var consoleShown = false
     @AppStorage("hg.deskLight") private var deskLight = true
+    /// 桌面姿态弹幕位置：false = 影片区（上半屏），true = 触控区（下半屏）
+    @AppStorage("hg.danmaku.inConsole") private var danmakuInConsole = false
+    @State private var consoleControls = false
     @State private var seeking = false
     @State private var seekPreview: Double = 0
     @State private var seekAnchor: Double = 0
@@ -55,9 +58,14 @@ struct HGPlayerScreen: View {
                     .clipped()
                 if layout.resident && !layout.sideBySide {
                     // 竖屏半折叠（桌面）：下半屏 = 全黑操作台
-                    HGConsolePane(session: session, deskLight: $deskLight, danmakuOn: danmakuOn,
+                    HGConsolePane(session: session, deskLight: $deskLight, controlsShown: $consoleControls,
+                                  danmakuOn: $danmakuOn, danmakuInConsole: $danmakuInConsole,
+                                  creaseTop: layout.creaseInset,
                                   bottomInset: DYDuoMetrics.windowBottomInset,
-                                  column: AnyView(consoleColumn))
+                                  onBack: { dismiss() },
+                                  onEpisodes: { showEpisodes = true },
+                                  onMore: { showMore = true },
+                                  flash: { flash($0) })
                         .frame(width: layout.paneSize.width, height: layout.paneSize.height)
                         .clipped()
                         .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
@@ -108,7 +116,7 @@ struct HGPlayerScreen: View {
         .statusBarHidden(clean)
         .persistentSystemOverlays(clean ? .hidden : .automatic)
         .overlay(alignment: .top) { toastView }
-        .sheet(isPresented: $showMore) { moreSheet.presentationDetents([.height(300)]).presentationDragIndicator(.visible) }
+        .sheet(isPresented: $showMore) { moreSheet.presentationDetents([.height(consoleShown ? 400 : 300)]).presentationDragIndicator(.visible) }
         .sheet(isPresented: $showEpisodes) {
             HGEpisodeSheet(session: session) { showEpisodes = false }
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
@@ -161,7 +169,7 @@ struct HGPlayerScreen: View {
                 HGVideoLayer(player: session.player, fillWidth: fillWidth, pip: session.pip)
                     .scaleEffect(userScale * pinchScale)
                     .clipped()
-                if danmakuOn && !clean && !consoleShown {
+                if danmakuOn && !clean && (!consoleShown || !danmakuInConsole) {
                     DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop)
                         .accessibilityElement()
                         .accessibilityIdentifier("hg.player.danmaku")
@@ -202,7 +210,7 @@ struct HGPlayerScreen: View {
                 if session.boosting || session.lockedBoost { boostBadge }
                 if seeking && !consoleShown { seekOverlay }
                 statusOverlay
-                if clean { exitCleanButton } else if consoleShown { EmptyView() } else if !commentsInPane { chrome(ep) } else { paneChrome }
+                if clean { exitCleanButton } else if consoleShown { consoleTitle(ep) } else if !commentsInPane { chrome(ep) } else { paneChrome }
             } else {
                 // 相邻页只显示封面占位，滑动时不黑屏
                 HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
@@ -277,6 +285,24 @@ struct HGPlayerScreen: View {
             .fixedSize()
             .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .trailing)))
             .accessibilityIdentifier("hg.comments.lockedTip")
+    }
+
+    /// 桌面姿态：控制面板呼出时视频左上角显示剧名 + 第几集 · 时长，跟面板一起收
+    @ViewBuilder private func consoleTitle(_ ep: HGEpisode) -> some View {
+        if consoleControls {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(session.series.series_title).font(.headline).lineLimit(1)
+                Text("第\(ep.number)集" + (session.duration > 0 ? " | \(Int((session.duration / 60).rounded(.up)))分钟" : ""))
+                    .font(.caption).foregroundStyle(.white.opacity(0.8))
+            }
+            .foregroundStyle(.white)
+            .ddMediaLabelShadow()
+            .padding(.leading, 16).padding(.top, max(safeTop, 12))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .allowsHitTesting(false)
+            .transition(.opacity)
+            .accessibilityIdentifier("hg.console.title")
+        }
     }
 
     /// 桌面姿态操作台右侧竖栏：返回键在上，下面就是视频上那根 DouDuo 菜单栏
@@ -373,6 +399,7 @@ struct HGPlayerScreen: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(session.title).font(.headline).lineLimit(1)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 16) {
+                if consoleShown { socialItems }
                 moreItem("list.number", "选集", id: "hg.more.episodes") { showMore = false; showEpisodes = true }
                 moreItem(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "关弹幕" : "开弹幕", on: danmakuOn, id: "hg.more.danmaku") { danmakuOn.toggle() }
                 moreItem("arrow.up.left.and.arrow.down.right.rectangle", "全屏", id: "hg.more.clean") {
@@ -403,6 +430,27 @@ struct HGPlayerScreen: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(HGTheme.surface)
+    }
+
+    /// 桌面姿态没有右侧栏：点赞 / 评论 / 收藏 / 画面收进「更多」
+    @ViewBuilder private var socialItems: some View {
+        let fav = library.isFavorite(session.series.id)
+        let liked = library.isLiked(session.episode.vid)
+        let stat = session.episodeStat
+        if session.series.source == .hongguo {
+            moreItem(liked ? "heart.fill" : "heart", stat?.likes.map { DDMedia.count($0 + (liked ? 1 : 0)) } ?? "点赞",
+                     on: liked, id: "hg.more.like") { toggleLike() }
+            let locked = session.episode.number > HGCommentPolicy.publicEpisodes
+            moreItem("ellipsis.bubble", locked ? "评论" : (stat?.comments.map { DDMedia.count($0) + "评论" } ?? "评论"),
+                     id: "hg.more.comments") {
+                if locked { flash("第 \(HGCommentPolicy.publicEpisodes) 集以后的评论，目前不支持观看") }
+                else { showMore = false; showComments = true }
+            }
+        }
+        moreItem(fav ? "star.fill" : "star", fav ? "已收藏" : "收藏", on: fav, id: "hg.more.favorite") { library.toggleFavorite(session.series) }
+        moreItem("aspectratio", fillWidth ? "完整画面" : "铺满", id: "hg.more.fill") {
+            fillWidth.toggle(); userScale = 1; flash(fillWidth ? "铺满：开" : "完整画面")
+        }
     }
 
     private func moreItem(_ icon: String, _ title: String, on: Bool = false, id: String, action: @escaping () -> Void) -> some View {
