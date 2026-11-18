@@ -140,14 +140,19 @@ struct HGRootView: View {
                     }
                 }
             }
-            // 系统会把上次选中的标签恢复回来（DouDuo 也踩过）：冷启动固定回推荐
+            // 系统会把上次选中的标签恢复回来（DouDuo 也踩过）：冷启动固定回发现页
             .task {
                 #if DEBUG
                 if let t = ProcessInfo.processInfo.environment["HG_START_TAB"], let start = HGRootTab.allCases.first(where: { "\($0)" == t }) {
                     tab = start; return
                 }
                 #endif
-                tab = .feed
+                tab = .discover
+            }
+            .task {
+                // 停在发现页时后台备好推荐前 2 部（等首屏封面先出来，2 秒后再开始）
+                try? await Task.sleep(for: .seconds(2))
+                await HGFeedModel.shared.warmUp()
             }
             .task {
                 // 等首屏稳定再查，不跟推荐流抢网络

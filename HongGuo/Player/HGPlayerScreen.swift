@@ -221,9 +221,6 @@ struct HGPlayerScreen: View {
                     }
                 }
                 .scrollTargetLayout()
-                .background(DYPagingSpeedBridge(ids: session.episodes.indices.map(String.init),
-                                                currentID: Binding(get: { page.map(String.init) },
-                                                                   set: { page = $0.flatMap(Int.init) })))
             }
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $page)

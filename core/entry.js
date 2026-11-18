@@ -118,14 +118,10 @@ globalThis.HG = {
           return { vid: String(vid), variants: [{ url: r.url, contentKey: null, codec: 'h264', quality: '', userAgent: 'Mozilla/5.0', referer: '' }] };
         }
         const s = await fetchAppPlayUrl(String(vid), { quality: quality || 'auto', signal: controller.signal });
-        const all = s.variants || [s];
-        const variants = all.filter(v => PLAYABLE.includes(String(v.codec).toLowerCase()))
+        const variants = (s.variants || [s]).filter(v => PLAYABLE.includes(String(v.codec).toLowerCase()))
           .map(v => ({ url: v.url, contentKey: v.contentKey || null, codec: v.codec, quality: v.quality || s.quality || '', userAgent: v.userAgent || s.userAgent || '', referer: v.referer || '' }));
         if (!variants.length) throw Object.assign(new Error('本集只有 ByteVC2 编码，iOS 暂不支持'), { code: 'UNSUPPORTED_CODEC' });
-        // 宽高：取第一条带尺寸的（同一集各码流画幅一致），推荐流靠它在下载前分横竖
-        const sized = all.find(v => Number(v.width) > 0 && Number(v.height) > 0);
-        const w = Number(sized?.width) || 0, h = Number(sized?.height) || 0;
-        return { vid: String(vid), variants, width: w, height: h };
+        return { vid: String(vid), variants };
       } finally { controllers.delete(callId); }
     });
   },
