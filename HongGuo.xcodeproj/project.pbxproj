@@ -27,6 +27,7 @@
 		9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */; };
 		B9F9F7759CAF97B09EF948EB /* HGEpisodePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */; };
 		BAC747AB7AF77014EE49FD13 /* HGLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */; };
+		BEC76F1B74103BE5875FA9C1 /* DDMediaRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB9B393254B6C5DB1888B84 /* DDMediaRail.swift */; };
 		C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB216E63F437213FB239626 /* HGNativeCrypto.swift */; };
 		CC31E78C419C9013DC80ECC8 /* HGMineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA34D56203BB82C3E2F95C /* HGMineView.swift */; };
 		DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */; };
@@ -65,6 +66,7 @@
 		B8A47294DDC1661DBE333D4F /* HongGuoUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HongGuoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8A74B9EC6CD10FCA8D71AD1 /* HongGuo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HongGuo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGLibrary.swift; sourceTree = "<group>"; };
+		CBB9B393254B6C5DB1888B84 /* DDMediaRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DDMediaRail.swift; sourceTree = "<group>"; };
 		CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDanmakuEngine.swift; sourceTree = "<group>"; };
 		D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDownloadsView.swift; sourceTree = "<group>"; };
 		D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDiscoverView.swift; sourceTree = "<group>"; };
@@ -95,6 +97,7 @@
 		15159392E89B9610E96F1911 /* Player */ = {
 			isa = PBXGroup;
 			children = (
+				CBB9B393254B6C5DB1888B84 /* DDMediaRail.swift */,
 				CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */,
 				52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */,
 				124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */,
@@ -300,6 +303,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BEC76F1B74103BE5875FA9C1 /* DDMediaRail.swift in Sources */,
 				45EF4CC31758C434F09DD797 /* DYDanmakuEngine.swift in Sources */,
 				DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */,
 				9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */,
@@ -439,7 +443,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -459,7 +463,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.2.2;
+				MARKETING_VERSION = 0.2.3;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -522,7 +526,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -536,7 +540,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.2.2;
+				MARKETING_VERSION = 0.2.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
