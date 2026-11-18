@@ -170,28 +170,52 @@ struct HGDiscoverTabletop: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 0) {
-                    ForEach(items) { s in
-                        HGSeriesInfoPane(series: s)
-                            .contentShape(Rectangle())
-                            .onTapGesture { openDetail(s) }
-                            .containerRelativeFrame(.horizontal)
-                            .id(s.id)
-                            .onAppear { if s.id == items.last?.id { loadMore() } }
+            // 上半屏：完整片库网格（跟平时首页一样能翻、能挑）。点一下选中 → 下半屏出它的选集；
+            // 再点选中的那张 → 进详情
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 150), spacing: 10, alignment: .top)], spacing: 14) {
+                        ForEach(items) { s in
+                            let on = s.id == focus?.id
+                            HGSeriesCard(series: s, subtitle: s.tags?.prefix(2).joined(separator: " · "))
+                                .padding(4)
+                                .overlay(RoundedRectangle(cornerRadius: HGTheme.radius + 4, style: .continuous)
+                                    .stroke(on ? HGTheme.accent : .clear, lineWidth: 2))
+                                .contentShape(Rectangle())
+                                .onTapGesture { if on { openDetail(s) } else { focused = s.id } }
+                                .id(s.id)
+                                .accessibilityElement(children: .combine)
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityIdentifier("hg.tabletop.card")
+                                .accessibilityValue(on ? "selected" : "")
+                                .onAppear { if s.id == items.last?.id { loadMore() } }
+                        }
                     }
+                    .padding(.horizontal, 12).padding(.vertical, 6)
                 }
-                .scrollTargetLayout()
+                .onAppear { if let f = focus?.id { proxy.scrollTo(f, anchor: .center) } }
             }
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: $focused)
-            .scrollIndicators(.hidden)
             .frame(height: max(0, crease.top))
-            .overlay(alignment: .bottom) { pager }
+            .accessibilityIdentifier("hg.tabletop.grid")
             Color.clear.frame(height: max(0, crease.bottom - crease.top))
             VStack(spacing: 0) {
                 if let s = focus, let d = detail, d.series_id == s.series_id {
                     let p = library.progress(for: s.id)
+                    Button { openDetail(s) } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(s.series_title).font(.subheadline.weight(.semibold)).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                                Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(HGTheme.textTertiary)
+                            }
+                            if let desc = d.description ?? s.description, !desc.isEmpty {
+                                Text(desc).font(.caption).foregroundStyle(HGTheme.textSecondary).lineLimit(1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16).padding(.top, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("hg.tabletop.info")
                     HGEpisodeHeader(count: d.episodes.count,
                                     resume: p.map { "续播第 \($0.episodeIndex + 1) 集" } ?? "播放") { play(s, d, p?.episodeIndex ?? 0, resume: true) }
                     HGEpisodeGrid(episodes: d.episodes, current: p?.episodeIndex) { play(s, d, $0, resume: $0 == p?.episodeIndex) }
@@ -208,13 +232,6 @@ struct HGDiscoverTabletop: View {
         }
         .task(id: focus?.id) { await loadDetail() }
         .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }
-    }
-
-    private var pager: some View {
-        let idx = items.firstIndex { $0.id == focus?.id } ?? 0
-        return Text("\(idx + 1) / \(items.count) · 左右滑换剧")
-            .font(.caption2.monospacedDigit()).foregroundStyle(HGTheme.textTertiary)
-            .padding(.bottom, 6)
     }
 
     private func play(_ s: HGSeries, _ d: HGDetail, _ i: Int, resume: Bool) {

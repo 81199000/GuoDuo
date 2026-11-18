@@ -21,7 +21,7 @@ struct HGDiscoverView: View {
             if let crease = HGTabletop.crease(geo), !items.isEmpty {
                 // 桌面姿态：标题收成小标题，分类条保留在最上面，下面一部一部翻
                 VStack(spacing: 0) {
-                    chips(HGCategory.allCases.map { ($0.rawValue, $0.title) }, selected: category.rawValue, small: true, prefix: "hg.category") {
+                    chips(HGCategory.allCases.map { ($0.rawValue, $0.title) }, selected: category.rawValue, prefix: "hg.category") {
                         category = HGCategory(rawValue: $0) ?? .hot
                     }
                     .padding(.vertical, 4)
