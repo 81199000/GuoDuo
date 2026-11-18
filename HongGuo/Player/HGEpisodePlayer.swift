@@ -94,6 +94,18 @@ final class HGPlaybackSession {
     }
     func endPreview() { seekPreviewImage = nil }
 
+    /// 截当前画面（原尺寸，精确到帧），本地明文文件直接取
+    func snapshot() async -> UIImage? {
+        guard let asset = player.currentItem?.asset else { return nil }
+        let gen = AVAssetImageGenerator(asset: asset)
+        gen.appliesPreferredTrackTransform = true
+        gen.requestedTimeToleranceBefore = .zero
+        gen.requestedTimeToleranceAfter = .zero
+        let t = player.currentTime()
+        guard let (cg, _) = try? await gen.image(at: t) else { return nil }
+        return UIImage(cgImage: cg)
+    }
+
     func go(to i: Int) {
         guard episodes.indices.contains(i), i != index else { return }
         save(force: true)

@@ -24,8 +24,8 @@ struct HGDetailView: View {
 
     var body: some View {
         GeometryReader { geo in
-            if let split = HGTabletop.split(geo) {
-                HGDetailTabletop(series: resolvedSeries, detail: detail, split: split,
+            if let crease = HGTabletop.crease(geo) {
+                HGDetailTabletop(series: resolvedSeries, detail: detail, crease: crease,
                                  current: library.progress(for: series.id)?.episodeIndex,
                                  resumeTitle: continueTitle) { start(at: $0, resume: $1) }
             } else {
@@ -34,6 +34,7 @@ struct HGDetailView: View {
         }
         .background(HGTheme.background)
         .navigationBarTitleDisplayMode(.inline)
+        .dyDisableVerticalToolbar()
         .task { if detail == nil { await load() } }
         .fullScreenCover(item: $playing) { req in HGPlayerScreen(request: req) }
     }

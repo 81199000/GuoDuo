@@ -3,10 +3,22 @@ import SwiftUI
 /// 竖屏半折叠（桌面姿态）判定：返回折痕在本视图里的 y；不是桌面姿态返回 nil。
 /// 真机走系统铰链区域（DouDuo hingeSplit）；模拟器 DOUDUO_FOLD=1 时按 DouDuo 回退比例 55 / 45。
 enum HGTabletop {
-    static func split(_ geo: GeometryProxy) -> CGFloat? {
+    /// 折痕带（上沿 top、下沿 bottom），上下内容都躲开它
+    struct Crease { let top: CGFloat; let bottom: CGFloat }
+    static func crease(_ geo: GeometryProxy) -> Crease? {
         guard DYDuoMetrics.foldIsActive(geo) else { return nil }
-        if let h = DYDuoMetrics.hingeSplit(geo) { return h.book ? nil : h.panel.minY }
-        return geo.size.width <= geo.size.height ? geo.size.height * 0.55 : nil
+        if let h = DYDuoMetrics.hingeSplit(geo) {
+            return h.book ? nil : Crease(top: h.video.maxY, bottom: h.panel.minY)
+        }
+        // 模拟器回退：在全屏 55% 处假装有一条 24pt 的折痕带（换算到本视图坐标）。
+        // 竖横判断看窗口，不看本视图（大标题导航栏会把视图压成宽 > 高）
+        let window = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.bounds.size
+            ?? CGSize(width: geo.size.width, height: geo.size.height)
+        guard window.width <= window.height else { return nil }
+        let frame = geo.frame(in: .global)
+        let screenH = window.height
+        let mid = screenH * 0.55 - frame.minY
+        return Crease(top: mid - 12, bottom: mid + 12)
     }
 }
 
@@ -93,7 +105,8 @@ struct HGSeriesInfoPane: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16)
+        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12)
+        .clipped()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("hg.tabletop.info")
     }
@@ -103,7 +116,7 @@ struct HGSeriesInfoPane: View {
 struct HGDetailTabletop: View {
     let series: HGSeries
     let detail: HGDetail?
-    let split: CGFloat
+    let crease: HGTabletop.Crease
     let current: Int?
     let resumeTitle: String
     let play: (Int, Bool) -> Void
@@ -111,7 +124,8 @@ struct HGDetailTabletop: View {
     var body: some View {
         VStack(spacing: 0) {
             HGSeriesInfoPane(series: series, episodeCount: detail?.episodes.count, description: detail?.description)
-                .frame(height: split)
+                .frame(height: max(0, crease.top))
+            Color.clear.frame(height: max(0, crease.bottom - crease.top))   // 折痕带空出来
             VStack(spacing: 0) {
                 if let d = detail {
                     HGEpisodeHeader(count: d.episodes.count, resume: resumeTitle) { play(current ?? 0, true) }
@@ -131,10 +145,10 @@ struct HGDetailTabletop: View {
 /// 首页桌面姿态：上半屏横滑翻剧（一次一部，大封面 + 信息），下半屏是当前这部的选集，点集直接播
 struct HGDiscoverTabletop: View {
     let items: [HGSeries]
-    let split: CGFloat
+    let crease: HGTabletop.Crease
     let loadMore: () -> Void
     let openDetail: (HGSeries) -> Void
-    @State private var focused: String?
+    @SceneStorage("hg.tabletop.focus") private var focused: String?
     @State private var detail: HGDetail?
     @State private var detailError: String?
     @State private var playing: HGPlayerRequest?
@@ -160,8 +174,9 @@ struct HGDiscoverTabletop: View {
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $focused)
             .scrollIndicators(.hidden)
-            .frame(height: split)
+            .frame(height: max(0, crease.top))
             .overlay(alignment: .bottom) { pager }
+            Color.clear.frame(height: max(0, crease.bottom - crease.top))
             VStack(spacing: 0) {
                 if let s = focus, let d = detail, d.series_id == s.series_id {
                     let p = library.progress(for: s.id)
