@@ -70,6 +70,19 @@ struct HGPlayerScreen: View {
                         .clipped()
                         .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
                         .transition(.move(edge: .bottom))
+                } else if layout.resident && layout.sideBySide && showsComments {
+                    // 书本姿态点了评论：右半屏临时换成评论，关掉回选集
+                    HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
+                                   onClose: { showComments = false },
+                                   fillsPane: true, trailingInset: layout.trailingInset,
+                                   horizontalStatus: true, swipeRightClosesAnywhere: true)
+                        .id(session.episode.vid)
+                        .frame(width: layout.paneSize.width, height: layout.paneSize.height)
+                        .clipped()
+                        .overlay(alignment: .leading) { Color(uiColor: .separator).frame(width: 0.5) }
+                        .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
+                        .transition(.move(edge: .trailing))
+                        .accessibilityIdentifier("hg.comments.side")
                 } else if layout.resident && layout.sideBySide {
                     // 横屏半折叠（书本）：右半屏 = 选集
                     HGEpisodeSheet(session: session, close: {}, fillsPane: true, trailingInset: layout.trailingInset)
@@ -99,7 +112,8 @@ struct HGPlayerScreen: View {
             }
             .frame(width: outer.size.width, height: outer.size.height, alignment: .topLeading)
             .background(Color.black.ignoresSafeArea())
-            .onChange(of: layout.showsPane, initial: true) { _, v in commentsInPane = v }
+            // 书本姿态：右边是常驻选集，视频上照常显示完整菜单栏（右侧 DouDuo 液态玻璃栏）
+            .onChange(of: layout.showsPane && !(layout.resident && layout.sideBySide && !showsComments), initial: true) { _, v in commentsInPane = v }
             .onChange(of: layout.resident && !layout.sideBySide, initial: true) { _, v in consoleShown = v }
             .animation(.snappy, value: layout.showsPane)
             .animation(.snappy, value: layout.resident)
