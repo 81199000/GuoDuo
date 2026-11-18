@@ -9,7 +9,12 @@ enum HGKeychain {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: key]
     }
 
+    /// 命令行自测（无 bundle id、未签名）时钥匙串写入会阻塞等授权：改用内存。
+    private nonisolated(unsafe) static var memory: [String: String] = [:]
+    private static var useMemory: Bool { Bundle.main.bundleIdentifier == nil }
+
     static func get(_ key: String) -> String? {
+        if useMemory { return memory[key] }
         var q = query(key)
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -19,6 +24,7 @@ enum HGKeychain {
     }
 
     static func set(_ key: String, _ value: String) {
+        if useMemory { memory[key] = value; return }
         let data = Data(value.utf8)
         let update = [kSecValueData as String: data]
         if SecItemUpdate(query(key) as CFDictionary, update as CFDictionary) == errSecItemNotFound {
@@ -29,5 +35,8 @@ enum HGKeychain {
         }
     }
 
-    static func delete(_ key: String) { SecItemDelete(query(key) as CFDictionary) }
+    static func delete(_ key: String) {
+        if useMemory { memory[key] = nil; return }
+        SecItemDelete(query(key) as CFDictionary)
+    }
 }

@@ -1,7 +1,16 @@
 import SwiftUI
 
+final class HGAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        // 竖屏为主；播放页按「横屏」后才放开横向（横屏片源）。iPad 不限制。
+        if UIDevice.current.userInterfaceIdiom == .pad { return .all }
+        return HGOrientation.allowLandscape ? [.portrait, .landscapeLeft, .landscapeRight] : .portrait
+    }
+}
+
 @main
 struct HongGuoApp: App {
+    @UIApplicationDelegateAdaptor(HGAppDelegate.self) private var appDelegate
     init() {
         _ = HGCore.shared // 提前加载 JS 核心，首屏请求不再等启动
     }

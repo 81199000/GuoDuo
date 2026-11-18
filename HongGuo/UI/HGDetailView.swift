@@ -6,6 +6,9 @@ struct HGDetailView: View {
     @State private var error: String?
     @State private var playing: HGPlayerRequest?
     @State private var library = HGLibrary.shared
+    @State private var downloads = HGDownloads.shared
+    @State private var selecting = false
+    @State private var picked: Set<String> = []
 
     private let grid = [GridItem(.adaptive(minimum: 56), spacing: 8)]
 
@@ -55,19 +58,49 @@ struct HGDetailView: View {
                 if let error { HGErrorView(message: error) { Task { await load() } } }
 
                 if let d = detail {
-                    Text("选集").font(.headline).foregroundStyle(HGTheme.textPrimary)
+                    HStack {
+                        Text(selecting ? "选择要下载的集（\(picked.count)）" : "选集").font(.headline).foregroundStyle(HGTheme.textPrimary)
+                        Spacer()
+                        if selecting {
+                            Button(picked.count == d.episodes.filter({ $0.locked != true }).count ? "全不选" : "全选") {
+                                let all = Set(d.episodes.filter { $0.locked != true }.map(\.vid))
+                                picked = picked == all ? [] : all
+                            }.font(.footnote)
+                            Button("取消") { selecting = false; picked = [] }.font(.footnote)
+                        } else {
+                            Button { selecting = true } label: { Label("下载", systemImage: "arrow.down.circle") }
+                                .font(.footnote).accessibilityIdentifier("hg.detail.download")
+                        }
+                    }
                     let current = library.progress(for: series.id)?.episodeIndex
                     LazyVGrid(columns: grid, spacing: 8) {
                         ForEach(Array(d.episodes.enumerated()), id: \.element.id) { i, ep in
-                            Button { start(at: i, resume: i == current) } label: {
+                            Button {
+                                if selecting { if ep.locked != true { picked.formSymmetricDifference([ep.vid]) } }
+                                else { start(at: i, resume: i == current) }
+                            } label: {
+                                let on = selecting ? picked.contains(ep.vid) : i == current
                                 Text("\(ep.number)").font(.subheadline.monospacedDigit())
                                     .frame(maxWidth: .infinity, minHeight: 40)
-                                    .background(i == current ? HGTheme.accent.opacity(0.18) : HGTheme.surface,
+                                    .background(on ? HGTheme.accent.opacity(selecting ? 0.85 : 0.18) : HGTheme.surface,
                                                 in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
-                                    .foregroundStyle(i == current ? HGTheme.accent : HGTheme.textPrimary)
+                                    .foregroundStyle(selecting && on ? Color.white : on ? HGTheme.accent : (ep.locked == true ? HGTheme.textTertiary : HGTheme.textPrimary))
+                                    .overlay(alignment: .topTrailing) { badge(ep) }
                             }
                             .accessibilityIdentifier("hg.episode.\(ep.number)")
                         }
+                    }
+                    if selecting {
+                        Button {
+                            downloads.enqueue(resolvedSeries, episodes: d.episodes.filter { picked.contains($0.vid) })
+                            selecting = false; picked = []
+                        } label: {
+                            Text("下载 \(picked.count) 集").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
+                                .background(picked.isEmpty ? HGTheme.surfaceHigh : HGTheme.accent, in: RoundedRectangle(cornerRadius: HGTheme.radius))
+                                .foregroundStyle(.white)
+                        }
+                        .disabled(picked.isEmpty)
+                        .accessibilityIdentifier("hg.detail.download.confirm")
                     }
                 } else if error == nil {
                     ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
@@ -78,7 +111,19 @@ struct HGDetailView: View {
         .background(HGTheme.background)
         .navigationBarTitleDisplayMode(.inline)
         .task { if detail == nil { await load() } }
-        .fullScreenCover(item: $playing) { req in HGPlayerView(request: req) }
+        .fullScreenCover(item: $playing) { req in HGPlayerScreen(request: req) }
+    }
+
+    @ViewBuilder private func badge(_ ep: HGEpisode) -> some View {
+        if ep.locked == true {
+            Image(systemName: "lock.fill").font(.system(size: 8)).padding(4).foregroundStyle(HGTheme.textTertiary)
+        } else if let st = downloads.state(ep.vid) {
+            switch st {
+            case .done: Image(systemName: "arrow.down.circle.fill").font(.system(size: 9)).padding(3).foregroundStyle(HGTheme.textSecondary)
+            case .downloading, .queued: Image(systemName: "arrow.down.circle").font(.system(size: 9)).padding(3).foregroundStyle(HGTheme.textTertiary)
+            case .failed: Image(systemName: "exclamationmark.circle").font(.system(size: 9)).padding(3).foregroundStyle(HGTheme.accent)
+            }
+        }
     }
 
     private var continueTitle: String {

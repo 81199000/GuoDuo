@@ -2,30 +2,26 @@ import SwiftUI
 
 struct HGDiscoverView: View {
     @State private var category: HGCategory = .hot
+    @State private var genre = ""
+    @State private var genres: [HGGenre] = []
     @State private var items: [HGSeries] = []
     @State private var page = 1
     @State private var hasMore = true
     @State private var loading = false
     @State private var error: String?
+    @State private var showShare = false
+    @State private var openSeries: HGSeries?
 
     private let columns = [GridItem(.adaptive(minimum: 104, maximum: 180), spacing: 12, alignment: .top)]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(HGCategory.allCases) { c in
-                            Button { category = c } label: {
-                                Text(c.title).font(.subheadline.weight(c == category ? .semibold : .regular))
-                                    .padding(.horizontal, 14).padding(.vertical, 7)
-                                    .background(c == category ? HGTheme.accent : HGTheme.surface, in: Capsule())
-                                    .foregroundStyle(c == category ? Color.white : HGTheme.textSecondary)
-                            }
-                            .accessibilityIdentifier("hg.category.\(c.rawValue)")
-                        }
-                    }
-                    .padding(.horizontal)
+            VStack(alignment: .leading, spacing: 12) {
+                chips(HGCategory.allCases.map { ($0.rawValue, $0.title) }, selected: category.rawValue, prefix: "hg.category") {
+                    category = HGCategory(rawValue: $0) ?? .hot
+                }
+                if category.supportsGenres && !genres.isEmpty {
+                    chips([("", "全部")] + genres.map { ($0.slug, $0.label) }, selected: genre, small: true, prefix: "hg.genre") { genre = $0 }
                 }
                 if let error, items.isEmpty {
                     HGErrorView(message: error) { Task { await reload() } }
@@ -43,8 +39,34 @@ struct HGDiscoverView: View {
             .padding(.vertical, 8)
         }
         .refreshable { await reload() }
-        .task(id: category) { await reload() }
+        .task(id: "\(category.rawValue)|\(genre)") { await reload() }
+        .onChange(of: category) { _, _ in genre = ""; genres = [] }
         .navigationTitle("发现")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showShare = true } label: { Image(systemName: "link") }.accessibilityIdentifier("hg.share")
+            }
+        }
+        .sheet(isPresented: $showShare) { HGShareLinkSheet { openSeries = $0; showShare = false }.presentationDetents([.height(240)]) }
+        .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
+    }
+
+    private func chips(_ options: [(String, String)], selected: String, small: Bool = false, prefix: String, pick: @escaping (String) -> Void) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(options, id: \.0) { value, title in
+                    let on = value == selected
+                    Button { pick(value) } label: {
+                        Text(title).font((small ? Font.footnote : .subheadline).weight(on ? .semibold : .regular))
+                            .padding(.horizontal, small ? 11 : 14).padding(.vertical, small ? 5 : 7)
+                            .background(on ? (small ? HGTheme.accent.opacity(0.2) : HGTheme.accent) : HGTheme.surface, in: Capsule())
+                            .foregroundStyle(on ? (small ? HGTheme.accent : Color.white) : HGTheme.textSecondary)
+                    }
+                    .accessibilityIdentifier("\(prefix).\(value.isEmpty ? "all" : value)")
+                }
+            }
+            .padding(.horizontal)
+        }
     }
 
     private func reload() async {
@@ -57,11 +79,12 @@ struct HGDiscoverView: View {
         guard !loading, hasMore else { return }
         loading = true; defer { loading = false }
         do {
-            let current = category
-            let r = try await HGAPI.browse(current, page: page)
-            guard current == category else { return }
+            let current = category, g = genre
+            let r = try await HGAPI.browse(current, page: page, genre: current.supportsGenres ? g : "")
+            guard current == category, g == genre else { return }
             let seen = Set(items.map(\.id))
             items += r.results.filter { !seen.contains($0.id) }
+            if let gs = r.genres, !gs.isEmpty, current.supportsGenres { genres = gs }
             hasMore = r.hasMore ?? false
             page += 1
         } catch {
@@ -71,9 +94,45 @@ struct HGDiscoverView: View {
     }
 }
 
+/// 粘贴红果分享链接（或整段分享口令）→ 打开剧集。
+struct HGShareLinkSheet: View {
+    let open: (HGSeries) -> Void
+    @State private var text = ""
+    @State private var busy = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("粘贴红果分享链接").font(.headline)
+            TextField("https://… 或整段分享文字", text: $text, axis: .vertical)
+                .lineLimit(2...3).textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("hg.share.field")
+            if let error { Text(error).font(.footnote).foregroundStyle(HGTheme.accent) }
+            HStack {
+                Button("从剪贴板粘贴") { text = UIPasteboard.general.string ?? "" }
+                Spacer()
+                Button { Task { await go() } } label: { if busy { ProgressView() } else { Text("打开") } }
+                    .buttonStyle(.borderedProminent).tint(HGTheme.accent).disabled(text.isEmpty || busy)
+                    .accessibilityIdentifier("hg.share.open")
+            }
+        }
+        .padding(20)
+    }
+
+    private func go() async {
+        busy = true; error = nil; defer { busy = false }
+        do {
+            let sid = try await HGAPI.resolveShare(text)
+            let detail = try await HGAPI.detail(sid)
+            open(HGSeries(series_id: sid, series_title: detail.series_title, cover: detail.cover, episode_count: detail.episodes.count, description: detail.description))
+        } catch { self.error = error.localizedDescription }
+    }
+}
+
 struct HGSearchView: View {
     @State private var query = ""
     @State private var submitted = ""
+    @State private var source: HGSourceKind = .hongguo
     @State private var items: [HGSeries] = []
     @State private var page = 1
     @State private var cursor: HGCursor?
@@ -83,6 +142,11 @@ struct HGSearchView: View {
 
     var body: some View {
         List {
+            Picker("来源", selection: $source) {
+                ForEach(HGSourceKind.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .listRowBackground(HGTheme.background).listRowSeparator(.hidden)
             if let error { Text(error).font(.footnote).foregroundStyle(HGTheme.textSecondary).listRowBackground(HGTheme.background) }
             ForEach(items) { s in
                 NavigationLink(value: s) {
@@ -112,6 +176,7 @@ struct HGSearchView: View {
             submitted = query.trimmingCharacters(in: .whitespaces)
             Task { await load(more: false) }
         }
+        .onChange(of: source) { _, _ in Task { await load(more: false) } }
         .navigationTitle("搜索")
     }
 
@@ -120,48 +185,11 @@ struct HGSearchView: View {
         if !more { items = []; page = 1; cursor = nil }
         loading = true; error = nil; defer { loading = false }
         do {
-            let r = try await HGAPI.search(submitted, page: page, cursor: cursor)
+            let r = try await HGAPI.search(submitted, source: source, page: page, cursor: cursor)
             let seen = Set(items.map(\.id))
             items += r.results.filter { !seen.contains($0.id) }
             hasMore = r.hasMore ?? false
             cursor = r.cursor; page += 1
         } catch { self.error = error.localizedDescription }
-    }
-}
-
-struct HGMineView: View {
-    @State private var library = HGLibrary.shared
-    var body: some View {
-        List {
-            Section("继续观看") {
-                if library.history.isEmpty { Text("还没有观看记录").foregroundStyle(HGTheme.textTertiary) }
-                ForEach(library.history, id: \.series.id) { p in
-                    NavigationLink(value: p.series) {
-                        HStack(spacing: 12) {
-                            HGCover(url: p.series.coverURL).frame(width: 46)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(p.series.series_title).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
-                                Text("看到第 \(p.episodeIndex + 1) 集").font(.caption).foregroundStyle(HGTheme.textSecondary)
-                            }
-                        }
-                    }
-                    .swipeActions { Button("删除", role: .destructive) { library.removeHistory(p.series.id) } }
-                }
-            }
-            .listRowBackground(HGTheme.surface)
-            Section("收藏") {
-                if library.favorites.isEmpty { Text("还没有收藏").foregroundStyle(HGTheme.textTertiary) }
-                ForEach(library.favorites) { s in
-                    NavigationLink(value: s) { Text(s.series_title).foregroundStyle(HGTheme.textPrimary) }
-                }
-            }
-            .listRowBackground(HGTheme.surface)
-            Section {
-                Text("片源来自红果公开接口，接口变化时可能失效。仅供个人学习使用。").font(.caption).foregroundStyle(HGTheme.textTertiary)
-            }
-            .listRowBackground(HGTheme.background)
-        }
-        .scrollContentBackground(.hidden)
-        .navigationTitle("我的")
     }
 }

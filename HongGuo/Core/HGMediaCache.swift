@@ -14,6 +14,7 @@ actor HGMediaCache {
     private let session: URLSession = {
         let c = URLSessionConfiguration.default
         c.timeoutIntervalForRequest = 30
+        c.allowsExpensiveNetworkAccess = true
         c.timeoutIntervalForResource = 300
         c.httpCookieAcceptPolicy = .never
         return URLSession(configuration: c)
@@ -26,6 +27,7 @@ actor HGMediaCache {
     }
 
     func file(for vid: String, progress: (@Sendable (Phase) -> Void)? = nil) async throws -> URL {
+        if let offline = await HGDownloads.shared.localFile(vid) { return offline } // 已离线下载：直接播
         let target = dir.appendingPathComponent("\(vid).mp4")
         if FileManager.default.fileExists(atPath: target.path) { touch(vid); return target }
         if let task = inflight[vid] { return try await task.value }
@@ -49,6 +51,11 @@ actor HGMediaCache {
             let old = order.removeFirst()
             try? FileManager.default.removeItem(at: dir.appendingPathComponent("\(old).mp4"))
         }
+    }
+
+    /// 离线下载复用同一条「取源 → 下载 → 解密」流水线，写到指定位置。
+    nonisolated func fetch(vid: String, to target: URL, progress: (@Sendable (Phase) -> Void)?) async throws {
+        _ = try await prepare(vid: vid, target: target, progress: progress)
     }
 
     private nonisolated func prepare(vid: String, target: URL, progress: (@Sendable (Phase) -> Void)?) async throws -> URL {
