@@ -179,7 +179,8 @@ struct HGFeedView: View {
     @State private var full: HGPlayerRequest?
     /// 「全集」→ 推进这部剧的详情页（推荐页自己的导航栈里，返回就回推荐）
     @State private var detailSeries: HGSeries?
-    @State private var active = true
+    @State private var active = false
+    @Environment(\.hgFeedFront) private var front
     @Environment(\.scenePhase) private var scenePhase
     /// 横屏右侧标签胶囊在：整块推荐画面往左让出胶囊位置，胶囊不压视频、不跟视频右侧菜单栏叠在一起
     @Environment(\.hgSideRail) private var sideRail
@@ -244,11 +245,13 @@ struct HGFeedView: View {
         .onChange(of: (session?.position ?? 0) >= 3) { _, watched in
             if watched, let id = sessionID, let it = model.items.first(where: { $0.id == id }) { model.markWatched(it) }
         }
-        .onAppear {
-            active = true
-            if session == nil { focus(current) } else { session?.resumeIfSuspended() }
+        // 只有推荐真的在前台才放：切到别的 tab 暂停，切回来接着放
+        .onChange(of: front, initial: true) { _, f in
+            active = f
+            if f { if session == nil { focus(current) } else { session?.resumeIfSuspended() } }
+            else { session?.suspend() }
         }
-        .onDisappear { active = false; session?.suspend() }
+        .onDisappear { if !front { active = false; session?.suspend() } }
         .onChange(of: scenePhase) { _, p in
             if p == .background, !HGBackgroundPlayback.enabled, let s = session, !s.pip.active, !s.pip.starting { s.pauseForBackground() }
         }

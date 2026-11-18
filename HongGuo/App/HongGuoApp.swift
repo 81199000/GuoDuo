@@ -100,6 +100,8 @@ struct HGSideTabRail: View {
 extension EnvironmentValues {
     /// 横屏右侧胶囊在：导航栏上的链接圆键收起（已并进胶囊）
     @Entry var hgSideRail = false
+    /// 推荐是不是当前选中的 tab（TabView 会把没选中的页也挂着，不能靠 onAppear 判断）
+    @Entry var hgFeedFront = false
 }
 
 enum HGRootTab: String, CaseIterable, Hashable {
@@ -136,6 +138,7 @@ struct HGRootView: View {
                         stack { page(t) }
                             // 推荐页横屏不显示主菜单胶囊（视频右侧是点赞那排 + 返回键）
                             .environment(\.hgSideRail, sideRail && t != .feed)
+                            .environment(\.hgFeedFront, tab == .feed)
                             .toolbarBackgroundVisibility(t == .feed ? .hidden : .automatic, for: .tabBar)
                             .toolbarColorScheme(t == .feed ? .dark : nil, for: .tabBar)
                             // 推荐页横竖屏都不显示主菜单；靠视频上的返回键回发现
