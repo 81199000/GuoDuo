@@ -12,14 +12,24 @@ final class HGTabletopTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app.launch()
         let any = app.descendants(matching: .any)
-        // 首页：上信息 / 下选集
-        XCTAssertTrue(any["hg.tabletop.info"].firstMatch.waitForExistence(timeout: 25), "首页没有桌面布局")
-        XCTAssertTrue(any["hg.tabletop.episodes"].firstMatch.waitForExistence(timeout: 15))
+        // 首页：上片库网格 / 下选集
+        XCTAssertTrue(any["hg.tabletop.grid"].firstMatch.waitForExistence(timeout: 25), "首页没有桌面布局")
+        let cards = any.matching(identifier: "hg.tabletop.card")
+        XCTAssertGreaterThan(cards.count, 3, "上半屏网格没出来")
         XCTAssertTrue(app.buttons["hg.episode.1"].waitForExistence(timeout: 20), "首页下半屏没出选集")
-        print("HGTAB home info=\(any["hg.tabletop.info"].firstMatch.frame) eps=\(any["hg.tabletop.episodes"].firstMatch.frame)")
+        print("HGTAB home grid=\(any["hg.tabletop.grid"].firstMatch.frame) cards=\(cards.count) eps=\(any["hg.tabletop.episodes"].firstMatch.frame)")
         sleep(1); shot(app, "home")
-        // 详情页：点上半屏
-        any["hg.tabletop.info"].firstMatch.tap()
+        // 点第 2 张：选中、下半屏换成它的选集
+        let second = cards.element(boundBy: 1)
+        let name0 = (any["hg.tabletop.info"].firstMatch.label)
+        second.tap(); sleep(2)
+        XCTAssertEqual(second.value as? String, "selected", "点卡片没选中")
+        let name1 = any["hg.tabletop.info"].firstMatch.label
+        print("HGTAB switch \(name0.prefix(12)) -> \(name1.prefix(12))")
+        XCTAssertNotEqual(name0, name1, "下半屏没换成选中剧")
+        shot(app, "home-switched")
+        // 再点一次 → 详情
+        second.tap()
         sleep(2)
         XCTAssertTrue(app.buttons["hg.tabletop.resume"].waitForExistence(timeout: 15), "详情页没有桌面布局")
         let info = any["hg.tabletop.info"].firstMatch.frame, eps = any["hg.tabletop.episodes"].firstMatch.frame
@@ -109,7 +119,7 @@ final class HGTabletopTests: XCTestCase {
         back2.tap(); sleep(2)
         XCTAssertTrue(app.navigationBars["发现"].waitForExistence(timeout: 3), "回不到首页")
         sleep(2)
-        XCTAssertTrue(any["hg.tabletop.info"].firstMatch.exists, "回首页后不是上下布局")
+        XCTAssertTrue(any["hg.tabletop.grid"].firstMatch.exists, "回首页后不是上下布局")
         shot(app, "back-home")
     }
 
