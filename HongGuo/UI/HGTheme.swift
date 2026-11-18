@@ -16,11 +16,10 @@ enum HGTheme {
 struct HGCover: View {
     let url: URL?
     var body: some View {
-        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
-            switch phase {
-            case .success(let image): image.resizable().scaledToFill()
-            default: Rectangle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "film").foregroundStyle(HGTheme.textTertiary))
-            }
+        CachedAsyncImage(url: url, thumbnailMaxPixel: 720) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Rectangle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "film").foregroundStyle(HGTheme.textTertiary))
         }
         .aspectRatio(3 / 4, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))

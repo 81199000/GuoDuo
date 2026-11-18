@@ -589,7 +589,7 @@ function parseAppPlayModel(info, vid, options, inline, requireEncryptionMetadata
                     seen.add(identity);
                     variants.push({ url, contentKey, codec: selected.codec === 'bytevc1' ? 'hevc' : selected.codec, source: 'app', vid,
                         userAgent: inline ? PLAYBACK_UA : VIDEO_UA, quality: allowLowerQuality ? (selected.width && selected.height ? `${Math.min(selected.width, selected.height)}p` : '') : requestedQuality === 'auto' ? selected.quality : requestedQuality,
-                        ...(requestedQuality === 'auto' ? {} : { width: selected.width, height: selected.height }) });
+                        width: selected.width, height: selected.height });  // GuoDuo：推荐流按横竖筛片，auto 也带上宽高
                     if (selected.codec === 'bytevc2') Object.assign(variants[variants.length - 1], {
                         width: selected.width, height: selected.height, duration: Number(info.video_duration),
                     });

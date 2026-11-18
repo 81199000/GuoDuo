@@ -13,6 +13,7 @@
 		127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */; };
 		1DE989258E72ED5BFD0C9F78 /* hgcore.js in Resources */ = {isa = PBXBuildFile; fileRef = 536D20075F82248682811BB9 /* hgcore.js */; };
 		213C1C18EB8F4FFB719BFE8A /* HGPlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */; };
+		2251C4FAD70F9D7B85DF6E7F /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B554B9B3742681D54D9FC9 /* CachedAsyncImage.swift */; };
 		3A9EC27C1A804BB0D5532186 /* DYVideoAmbient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC544D830B88BFE876EB5C83 /* DYVideoAmbient.swift */; };
 		3D2FC6CB034D422F15BCE87C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1A08138DB57EA101DA32C4E /* Assets.xcassets */; };
 		4333D747EADBFAA931839304 /* HGFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5077CA7284996E39E525152 /* HGFlowTests.swift */; };
@@ -36,8 +37,10 @@
 		B674A141AB189E1F97DFF503 /* HGStorageRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705E7BBE3F47172EC57C783 /* HGStorageRing.swift */; };
 		B9F9F7759CAF97B09EF948EB /* HGEpisodePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */; };
 		BAC747AB7AF77014EE49FD13 /* HGLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */; };
+		BD235CB6169959B89C66D846 /* HGFeedOrientationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E409A97A3EC3D4609CD0146C /* HGFeedOrientationTests.swift */; };
 		BEC76F1B74103BE5875FA9C1 /* DDMediaRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB9B393254B6C5DB1888B84 /* DDMediaRail.swift */; };
 		C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 734656AB064DDD880E3510F9 /* HGPostureTests.swift */; };
+		C3AF1A939BBE325A8FE58222 /* DYPagingSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F1C9FE987E8C43A11B5627 /* DYPagingSpeed.swift */; };
 		C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB216E63F437213FB239626 /* HGNativeCrypto.swift */; };
 		C634513537027F4B3D33889C /* HGStorageScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4D0587E49A31FF6A753654 /* HGStorageScreen.swift */; };
 		CC31E78C419C9013DC80ECC8 /* HGMineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA34D56203BB82C3E2F95C /* HGMineView.swift */; };
@@ -70,6 +73,7 @@
 		28EFA5F5726071B966B0AD66 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYLiveAdaptiveLayout.swift; sourceTree = "<group>"; };
 		3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGEpisodePlayer.swift; sourceTree = "<group>"; };
+		34B554B9B3742681D54D9FC9 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerScreen.swift; sourceTree = "<group>"; };
 		4F5E7CA87A880A2C1D3EFEDF /* PlayerGestureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerGestureView.swift; sourceTree = "<group>"; };
 		4FB216E63F437213FB239626 /* HGNativeCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGNativeCrypto.swift; sourceTree = "<group>"; };
@@ -100,9 +104,11 @@
 		DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYVideoFit.swift; sourceTree = "<group>"; };
 		DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDownloads.swift; sourceTree = "<group>"; };
 		E1A08138DB57EA101DA32C4E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E409A97A3EC3D4609CD0146C /* HGFeedOrientationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFeedOrientationTests.swift; sourceTree = "<group>"; };
 		E5077CA7284996E39E525152 /* HGFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFlowTests.swift; sourceTree = "<group>"; };
 		EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerSheets.swift; sourceTree = "<group>"; };
 		EC544D830B88BFE876EB5C83 /* DYVideoAmbient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYVideoAmbient.swift; sourceTree = "<group>"; };
+		F5F1C9FE987E8C43A11B5627 /* DYPagingSpeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYPagingSpeed.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -131,6 +137,7 @@
 				8FC264E72C0F41CF058F2ABF /* DYDeskLight.swift */,
 				713E6EDFF2D60896235A2A32 /* DYDuoLayout.swift */,
 				2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */,
+				F5F1C9FE987E8C43A11B5627 /* DYPagingSpeed.swift */,
 				124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */,
 				EC544D830B88BFE876EB5C83 /* DYVideoAmbient.swift */,
 				DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */,
@@ -156,6 +163,7 @@
 		730B1C74839A7D8397247142 /* HongGuoUITests */ = {
 			isa = PBXGroup;
 			children = (
+				E409A97A3EC3D4609CD0146C /* HGFeedOrientationTests.swift */,
 				E5077CA7284996E39E525152 /* HGFlowTests.swift */,
 				5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */,
 				734656AB064DDD880E3510F9 /* HGPostureTests.swift */,
@@ -183,6 +191,7 @@
 		BEFC247AB706278DCCD0E5E4 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				34B554B9B3742681D54D9FC9 /* CachedAsyncImage.swift */,
 				7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */,
 				D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */,
 				D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */,
@@ -345,6 +354,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BD235CB6169959B89C66D846 /* HGFeedOrientationTests.swift in Sources */,
 				4333D747EADBFAA931839304 /* HGFlowTests.swift in Sources */,
 				E47899B4BDDC29D228EE4842 /* HGLandscapeShot.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,
@@ -357,12 +367,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2251C4FAD70F9D7B85DF6E7F /* CachedAsyncImage.swift in Sources */,
 				BEC76F1B74103BE5875FA9C1 /* DDMediaRail.swift in Sources */,
 				45EF4CC31758C434F09DD797 /* DYDanmakuEngine.swift in Sources */,
 				DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */,
 				B3A4C4C7609655B90A4D537D /* DYDeskLight.swift in Sources */,
 				760087ABF7564DB45D82D71F /* DYDuoLayout.swift in Sources */,
 				94479E4BB06CF2766D555764 /* DYLiveAdaptiveLayout.swift in Sources */,
+				C3AF1A939BBE325A8FE58222 /* DYPagingSpeed.swift in Sources */,
 				9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */,
 				3A9EC27C1A804BB0D5532186 /* DYVideoAmbient.swift in Sources */,
 				850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */,
@@ -507,7 +519,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -527,7 +539,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.5.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -590,7 +602,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -604,7 +616,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.5.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
