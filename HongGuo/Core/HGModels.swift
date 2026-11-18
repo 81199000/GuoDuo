@@ -162,8 +162,12 @@ enum HGAPI {
         try core.decode(HGDetail.self, try await core.call("episodes", [seriesID]))
     }
 
+    /// 取源结果缓存 2 分钟：推荐流探画幅时已经取过一次，真正播放 / 预下载直接复用，不再串在 JS 队列后面重取
     static func source(_ vid: String) async throws -> HGSource {
-        try core.decode(HGSource.self, try await core.call("source", [vid, "auto"]))
+        if let hit = await HGSourceCache.shared.get(vid) { return hit }
+        let s = try core.decode(HGSource.self, try await core.call("source", [vid, "auto"]))
+        await HGSourceCache.shared.put(vid, s)
+        return s
     }
 
     /// 一个时间窗的弹幕；next = 下一窗的起点（毫秒），nil = 没有了。
@@ -194,5 +198,19 @@ enum HGAPI {
     static func logout() async throws { _ = try await core.call("accountLogout", []) }
     static func cloudHistory(refresh: Bool) async throws -> [HGCloudHistoryRow] {
         try core.decode(HGCloudHistory.self, try await core.call("accountHistory", [refresh])).results ?? []
+    }
+}
+
+
+actor HGSourceCache {
+    static let shared = HGSourceCache()
+    private var map: [String: (HGSource, Date)] = [:]
+    func get(_ vid: String) -> HGSource? {
+        guard let (s, t) = map[vid], Date().timeIntervalSince(t) < 120 else { map[vid] = nil; return nil }
+        return s
+    }
+    func put(_ vid: String, _ s: HGSource) {
+        map[vid] = (s, Date())
+        if map.count > 200 { map = map.filter { Date().timeIntervalSince($0.value.1) < 120 } }
     }
 }

@@ -13,6 +13,17 @@ struct HGPlayerRequest: Identifiable {
 
 /// 一部剧的播放会话：当前集、预载、断点、倍速、弹幕、锁屏信息。
 /// 只有一个 AVPlayer —— 竖滑翻页时换 item，避免多个解密文件同时占内存。
+/// 音频会话进程里只激活一次
+@MainActor enum HGAudioSession {
+    private static var done = false
+    static func activate() {
+        guard !done else { return }
+        done = true
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+}
+
 @MainActor @Observable
 final class HGPlaybackSession {
     let series: HGSeries
@@ -49,8 +60,11 @@ final class HGPlaybackSession {
     /// 推荐流：每部只放第 1 集；放完交给推荐流翻下一部，不记观看历史、不预载本剧第 2 集
     let feedMode: Bool
     var onFeedEnd: (() -> Void)?
-    /// 推荐页被切走 / 推了详情：加载完成也先别出声
+    /// 推荐页被切走 / 推了详情 / 预热中的相邻页：加载完成也先别出声
     private(set) var suspended = false
+    /// 首帧已经解好、画面层有图（预热完成或已经开播）
+    private(set) var frameReady = false
+    private var primeObs: NSKeyValueObservation?
 
     init(_ r: HGPlayerRequest, feedMode: Bool = false) {
         self.feedMode = feedMode
@@ -67,9 +81,7 @@ final class HGPlaybackSession {
                 MainActor.assumeIsolated { self?.tick(t.seconds) }
             }
         }
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-        try? AVAudioSession.sharedInstance().setActive(true)
-        setupRemoteCommands()
+        HGAudioSession.activate()
         // scenePhase 在 fullScreenCover 里偶尔不回调：UIKit 通知兜底
         if bgObserver == nil {
             bgObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
@@ -93,6 +105,7 @@ final class HGPlaybackSession {
         let resumeAt = started && position > 1 ? position : startAt
         if started { attachObservers() }
         started = true
+        if !suspended { becomeActive() }
         load(index, at: resumeAt)
         guard series.source == .hongguo else { return }
         let sid = series.series_id
@@ -175,10 +188,28 @@ final class HGPlaybackSession {
     func resumeIfSuspended() {
         guard suspended else { return }
         suspended = false
+        becomeActive()
         guard player.currentItem != nil, failed == nil else { return }
         player.playImmediately(atRate: effectiveRate)
         isPlaying = true
         clock.userToggle(position, playing: true, rate: Double(effectiveRate))
+    }
+
+    /// 暂停的 AVPlayer 不会自己解第一帧：等 item 就绪后 preroll，画面停在首帧（DouDuo ShortVideoPlayer.primeFirstFrame）
+    private func primeFirstFrame(_ item: AVPlayerItem) {
+        primeObs?.invalidate(); primeObs = nil
+        let prime = { [weak self] in
+            guard let self, self.suspended, self.player.currentItem === item, self.player.rate == 0,
+                  item.status == .readyToPlay else { return }
+            self.player.preroll(atRate: 1) { [weak self] ok in
+                Task { @MainActor in if ok { self?.frameReady = true } }
+            }
+        }
+        if item.status == .readyToPlay { prime(); return }
+        primeObs = item.observe(\.status, options: [.new]) { [weak self] it, _ in
+            guard it.status == .readyToPlay else { return }
+            Task { @MainActor in self?.primeObs?.invalidate(); self?.primeObs = nil; prime() }
+        }
     }
 
     /// 退出 App：没开听书模式、也不在画中画 → 停声音。回来不自动续播（和 DouDuo 一致，避免突然出声）。
@@ -192,6 +223,7 @@ final class HGPlaybackSession {
     func stop() {
         save(force: true)
         loadTask?.cancel(); danmakuTask?.cancel()
+        primeObs?.invalidate(); primeObs = nil
         player.pause()
         if feedMode { player.replaceCurrentItem(with: nil) }
         if let timeObserver { player.removeTimeObserver(timeObserver) }
@@ -209,7 +241,7 @@ final class HGPlaybackSession {
 
     private func load(_ i: Int, at offset: Double) {
         loadTask?.cancel()
-        index = i; failed = nil; status = "正在获取片源…"
+        index = i; failed = nil; status = nil; frameReady = false
         position = 0; duration = 0; danmaku = []; danmakuNotice = nil
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -223,6 +255,11 @@ final class HGPlaybackSession {
         startAtForDanmaku = offset
         loadDanmaku(vid)
         loadTask = Task { [weak self] in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(800))
+                guard let self, self.index == i, self.player.currentItem == nil, self.failed == nil, self.status == nil else { return }
+                self.status = "正在获取片源…"
+            }
             do {
                 let file = try await HGMediaCache.shared.file(for: vid) { phase in
                     Task { @MainActor in
@@ -308,6 +345,7 @@ final class HGPlaybackSession {
         if suspended {
             isPlaying = false
             clock.seek(offset, playing: false, rate: Double(effectiveRate))
+            primeFirstFrame(item)
         } else {
             player.playImmediately(atRate: effectiveRate)
             isPlaying = true
@@ -320,6 +358,7 @@ final class HGPlaybackSession {
     private func tick(_ t: Double) {
         guard t.isFinite else { return }
         position = t
+        if t > 0.05, !frameReady { frameReady = true }
         if let d = player.currentItem?.duration.seconds, d.isFinite, d > 0 { duration = d }
         isPlaying = player.timeControlStatus != .paused
         clock.sync(t, playing: isPlaying, rate: Double(player.rate > 0 ? player.rate : effectiveRate))
@@ -336,8 +375,17 @@ final class HGPlaybackSession {
 
     // MARK: 锁屏 / 控制中心
 
+    /// 成为前台会话：接管锁屏 / 耳机按键
+    func becomeActive() {
+        HGAudioSession.activate()
+        setupRemoteCommands()
+        updateNowPlaying()
+    }
+
     private func setupRemoteCommands() {
         let c = MPRemoteCommandCenter.shared()
+        [c.playCommand, c.pauseCommand, c.togglePlayPauseCommand, c.nextTrackCommand, c.previousTrackCommand, c.changePlaybackPositionCommand]
+            .forEach { $0.removeTarget(nil) }
         c.playCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { if self?.player.timeControlStatus == .paused { self?.togglePlay() } }; return .success }
         c.pauseCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { if self?.player.timeControlStatus != .paused { self?.togglePlay() } }; return .success }
         c.togglePlayPauseCommand.addTarget { [weak self] _ in MainActor.assumeIsolated { self?.togglePlay() }; return .success }
@@ -353,6 +401,7 @@ final class HGPlaybackSession {
     }
 
     private func updateNowPlaying() {
+        guard !suspended else { return }
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: "第 \(episode.number) 集",
             MPMediaItemPropertyAlbumTitle: series.series_title,
