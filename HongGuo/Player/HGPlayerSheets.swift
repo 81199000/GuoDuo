@@ -132,6 +132,9 @@ private struct HGReviewRow: View {
 struct HGEpisodeSheet: View {
     let session: HGPlaybackSession
     let close: () -> Void
+    /// 书本半折叠常驻：铺满右半屏、深色、让开右侧系统栏
+    var fillsPane = false
+    var trailingInset: CGFloat = 0
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -139,7 +142,7 @@ struct HGEpisodeSheet: View {
                 Spacer()
                 Text("共 \(session.episodes.count) 集").font(.caption).foregroundStyle(HGTheme.textSecondary)
             }
-            .padding(.horizontal, 18).padding(.top, 20).padding(.bottom, 12)
+            .padding(.horizontal, 18).padding(.trailing, trailingInset).padding(.top, 20).padding(.bottom, 12)
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 8)], spacing: 8) {
@@ -155,13 +158,17 @@ struct HGEpisodeSheet: View {
                                     }
                             }
                             .id(i)
+                            .accessibilityIdentifier("hg.ep.\(ep.number)")
                         }
                     }
-                    .padding(.horizontal, 16).padding(.bottom, 24)
+                    .padding(.horizontal, 16).padding(.trailing, trailingInset).padding(.bottom, 24)
                 }
                 .onAppear { proxy.scrollTo(session.index, anchor: .center) }
+                .onChange(of: session.index) { _, i in withAnimation(.snappy) { proxy.scrollTo(i, anchor: .center) } }
             }
         }
-        .background(HGTheme.surface)
+        .padding(.trailing, 0)
+        .background(fillsPane ? Color(uiColor: .secondarySystemBackground) : HGTheme.surface)
+        .environment(\.colorScheme, .dark)
     }
 }

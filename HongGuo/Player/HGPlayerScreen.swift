@@ -19,6 +19,9 @@ struct HGPlayerScreen: View {
     @State private var showMore = false
     /// 评论是否占着一侧（侧滑 / 半折常驻）：本视图自己的 body 里算出来，不能用环境值读回自己
     @State private var commentsInPane = false
+    /// 桌面姿态操作台在：弹幕搬到操作台上，视频上不再画
+    @State private var consoleShown = false
+    @AppStorage("hg.deskLight") private var deskLight = true
     @State private var seeking = false
     @State private var seekPreview: Double = 0
     @State private var seekAnchor: Double = 0
@@ -43,33 +46,50 @@ struct HGPlayerScreen: View {
     var body: some View {
         GeometryReader { outer in
             let showsComments = showComments && session.series.source == .hongguo
-            let layout = DYCommentPaneMetrics(outer, isPresented: showsComments,
-                                              allowsResident: session.series.source == .hongguo)
+            let layout = DYCommentPaneMetrics(outer, isPresented: showsComments, allowsResident: true)
             ZStack(alignment: .topLeading) {
                 pager
                     .frame(width: layout.videoSize.width, height: layout.videoSize.height)
                     .clipped()
-                if layout.showsPane {
+                if layout.resident && !layout.sideBySide {
+                    // 竖屏半折叠（桌面）：下半屏 = 全黑操作台
+                    HGConsolePane(session: session, deskLight: $deskLight, danmakuOn: danmakuOn,
+                                  bottomInset: DYDuoMetrics.windowBottomInset)
+                        .frame(width: layout.paneSize.width, height: layout.paneSize.height)
+                        .clipped()
+                        .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
+                        .transition(.move(edge: .bottom))
+                } else if layout.resident && layout.sideBySide {
+                    // 横屏半折叠（书本）：右半屏 = 选集
+                    HGEpisodeSheet(session: session, close: {}, fillsPane: true, trailingInset: layout.trailingInset)
+                        .padding(.top, DYDuoMetrics.isDuoHardware ? 0 : DYDuoMetrics.windowSafeTop)
+                        .frame(width: layout.paneSize.width, height: layout.paneSize.height)
+                        .clipped()
+                        .overlay(alignment: .leading) { Color(uiColor: .separator).frame(width: 0.5) }
+                        .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
+                        .transition(.move(edge: .trailing))
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("hg.episodes.resident")
+                } else if layout.showsPane {
                     HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
-                                   onClose: layout.resident ? nil : { showComments = false },
-                                   fillsPane: true, trailingInset: layout.trailingInset,
-                                   horizontalStatus: layout.resident && layout.sideBySide)
+                                   onClose: { showComments = false },
+                                   fillsPane: true, trailingInset: layout.trailingInset)
                         .id(session.episode.vid)
                         .padding(.top, !DYDuoMetrics.isDuoHardware && layout.sideBySide ? DYDuoMetrics.windowSafeTop : 0)
                         .frame(width: layout.paneSize.width, height: layout.paneSize.height)
                         .clipped()
-                        .dyDeskLight(layout.resident && !layout.sideBySide)
                         .overlay(alignment: .leading) {
                             if layout.sideBySide { Color(uiColor: .separator).frame(width: 0.5) }
                         }
                         .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
-                        .transition(.move(edge: layout.sideBySide ? .trailing : .bottom))
-                        .accessibilityIdentifier(layout.resident ? "hg.comments.resident" : "hg.comments.side")
+                        .transition(.move(edge: .trailing))
+                        .accessibilityIdentifier("hg.comments.side")
                 }
             }
             .frame(width: outer.size.width, height: outer.size.height, alignment: .topLeading)
             .background(Color.black.ignoresSafeArea())
             .onChange(of: layout.showsPane, initial: true) { _, v in commentsInPane = v }
+            .onChange(of: layout.resident && !layout.sideBySide, initial: true) { _, v in consoleShown = v }
             .animation(.snappy, value: layout.showsPane)
             .animation(.snappy, value: layout.resident)
             .dyBottomSheet(isPresented: Binding(
@@ -138,7 +158,7 @@ struct HGPlayerScreen: View {
                 HGVideoLayer(player: session.player, fillWidth: fillWidth, pip: session.pip)
                     .scaleEffect(userScale * pinchScale)
                     .clipped()
-                if danmakuOn && !clean {
+                if danmakuOn && !clean && !consoleShown {
                     DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop)
                         .accessibilityElement()
                         .accessibilityIdentifier("hg.player.danmaku")
@@ -171,12 +191,13 @@ struct HGPlayerScreen: View {
                     .accessibilityElement()
                     .accessibilityIdentifier("hg.player.surface")
                     .accessibilityValue(session.isPlaying && session.position > 0.5 && page == i ? "playing-\(ep.number)" : "idle")
+                    .accessibilityHint("pos=\(Int(session.position))")
                 if heartBurst { Image(systemName: "heart.fill").font(.system(size: 96)).foregroundStyle(HGTheme.accent).transition(.scale.combined(with: .opacity)).allowsHitTesting(false) }
                 if !session.isPlaying && session.status == nil && session.failed == nil && !seeking {
                     Image(systemName: "play.fill").font(.system(size: 54)).foregroundStyle(.white.opacity(0.75)).allowsHitTesting(false)
                 }
                 if session.boosting || session.lockedBoost { boostBadge }
-                if seeking { seekOverlay }
+                if seeking && !consoleShown { seekOverlay }
                 statusOverlay
                 if clean { exitCleanButton } else if !commentsInPane { chrome(ep) } else { paneChrome }
             } else {
@@ -246,7 +267,7 @@ struct HGPlayerScreen: View {
             }
             .padding(.horizontal, DDMedia.chromeSidePadding).padding(.top, safeTop)
             Spacer()
-            progressBar.padding(.bottom, 12)
+            if !consoleShown { progressBar.padding(.bottom, 12) }
         }
     }
 
