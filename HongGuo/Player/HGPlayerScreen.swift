@@ -224,7 +224,7 @@ struct HGPlayerScreen: View {
                 if session.boosting || session.lockedBoost { boostBadge }
                 if seeking && !consoleShown { seekOverlay }
                 statusOverlay
-                if clean { exitCleanButton } else if consoleShown { consoleTitle(ep) } else if !commentsInPane { chrome(ep) } else { paneChrome }
+                if clean { exitCleanButton } else if consoleShown { consoleTitle(ep) } else { chrome(ep) }   // 横屏评论从右滑出时，视频缩到左边，菜单栏仍贴视频右侧
             } else {
                 // 相邻页只显示封面占位，滑动时不黑屏
                 HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
