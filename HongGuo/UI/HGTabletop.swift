@@ -63,8 +63,18 @@ private struct HGEpisodeHeader: View {
     let count: Int
     var resume: String?
     var onResume: (() -> Void)?
+    /// 桌面姿态：手在下半屏，返回键也放下半屏（导航栏在立着的上半屏，够不着 / 被系统挪走）
+    var onBack: (() -> Void)?
     var body: some View {
         HStack {
+            if let onBack {
+                Button(action: onBack) {
+                    Label("首页", systemImage: "chevron.backward").font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(HGTheme.surfaceHigh, in: Capsule()).foregroundStyle(HGTheme.textPrimary)
+                }
+                .accessibilityIdentifier("hg.tabletop.back")
+            }
             Text("选集").font(.headline).foregroundStyle(HGTheme.textPrimary)
             Text("共 \(count) 集").font(.footnote).foregroundStyle(HGTheme.textSecondary)
             Spacer()
@@ -120,6 +130,7 @@ struct HGDetailTabletop: View {
     let current: Int?
     let resumeTitle: String
     let play: (Int, Bool) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
@@ -128,7 +139,8 @@ struct HGDetailTabletop: View {
             Color.clear.frame(height: max(0, crease.bottom - crease.top))   // 折痕带空出来
             VStack(spacing: 0) {
                 if let d = detail {
-                    HGEpisodeHeader(count: d.episodes.count, resume: resumeTitle) { play(current ?? 0, true) }
+                    HGEpisodeHeader(count: d.episodes.count, resume: resumeTitle, onResume: { play(current ?? 0, true) },
+                                    onBack: { dismiss() })
                     HGEpisodeGrid(episodes: d.episodes, current: current) { play($0, $0 == current) }
                 } else {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
