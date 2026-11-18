@@ -97,6 +97,9 @@ struct HGComments: Codable {
     let favorites: Int?
 }
 
+struct HGEpisodeStat: Codable, Hashable { let vid: String; let comments: Int?; let likes: Int? }
+struct HGSeriesStats: Codable { let follows: Int?; let plays: Int?; let episodes: [HGEpisodeStat] }
+
 struct HGAccountProfile: Codable, Hashable { let id: String; let nickname: String }
 struct HGAccountStatus: Codable { let signedIn: Bool; let account: HGAccountProfile? }
 struct HGQRLogin: Codable { let loginId: String; let image: String; let expiresIn: Int }
@@ -166,6 +169,10 @@ enum HGAPI {
 
     static func comments(series: String, vid: String) async throws -> HGComments {
         try core.decode(HGComments.self, try await core.call("comments", [series, vid]))
+    }
+
+    static func stats(series: String) async throws -> HGSeriesStats {
+        try core.decode(HGSeriesStats.self, try await core.call("stats", [series]))
     }
 
     static func resolveShare(_ text: String) async throws -> String {

@@ -15,6 +15,7 @@ final class HGLibrary {
 
     private(set) var history: [Progress] = []
     private(set) var favorites: [HGSeries] = []
+    private(set) var liked: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "hg.liked") ?? [])
     var rate: Float = 1.0 { didSet { UserDefaults.standard.set(rate, forKey: "hg.rate") } }
 
     private let file: URL
@@ -49,6 +50,12 @@ final class HGLibrary {
     func toggleFavorite(_ series: HGSeries) {
         if isFavorite(series.id) { favorites.removeAll { $0.id == series.id } } else { favorites.insert(series, at: 0) }
         save()
+    }
+
+    func isLiked(_ vid: String) -> Bool { liked.contains(vid) }
+    func toggleLike(_ vid: String) {
+        if liked.contains(vid) { liked.remove(vid) } else { liked.insert(vid) }
+        UserDefaults.standard.set(Array(liked.suffix(5000)), forKey: "hg.liked")
     }
 
     private func save() {

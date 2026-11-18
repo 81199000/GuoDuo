@@ -21,10 +21,13 @@ final class DYPictureInPicture: NSObject, ObservableObject, @MainActor AVPicture
     private var onBackgroundClose: (() -> Void)?
     private var onUnavailable: (() -> Void)?
 
-    var keepsVideoLayer: Bool { enabled || active || starting }
+    var keepsVideoLayer: Bool { (enabled && allowsAutomaticStart) || active || starting }
     var keepsPlaybackOnExit: Bool {
-        active || starting || (enabled && controller?.isPictureInPicturePossible == true && (layer?.player?.rate ?? 0) > 0)
+        active || starting || (enabled && allowsAutomaticStart && controller?.isPictureInPicturePossible == true && (layer?.player?.rate ?? 0) > 0)
     }
+
+    /// 红果：只允许手动进入画中画。控制器照常建好（按钮要用），但切后台不自动进入。
+    var allowsAutomaticStart = false
 
     func attach(to layer: AVPlayerLayer, enabled: Bool,
                 onBackgroundClose: @escaping () -> Void,
@@ -53,7 +56,7 @@ final class DYPictureInPicture: NSObject, ObservableObject, @MainActor AVPicture
         }
         #endif
         self.enabled = enabled
-        controller?.canStartPictureInPictureAutomaticallyFromInline = enabled
+        controller?.canStartPictureInPictureAutomaticallyFromInline = enabled && allowsAutomaticStart
         if !enabled {
             fallbackTask?.cancel()
             if active || starting { controller?.stopPictureInPicture() }

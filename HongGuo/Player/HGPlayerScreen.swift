@@ -79,7 +79,7 @@ struct HGPlayerScreen: View {
         .onAppear { session.start() }
         .onDisappear { session.stop(); setOrientation(landscape: false) }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.keepsPlaybackOnExit { session.player.pause() }
+            if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.active { session.player.pause() }
         }
     }
 
@@ -106,8 +106,11 @@ struct HGPlayerScreen: View {
                     onLongPressLock: { session.lockBoost(); flash("已锁定 2× 倍速") },
                     onLongPressUnlock: { session.unlockBoost(); flash("已取消锁定") },
                     onSeekBegan: { seekAnchor = session.position; seekPreview = session.position; seeking = true },
-                    onSeekChanged: { dx, w in seekPreview = max(0, min(session.duration, seekAnchor + dx / max(w, 1) * session.duration * 0.9)) },
-                    onSeekEnded: { if seeking { session.seek(to: seekPreview); seeking = false } },
+                    onSeekChanged: { dx, w in
+                        seekPreview = max(0, min(session.duration, seekAnchor + dx / max(w, 1) * session.duration * 0.9))
+                        session.requestPreview(seekPreview)
+                    },
+                    onSeekEnded: { if seeking { session.seek(to: seekPreview); seeking = false; session.endPreview() } },
                     onEdgeChanged: { edgeOffset = $0 },
                     onEdgeEnded: { dx, v, w in
                         if dx > w * 0.3 || v > 800 { dismiss() } else { withAnimation(.spring(duration: 0.25)) { edgeOffset = 0 } }
@@ -161,7 +164,11 @@ struct HGPlayerScreen: View {
                 Spacer()
                 VStack(alignment: .leading, spacing: 6) {
                     Text(session.series.series_title).font(.headline)
-                    Text("第 \(ep.number) 集 / 共 \(session.episodes.count) 集").font(.subheadline).foregroundStyle(.white.opacity(0.75))
+                    HStack(spacing: 10) {
+                        Text("第 \(ep.number) 集 / 共 \(session.episodes.count) 集")
+                        if let plays = count(session.stats?.plays) { Text("\(plays)次播放") }
+                    }
+                    .font(.subheadline).foregroundStyle(.white.opacity(0.75))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 16).padding(.trailing, 84)
@@ -177,11 +184,19 @@ struct HGPlayerScreen: View {
     private var rail: some View {
         VStack(spacing: 18) {
             let fav = library.isFavorite(session.series.id)
-            railButton(fav ? "heart.fill" : "heart", fav ? "已收藏" : "收藏", tint: fav ? HGTheme.accent : .white, id: "hg.rail.favorite") {
+            let stat = session.episodeStat
+            if session.series.source == .hongguo {
+                let liked = library.isLiked(session.episode.vid)
+                railButton(liked ? "heart.fill" : "heart", count(stat?.likes.map { $0 + (liked ? 1 : 0) }) ?? "点赞",
+                           tint: liked ? HGTheme.accent : .white, id: "hg.rail.likes") { toggleLike() }
+            }
+            railButton(fav ? "star.fill" : "star", count(session.stats?.follows) ?? (fav ? "已收藏" : "收藏"),
+                       tint: fav ? HGTheme.accent : .white, id: "hg.rail.favorite") {
                 library.toggleFavorite(session.series)
             }
+            .accessibilityValue(fav ? "已收藏" : "未收藏")
             if session.series.source == .hongguo {
-                railButton("text.bubble.fill", "热评", id: "hg.rail.comments") { showComments = true }
+                railButton("text.bubble.fill", count(stat?.comments) ?? "热评", id: "hg.rail.comments") { showComments = true }
             }
             railButton(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "弹幕开" : "弹幕关", id: "hg.rail.danmaku") {
                 danmakuOn.toggle()
@@ -228,8 +243,9 @@ struct HGPlayerScreen: View {
                 .onChanged { v in
                     if !seeking { seeking = true }
                     seekPreview = max(0, min(session.duration, v.location.x / max(g.size.width, 1) * session.duration))
+                    session.requestPreview(seekPreview)
                 }
-                .onEnded { _ in session.seek(to: seekPreview); seeking = false })
+                .onEnded { _ in session.seek(to: seekPreview); seeking = false; session.endPreview() })
         }
         .frame(height: 24)
         .padding(.horizontal, 16)
@@ -237,12 +253,27 @@ struct HGPlayerScreen: View {
     }
 
     private var seekOverlay: some View {
-        VStack(spacing: 4) {
-            Text("\(fmt(seekPreview)) / \(fmt(session.duration))").font(.title3.weight(.bold).monospacedDigit())
-            let delta = seekPreview - session.position
-            Text(String(format: "%@%d 秒", delta >= 0 ? "+" : "-", Int(abs(delta)))).font(.footnote).foregroundStyle(.white.opacity(0.7))
+        VStack(spacing: 8) {
+            let vertical = session.videoAspect < 1
+            Group {
+                if let img = session.seekPreviewImage {
+                    Image(uiImage: img).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    Color.black.opacity(0.4).overlay(ProgressView().tint(.white))
+                }
+            }
+            .frame(width: vertical ? 124 : 196, height: vertical ? 220 : 110)
+            .clipShape(RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+            .accessibilityIdentifier("hg.player.seekPreview")
+            HStack(spacing: 8) {
+                Text(fmt(seekPreview)).font(.subheadline.weight(.bold).monospacedDigit())
+                Text("/ " + fmt(session.duration)).font(.caption.monospacedDigit()).opacity(0.6)
+                let delta = seekPreview - session.position
+                Text((delta >= 0 ? "+" : "") + String(format: "%.0fs", delta)).font(.caption.weight(.semibold))
+                    .foregroundStyle(delta >= 0 ? HGTheme.textPrimary : HGTheme.textSecondary)
+            }
         }
-        .padding(.horizontal, 18).padding(.vertical, 12)
+        .padding(10)
         .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
         .foregroundStyle(.white)
         .allowsHitTesting(false)
@@ -293,8 +324,11 @@ struct HGPlayerScreen: View {
 
     // MARK: 动作
 
+    /// 点赞只记在本机（红果账号登录也是只读，没法替你在官方点赞）；数字显示官方点赞数 + 自己这一下。
+    private func toggleLike() { library.toggleLike(session.episode.vid) }
+
     private func doubleTapLike() {
-        if !library.isFavorite(session.series.id) { library.toggleFavorite(session.series); flash("已收藏") }
+        if !library.isLiked(session.episode.vid) { library.toggleLike(session.episode.vid) }
         withAnimation(.spring(duration: 0.25)) { heartBurst = true }
         Task { try? await Task.sleep(for: .milliseconds(650)); withAnimation(.easeOut(duration: 0.2)) { heartBurst = false } }
     }
@@ -310,6 +344,14 @@ struct HGPlayerScreen: View {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
         scene.requestGeometryUpdate(.iOS(interfaceOrientations: on ? .landscapeRight : .portrait))
         scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+    }
+
+    /// 抖音式计数：1.2万 / 3.5亿
+    private func count(_ n: Int?) -> String? {
+        guard let n else { return nil }
+        if n >= 100_000_000 { return String(format: "%.1f亿", Double(n) / 1e8).replacingOccurrences(of: ".0", with: "") }
+        if n >= 10_000 { return String(format: "%.1f万", Double(n) / 1e4).replacingOccurrences(of: ".0", with: "") }
+        return "\(n)"
     }
 
     private func rateText(_ r: Float) -> String { String(format: "%g×", r) }
@@ -328,11 +370,12 @@ struct HGVideoLayer: UIViewRepresentable {
         let v = HGPlayerLayerView()
         v.playerLayer.player = player
         v.fillWidth = fillWidth
+        v.pip = pip
         pip.attach(to: v.playerLayer, enabled: true, onBackgroundClose: {}, onUnavailable: {})
         return v
     }
     func updateUIView(_ v: HGPlayerLayerView, context: Context) {
-        if v.playerLayer.player !== player { v.playerLayer.player = player }
+        if v.playerLayer.player !== player, UIApplication.shared.applicationState != .background { v.playerLayer.player = player }
         v.fillWidth = fillWidth
         v.applyGravity()
     }
@@ -340,7 +383,10 @@ struct HGVideoLayer: UIViewRepresentable {
 
 final class HGPlayerLayerView: UIView {
     var fillWidth = true
+    weak var pip: DYPictureInPicture?
     private var sizeObs: NSKeyValueObservation?
+    private var detached: AVPlayer?
+    private var bgObs: [NSObjectProtocol] = []
     override class var layerClass: AnyClass { AVPlayerLayer.self }
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     override init(frame: CGRect) {
@@ -348,8 +394,25 @@ final class HGPlayerLayerView: UIView {
         backgroundColor = .black
         playerLayer.videoGravity = .resizeAspect
         sizeObs = playerLayer.observe(\.videoRect, options: [.new]) { [weak self] _, _ in DispatchQueue.main.async { self?.applyGravity() } }
+        let nc = NotificationCenter.default
+        bgObs = [
+            nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard HGBackgroundPlayback.enabled, let self, self.pip?.active != true, let p = self.playerLayer.player else { return }
+                    p.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
+                    self.detached = p; self.playerLayer.player = nil
+                }
+            },
+            nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let p = self.detached else { return }
+                    self.playerLayer.player = p; self.detached = nil
+                }
+            },
+        ]
     }
     required init?(coder: NSCoder) { fatalError() }
+    deinit { bgObs.forEach(NotificationCenter.default.removeObserver) }
     override func layoutSubviews() { super.layoutSubviews(); applyGravity() }
     func applyGravity() {
         guard let size = playerLayer.player?.currentItem?.presentationSize, size.width > 1, size.height > 1,
