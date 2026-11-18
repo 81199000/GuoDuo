@@ -15,7 +15,7 @@ final class DYPictureInPicture: NSObject, ObservableObject, @MainActor AVPicture
     private var generation = UUID()
     private weak var layer: AVPlayerLayer?
     private var enabled = false
-    private var starting = false
+    private(set) var starting = false
     private var restoring = false
     private var fallbackTask: Task<Void, Never>?
     private var onBackgroundClose: (() -> Void)?

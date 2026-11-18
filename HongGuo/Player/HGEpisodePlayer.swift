@@ -56,7 +56,15 @@ final class HGPlaybackSession {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
         setupRemoteCommands()
+        // scenePhase 在 fullScreenCover 里偶尔不回调：UIKit 通知兜底
+        bgObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !HGBackgroundPlayback.enabled, !self.pip.active, !self.pip.starting else { return }
+                self.pauseForBackground()
+            }
+        }
     }
+    private var bgObserver: NSObjectProtocol?
 
     var episode: HGEpisode { episodes[index] }
     var title: String { "\(series.series_title) · 第 \(episode.number) 集" }
@@ -125,6 +133,14 @@ final class HGPlaybackSession {
 
     func retry() { load(index, at: position) }
 
+    /// 退出 App：没开听书模式、也不在画中画 → 停声音。回来不自动续播（和 DouDuo 一致，避免突然出声）。
+    func pauseForBackground() {
+        player.pause()
+        isPlaying = false
+        clock.userToggle(position, playing: false, rate: Double(effectiveRate))
+        save(force: true)
+    }
+
     func stop() {
         save(force: true)
         loadTask?.cancel(); danmakuTask?.cancel()
@@ -132,6 +148,7 @@ final class HGPlaybackSession {
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         timeObserver = nil
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        if let bgObserver { NotificationCenter.default.removeObserver(bgObserver) }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         let c = MPRemoteCommandCenter.shared()
         [c.playCommand, c.pauseCommand, c.togglePlayPauseCommand, c.nextTrackCommand, c.previousTrackCommand, c.changePlaybackPositionCommand]

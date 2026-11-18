@@ -4,7 +4,9 @@ final class HGAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         // 竖屏为主；播放页按「横屏」后才放开横向（横屏片源）。iPad 不限制。
         if UIDevice.current.userInterfaceIdiom == .pad { return .all }
-        return HGOrientation.allowLandscape ? [.portrait, .landscapeLeft, .landscapeRight] : .portrait
+        // Duo 展开 / 半折时是大屏，横竖都跟系统转（DouDuo 一样）；普通 iPhone 竖屏为主
+        if DYDuoMetrics.isDuoHardware || HGOrientation.allowLandscape { return [.portrait, .landscapeLeft, .landscapeRight] }
+        return .portrait
     }
 }
 

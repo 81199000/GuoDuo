@@ -1,82 +1,131 @@
 import SwiftUI
 
-/// 本集热评：官网公开页最多 15 条（老板定：只放热评，不混弹幕）。
-struct HGCommentSheet: View {
+/// 本集热评面板（DouDuo DYCommentPanel 经典样式）：标题「N 条评论」居中 + 右侧关闭、分隔线、
+/// 头像 32 / 昵称 caption 次要色 / 正文 subheadline / 时间 caption2 / 右侧点赞列。
+/// 内容只放官网公开的前 15 条热评（老板定）；总数取 App 详情接口的本集评论数。
+struct HGCommentPanel: View {
     let series: HGSeries
     let episode: HGEpisode
+    var total: Int?
+    let onClose: (() -> Void)?
+    var fillsPane = false
+    var trailingInset: CGFloat = 0
+    var horizontalStatus = false
     @State private var data: HGComments?
     @State private var error: String?
 
+    private var count: Int? { total ?? data?.total }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("本集热评").font(.headline)
-                if let total = data?.total { Text("共 \(total.formatted()) 条").font(.caption).foregroundStyle(HGTheme.textSecondary) }
-                Spacer()
-                if let likes = data?.episodeLikes {
-                    Label(likes.formatted(.number.notation(.compactName)), systemImage: "hand.thumbsup").font(.caption).foregroundStyle(HGTheme.textSecondary)
-                }
-            }
-            .padding(.horizontal, 18).padding(.top, 20).padding(.bottom, 10)
-            Divider().overlay(HGTheme.surfaceHigh)
-            Group {
-                if let data {
-                    if data.items.isEmpty {
-                        ContentUnavailableView("官网暂无本集评论", systemImage: "text.bubble")
-                    } else {
-                        List {
-                            ForEach(data.items) { HGReviewRow(review: $0) }.listRowBackground(Color.clear)
-                            Text("官网只公开每集前 15 条热评，更多评论请到红果 App 查看")
-                                .font(.caption2).foregroundStyle(HGTheme.textTertiary)
-                                .frame(maxWidth: .infinity).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            heading
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    if let data {
+                        ForEach(data.items) { HGReviewRow(review: $0) }
+                        if data.items.isEmpty {
+                            Text("官网暂无本集评论").font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                        } else {
+                            Text("官网只公开每集前 15 条热评").font(.caption2).foregroundStyle(.tertiary).frame(maxWidth: .infinity)
                         }
-                        .listStyle(.plain).scrollContentBackground(.hidden)
+                    } else if let error {
+                        Text(error).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity)
                     }
-                } else if let error {
-                    HGErrorView(message: error) { Task { await load() } }.frame(maxHeight: .infinity)
+                }
+                .padding(.horizontal, 16)
+                .padding(.trailing, trailingInset)
+                .padding(.vertical, 16)
+            }
+            .accessibilityIdentifier("hg.comments.list")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(fillsPane ? Color(uiColor: .secondarySystemBackground) : .clear)
+        .environment(\.colorScheme, .dark)
+        .clipped()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("hg.comments.panel")
+        .task(id: episode.vid) { await load() }
+    }
+
+    private var title: some View {
+        Text(count.map { $0 > 0 ? "\(DDMedia.count($0)) 条评论" : "评论" } ?? "评论")
+            .font(.subheadline.weight(.semibold)).lineLimit(1).fixedSize(horizontal: true, vertical: false)
+            .accessibilityIdentifier("hg.comments.title")
+    }
+
+    @ViewBuilder private var closeButton: some View {
+        if let onClose {
+            Button(action: onClose) {
+                Image(systemName: "xmark").font(.subheadline.weight(.semibold))
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("关闭评论")
+            .accessibilityIdentifier("hg.comments.close")
+        }
+    }
+
+    private var heading: some View {
+        VStack(spacing: 0) {
+            Group {
+                if horizontalStatus {
+                    HStack(spacing: 4) { closeButton; title; Spacer(minLength: 0) }
+                        .frame(minHeight: max(44, DYDuoMetrics.windowSafeTop))
                 } else {
-                    ProgressView().frame(maxHeight: .infinity)
+                    ZStack(alignment: .trailing) { title.frame(maxWidth: .infinity); closeButton }
+                        .frame(minHeight: 44)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.trailing, trailingInset)
+            Divider()
         }
-        .background(HGTheme.surface)
-        .task { await load() }
+        .foregroundStyle(.primary)
+        .contentShape(Rectangle())
+        .modifier(DYPanelDismissGesture(allowsSwipeRight: true, onClose: onClose))
     }
 
     private func load() async {
-        error = nil
+        error = nil; data = nil
         do { data = try await HGAPI.comments(series: series.series_id, vid: episode.vid) }
-        catch { self.error = "官网暂无本集评论（\(error.localizedDescription)）" }
+        catch { self.error = "官网暂无本集评论" }
     }
 }
 
+/// DouDuo rowBody 同款
 private struct HGReviewRow: View {
     let review: HGReview
-    static let relative: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter(); f.locale = Locale(identifier: "zh_CN"); f.unitsStyle = .full; return f
-    }()
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            AsyncImage(url: review.avatar.flatMap(URL.init(string:))) { img in img.resizable().scaledToFill() } placeholder: { HGTheme.surfaceHigh }
-                .frame(width: 34, height: 34).clipShape(Circle())
+            AsyncImage(url: review.avatar.flatMap(URL.init(string:))) { img in img.resizable().scaledToFill() } placeholder: { Color.primary.opacity(0.08) }
+                .frame(width: 32, height: 32).clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
-                Text(review.author.isEmpty ? "红果用户" : review.author).font(.caption.weight(.medium)).foregroundStyle(HGTheme.textSecondary)
-                Text(review.content).font(.subheadline).foregroundStyle(HGTheme.textPrimary).fixedSize(horizontal: false, vertical: true)
-                if let t = review.created_at {
-                    Text(Self.relative.localizedString(for: Date(timeIntervalSince1970: t / 1000), relativeTo: Date())).font(.caption2).foregroundStyle(HGTheme.textTertiary)
-                }
+                Text(review.author.isEmpty ? "红果用户" : review.author).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(review.content).font(.subheadline).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+                if let t = review.created_at { Text(Self.time(t / 1000)).font(.caption2).foregroundStyle(.secondary) }
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: 4)
             if let likes = review.likes {
                 VStack(spacing: 2) {
-                    Image(systemName: "heart").font(.footnote)
-                    Text(likes.formatted(.number.notation(.compactName))).font(.caption2.monospacedDigit())
+                    Image(systemName: "heart").font(.caption)
+                    Text(DDMedia.count(max(0, likes))).font(.caption2)
                 }
-                .foregroundStyle(HGTheme.textTertiary)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 32, minHeight: 36)
             }
         }
-        .padding(.vertical, 6)
+    }
+
+    /// DouDuo DYFormat.time
+    static func time(_ ts: Double) -> String {
+        let d = Date().timeIntervalSince1970 - ts
+        if d < 3600 { return "\(max(1, Int(d / 60)))分钟前" }
+        if d < 86400 { return "\(Int(d / 3600))小时前" }
+        if d < 86400 * 30 { return "\(Int(d / 86400))天前" }
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date(timeIntervalSince1970: ts))
     }
 }
 

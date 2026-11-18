@@ -17,6 +17,8 @@ struct HGPlayerScreen: View {
     @State private var showComments = false
     @State private var showEpisodes = false
     @State private var showMore = false
+    /// 评论是否占着一侧（侧滑 / 半折常驻）：本视图自己的 body 里算出来，不能用环境值读回自己
+    @State private var commentsInPane = false
     @State private var seeking = false
     @State private var seekPreview: Double = 0
     @State private var seekAnchor: Double = 0
@@ -34,7 +36,68 @@ struct HGPlayerScreen: View {
         _page = State(initialValue: request.index)
     }
 
+    /// DouDuo DYCommentStage / DYCommentPlayerLayout 同一套几何（原样搬的 DYCommentPaneMetrics）：
+    /// - 内屏平放 / 横屏（宽 ≥ 700）：点评论 → 视频缩窄，评论从右侧滑出
+    /// - 半折叠书本：左视频、右评论常驻；桌面：上视频、下评论常驻 + 倒影环境光（dyDeskLight）
+    /// - 外屏 / 普通竖屏：贴边底部液态玻璃面板
     var body: some View {
+        GeometryReader { outer in
+            let showsComments = showComments && session.series.source == .hongguo
+            let layout = DYCommentPaneMetrics(outer, isPresented: showsComments,
+                                              allowsResident: session.series.source == .hongguo)
+            ZStack(alignment: .topLeading) {
+                pager
+                    .frame(width: layout.videoSize.width, height: layout.videoSize.height)
+                    .clipped()
+                if layout.showsPane {
+                    HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
+                                   onClose: layout.resident ? nil : { showComments = false },
+                                   fillsPane: true, trailingInset: layout.trailingInset,
+                                   horizontalStatus: layout.resident && layout.sideBySide)
+                        .id(session.episode.vid)
+                        .padding(.top, !DYDuoMetrics.isDuoHardware && layout.sideBySide ? DYDuoMetrics.windowSafeTop : 0)
+                        .frame(width: layout.paneSize.width, height: layout.paneSize.height)
+                        .clipped()
+                        .dyDeskLight(layout.resident && !layout.sideBySide)
+                        .overlay(alignment: .leading) {
+                            if layout.sideBySide { Color(uiColor: .separator).frame(width: 0.5) }
+                        }
+                        .offset(x: layout.paneOrigin.x, y: layout.paneOrigin.y)
+                        .transition(.move(edge: layout.sideBySide ? .trailing : .bottom))
+                        .accessibilityIdentifier(layout.resident ? "hg.comments.resident" : "hg.comments.side")
+                }
+            }
+            .frame(width: outer.size.width, height: outer.size.height, alignment: .topLeading)
+            .background(Color.black.ignoresSafeArea())
+            .onChange(of: layout.showsPane, initial: true) { _, v in commentsInPane = v }
+            .animation(.snappy, value: layout.showsPane)
+            .animation(.snappy, value: layout.resident)
+            .dyBottomSheet(isPresented: Binding(
+                get: { showsComments && !layout.sideBySide && !layout.resident },
+                set: { if !layout.sideBySide && !layout.resident { showComments = $0 } }
+            ), kind: .comments) {
+                HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
+                               onClose: { showComments = false })
+            }
+        }
+        .modifier(DYHingeStateRoot())
+        .ignoresSafeArea()
+        .statusBarHidden(clean)
+        .persistentSystemOverlays(clean ? .hidden : .automatic)
+        .overlay(alignment: .top) { toastView }
+        .sheet(isPresented: $showMore) { moreSheet.presentationDetents([.height(300)]).presentationDragIndicator(.visible) }
+        .sheet(isPresented: $showEpisodes) {
+            HGEpisodeSheet(session: session) { showEpisodes = false }
+                .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+        }
+        .onAppear { session.start() }
+        .onDisappear { session.stop(); setOrientation(landscape: false) }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.active, !session.pip.starting { session.pauseForBackground() }
+        }
+    }
+
+    private var pager: some View {
         GeometryReader { geo in
           ScrollViewReader { proxy in
             ScrollView(.vertical) {
@@ -60,24 +123,6 @@ struct HGPlayerScreen: View {
             .onAppear { proxy.scrollTo(session.index, anchor: .top); page = session.index }
           }
         }
-        .ignoresSafeArea()
-        .statusBarHidden(clean)
-        .persistentSystemOverlays(clean ? .hidden : .automatic)
-        .overlay(alignment: .top) { toastView }
-        .sheet(isPresented: $showComments) {
-            HGCommentSheet(series: session.series, episode: session.episode)
-                .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showMore) { moreSheet.presentationDetents([.height(300)]).presentationDragIndicator(.visible) }
-        .sheet(isPresented: $showEpisodes) {
-            HGEpisodeSheet(session: session) { showEpisodes = false }
-                .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
-        }
-        .onAppear { session.start() }
-        .onDisappear { session.stop(); setOrientation(landscape: false) }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.active { session.player.pause() }
-        }
     }
 
     // MARK: 一页
@@ -87,6 +132,9 @@ struct HGPlayerScreen: View {
         ZStack {
             Color.black
             if i == session.index {
+                DYAmbientBackdrop(player: session.player, active: true, dim: 0.6, fillWidth: fillWidth)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
                 HGVideoLayer(player: session.player, fillWidth: fillWidth, pip: session.pip)
                     .scaleEffect(userScale * pinchScale)
                     .clipped()
@@ -130,7 +178,7 @@ struct HGPlayerScreen: View {
                 if session.boosting || session.lockedBoost { boostBadge }
                 if seeking { seekOverlay }
                 statusOverlay
-                if !clean { chrome(ep) } else { exitCleanButton }
+                if clean { exitCleanButton } else if !commentsInPane { chrome(ep) } else { paneChrome }
             } else {
                 // 相邻页只显示封面占位，滑动时不黑屏
                 HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
@@ -182,6 +230,24 @@ struct HGPlayerScreen: View {
             progressBar.padding(.bottom, max(safeBottom, 18) + 4)
         }
         .foregroundStyle(.white)
+    }
+
+    /// 评论占一侧时视频上只留返回键（DouDuo：评论打开 / 常驻时按钮栏直接隐藏）
+    private var paneChrome: some View {
+        VStack {
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.backward").font(.title2.weight(.medium)).foregroundStyle(.white)
+                        .frame(width: 44, height: 44).contentShape(Circle()).ddMediaGlassCircle()
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("hg.player.close")
+                Spacer()
+            }
+            .padding(.horizontal, DDMedia.chromeSidePadding).padding(.top, safeTop)
+            Spacer()
+            progressBar.padding(.bottom, 12)
+        }
     }
 
     private var safeBottom: CGFloat {
@@ -472,5 +538,5 @@ enum HGOrientation {
 }
 
 enum HGBackgroundPlayback {
-    static var enabled: Bool { UserDefaults.standard.object(forKey: "hg.bgPlay") as? Bool ?? true }
+    static var enabled: Bool { UserDefaults.standard.bool(forKey: "hg.bgPlay.v2") }
 }
