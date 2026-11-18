@@ -45,7 +45,7 @@ export default function request(options) {
         url: options.url, method: options.method || 'GET', headers: options.headers || {},
         timeout: Math.max(500, Math.min(30000, options.timeout || 15000)),
         body: options.data == null ? null : Buffer.from(options.data).toString('base64'),
-        media: options.media === true, encrypted: options.encrypted === true,
+        media: options.media === true, encrypted: options.encrypted === true, binary: options.binary === true,
       }));
     } catch (error) { finish(); reject(error); }
   });
