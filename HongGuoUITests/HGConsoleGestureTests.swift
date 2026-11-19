@@ -76,11 +76,12 @@ extension HGConsoleGestureTests {
         XCTAssertTrue(pad.waitForExistence(timeout: 120))
         sleep(8)
         pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap(); sleep(1)
-        let prev = app.buttons["hg.console.prev"].frame, back = app.buttons["hg.console.back10"].frame
-        let play = app.buttons["hg.console.play"].frame, fwd = app.buttons["hg.console.fwd10"].frame, next = app.buttons["hg.console.next"].frame
-        print("HGW5 prev=\(prev) back=\(back) play=\(play) fwd=\(fwd) next=\(next)")
-        XCTAssertLessThan(back.minX - prev.maxX, 16); XCTAssertLessThan(play.minX - back.maxX, 20)
-        XCTAssertGreaterThanOrEqual(back.width, 58)
+        // 大方块排版：-10 / 播放 / +10 三块等宽并排、间距小
+        let back = app.buttons["hg.console.back10"].frame, play = app.buttons["hg.console.play"].frame, fwd = app.buttons["hg.console.fwd10"].frame
+        print("HGW5 back=\(back) play=\(play) fwd=\(fwd) next=\(app.buttons["hg.console.next"].frame)")
+        XCTAssertEqual(back.width, play.width, accuracy: 2); XCTAssertEqual(play.width, fwd.width, accuracy: 2)
+        XCTAssertLessThan(play.minX - back.maxX, 12)
+        XCTAssertGreaterThan(play.height, 70)
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = "controls"; a.lifetime = .keepAlways; add(a)
         pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.97)).tap(); sleep(1)
         DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) {
@@ -142,5 +143,30 @@ extension HGConsoleGestureTests {
         XCTAssertTrue(app.descendants(matching: .any)["hg.console.pad"].firstMatch.waitForExistence(timeout: 120))
         sleep(12)
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = "desklight"; a.lifetime = .keepAlways; add(a)
+    }
+}
+
+extension HGConsoleGestureTests {
+    /// 退出 App（没开画中画）：立刻停声音，回来不自动续播
+    func testExitStopsPlayback() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["DOUDUO_FOLD"] = "1"
+        app.launchEnvironment["HG_START_TAB"] = "feed"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        let pad = app.descendants(matching: .any)["hg.console.pad"].firstMatch
+        XCTAssertTrue(pad.waitForExistence(timeout: 120)); sleep(6)
+        func pos() -> Int { Int((pad.value as? String) ?? "") ?? -1 }
+        let p0 = pos()
+        // 这台 Duo 模拟器上 press(.home) 不会让 App 退到后台（state 仍是 4=前台），改成切到「设置」
+        XCUIApplication(bundleIdentifier: "com.apple.Preferences").activate()
+        sleep(5)
+        app.activate()
+        XCTAssertTrue(pad.waitForExistence(timeout: 10)); sleep(1)
+        let p1 = pos()
+        print("HGWX exit pos \(p0) -> \(p1)")
+        XCTAssertLessThanOrEqual(p1 - p0, 2, "退出后还在播")
+        sleep(3)
+        XCTAssertLessThanOrEqual(pos() - p1, 1, "回来不该自动续播")
     }
 }
