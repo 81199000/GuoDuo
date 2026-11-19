@@ -20,13 +20,13 @@ enum DYDeskLightHub {
 }
 
 /// 把一帧视频做成「真投影」（2026-11-19 老板对照奈飞：亮处投得明显、暗处几乎不投；离折痕近清楚、远处糊且放大）
-/// 全在 Core Image 里做（GPU，200px 宽，12 帧/秒）：
+/// 全在 Core Image 里做（GPU，72px 宽，12 帧/秒）：
 /// 1. 翻转：视频底边贴折痕；
 /// 2. 按亮度出光：Gamma 1.9 压掉暗部、保留高光——画面亮的地方投影才明显；
-/// 3. 按距离渐糊：CIMaskedVariableBlur，折痕处半径≈0，远端半径 9；
+/// 3. 糊度：整体 σ2.4 打底（老板定的上一版糊度），远端再叠 CIMaskedVariableBlur 半径 3.2；
 /// 4. 按距离渐大：CIPerspectiveTransform，远端向两侧各放出 25%（光离光源越远越散）。
 enum DYDeskProjection {
-    static let width: CGFloat = 200
+    static let width: CGFloat = 72   // 老板：模糊度回到 26fdac8 那版（72px + σ2.4）
     /// 远端各向外放出的比例（视图按同样比例摆放）
     static let spread: CGFloat = 0.25
 
@@ -48,11 +48,11 @@ enum DYDeskProjection {
         var blurred = lit
         if let mask {
             blurred = lit.clampedToExtent()
-                .applyingFilter("CIMaskedVariableBlur", parameters: ["inputMask": mask, "inputRadius": 9])
+                .applyingFilter("CIMaskedVariableBlur", parameters: ["inputMask": mask, "inputRadius": 3.2])
                 .cropped(to: lit.extent)
         }
-        // 折痕处也不能是锐利的原图：整体再加一层很轻的模糊
-        blurred = blurred.clampedToExtent().applyingGaussianBlur(sigma: 0.8).cropped(to: lit.extent)
+        // 底糊 = 上一版（72px + σ2.4）的糊度，折痕处也是这个程度；远端在此基础上再加一点
+        blurred = blurred.clampedToExtent().applyingGaussianBlur(sigma: 2.4).cropped(to: lit.extent)
         // 左右边缘各 12% 淡到黑：光斑没有硬边（透视放大后斜边不再是一条线）
         let e = w * 0.12
         if let l = CIFilter(name: "CILinearGradient", parameters: [
@@ -135,8 +135,8 @@ final class DYDeskLightView: UIView {
         falloff.startPoint = CGPoint(x: 0.5, y: 0)
         falloff.endPoint = CGPoint(x: 0.5, y: 1)
         falloff.colors = [UIColor(white: 1, alpha: 0).cgColor,
-                          UIColor(white: 1, alpha: 0.6).cgColor,
-                          UIColor(white: 1, alpha: 0.3).cgColor,
+                          UIColor(white: 1, alpha: 0.38).cgColor,
+                          UIColor(white: 1, alpha: 0.19).cgColor,
                           UIColor(white: 1, alpha: 0).cgColor]
         falloff.locations = [0, 0.07, 0.5, 1]
         box.layer.mask = falloff
