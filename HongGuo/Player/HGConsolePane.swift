@@ -2,6 +2,7 @@ import SwiftUI
 import MediaPlayer
 import Photos
 import AVFoundation
+import AVKit
 
 /// 竖屏半折叠（桌面姿态）下半屏：触控操作台。照老板给的参考图做三态：
 /// - 平时：全黑 + 环境光投影 + 四角取景框，整块是触控板（左右滑快进退，轻点呼出控制）
@@ -35,9 +36,11 @@ struct HGConsolePane: View {
     @State private var lockHintTask: Task<Void, Never>?
     @State private var volume: Float = 0.5
     @State private var brightness: CGFloat = 0.5
-    @State private var boostSide: Int?
-    @State private var boostTask: Task<Void, Never>?
-    @State private var boostPending = false
+    /// 触控板长按 2×：按住期间 true（GestureState，松手 / 被系统取消都会复位，不会卡在加速）
+    @GestureState private var padHolding = false
+    @State private var padBoostOn = false
+    @State private var padLockDone = false
+    @State private var lastBoostEnd = Date.distantPast
     /// 一次拖动只认一个方向：横 = 快进退，竖 = 切视频
     @State private var dragAxis: Axis?
     enum Popover { case danmaku, rate }
@@ -110,7 +113,7 @@ struct HGConsolePane: View {
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 10)
                 .onChanged { v in
-                    guard !locked else { return }
+                    guard !locked, !padHolding, !padBoostOn else { return }
                     if dragAxis == nil {
                         dragAxis = abs(v.translation.width) > abs(v.translation.height) ? .horizontal : .vertical
                     }
@@ -123,6 +126,8 @@ struct HGConsolePane: View {
                 }
                 .onEnded { v in
                     defer { dragAxis = nil }
+                    // 长按加速 / 锁定手势里的滑动，松手不再当成快进或翻页
+                    if padBoostOn || padHolding || Date().timeIntervalSince(lastBoostEnd) < 0.5 { return }
                     guard !locked else { return }
                     if dragAxis == .vertical {
                         // DouDuo 竖滑翻页的手感：位移 60pt 或甩出去（预测 180pt）就翻
@@ -133,7 +138,37 @@ struct HGConsolePane: View {
                     }
                     endSeek()
                 })
+            // 长按 2× 倍速（DouDuo 同款）：按住期间 2×，按住后手指下滑一段 = 锁定 2×，上滑一段 = 解锁
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.3)
+                .sequenced(before: DragGesture(minimumDistance: 0))
+                .updating($padHolding) { value, state, _ in
+                    if case .second(true, _) = value { state = true }
+                }
+                .onChanged { value in
+                    guard case .second(true, let drag?) = value, padBoostOn, !padLockDone else { return }
+                    let dy = drag.translation.height
+                    guard abs(dy) > 50 else { return }
+                    padLockDone = true
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    if dy > 0 { session.lockBoost() } else { session.unlockBoost() }
+                })
+            .onChange(of: padHolding) { _, on in
+                if on {
+                    guard !locked, !seeking else { return }
+                    padBoostOn = true; padLockDone = false
+                    hideTask?.cancel()
+                    session.setBoost(true)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                } else if padBoostOn {
+                    padBoostOn = false
+                    lastBoostEnd = Date()
+                    session.setBoost(false)
+                    if controlsShown { poke() }
+                }
+            }
             .simultaneousGesture(TapGesture().onEnded {
+                // 长按松手后系统会补一个单击，吞掉
+                if padBoostOn || Date().timeIntervalSince(lastBoostEnd) < 0.8 { return }
                 if locked { showLockHint(); return }
                 guard !seeking else { return }
                 if popover != nil { popover = nil; poke(); return }
@@ -161,35 +196,43 @@ struct HGConsolePane: View {
         hideTask?.cancel()
         hideTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled, !seeking, popover == nil, boostSide == nil else { return }
+            guard !Task.isCancelled, !seeking, popover == nil, !padBoostOn else { return }
             controlsShown = false
         }
     }
 
     // MARK: 控制层
 
-    /// 控制层按参考图比例铺满整块下半屏（之前间距封顶 22pt，全挤到底部）：
-    /// 参考图量出来：顶排在面板 ~30% 处，中排 ~56%，进度条 ~79%，底排贴底。
-    /// 多出来的高度 60% 给顶部留白、各 20% 给两段排间距；中排（播放 + 两侧长按圈）随高度放大。
+    /// 控制层照老板 2026-11-19 的参考图排：
+    /// 顶排（返回 · 剧名 + 第几集 | 时长 · AirPlay · 锁定 · 截图）→ 音量 | 亮度合并一块 →
+    /// 上集 · -10 · 播放 · +10 · 下集 → 时间 + 进度条 + 总时长 → 弹 / 环境光 / 倍速 / 选集 / 更多（竖线隔开）。
+    /// 多出来的高度按比例分给各段间距。
     private var controlsLayer: some View {
         GeometryReader { g in
-            let fixed: CGFloat = 40 + 28 + 10 + 40
+            let fixed: CGFloat = 10 + 40 + 46 + 28 + 40
             let avail = max(0, g.size.height - creaseTop - bottomPad - fixed)
-            let middleH = min(200, max(72, avail * 0.42))
+            let middleH = min(110, max(72, avail * 0.42))
             let rest = max(0, avail - middleH)
             VStack(spacing: 0) {
-                Color.clear.frame(height: creaseTop + rest * 0.5)
+                Color.clear.frame(height: creaseTop + 10)
                 topRow
-                Color.clear.frame(height: rest * 0.25)
+                Color.clear.frame(height: rest * 0.2)
+                sliderCard
+                Color.clear.frame(height: rest * 0.3)
                 middleRow(height: middleH)
                 Color.clear.frame(height: rest * 0.25)
                 progressRow
-                Color.clear.frame(height: 10)
+                Color.clear.frame(height: rest * 0.25)
                 bottomRow
             }
             .padding(.horizontal, side)
             .padding(.bottom, bottomPad)
             .frame(width: g.size.width, height: g.size.height, alignment: .top)
+            .overlay(alignment: .top) {
+                Capsule().fill(.white.opacity(0.28)).frame(width: 38, height: 4)
+                    .padding(.top, creaseTop + 5).allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
         .overlay(alignment: .bottom) { popoverView.padding(.bottom, bottomPad + 48) }
     }
@@ -197,15 +240,20 @@ struct HGConsolePane: View {
     private var topRow: some View {
         HStack(spacing: 10) {
             circleButton("chevron.backward", id: "hg.player.close", label: "返回") { onBack() }
-            HGCapsuleSlider(icon: volume <= 0.01 ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                            value: Double(volume)) { v in
-                volume = Float(v); HGSystemVolume.set(Float(v)); poke()
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.series.series_title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                Text("第\(session.episode.number)集" + (session.duration > 0 ? " | \(Int((session.duration / 60).rounded(.up)))分钟" : ""))
+                    .font(.caption2).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
             }
-            .accessibilityIdentifier("hg.console.volume")
-            HGCapsuleSlider(icon: "sun.max.fill", value: Double(brightness)) { v in
-                brightness = CGFloat(v); HGScreenBrightness.set(CGFloat(v)); poke()
-            }
-            .accessibilityIdentifier("hg.console.brightness")
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("hg.console.panelTitle")
+            HGAirPlayButton()
+                .frame(width: 40, height: 40)
+                .ddMediaGlassCircle()
+                .accessibilityLabel("投屏")
+                .accessibilityIdentifier("hg.console.airplay")
             circleButton("lock.open", id: "hg.console.lock", label: "锁定") {
                 locked = true; controlsShown = false
                 flash("已锁定，轻点下半屏显示解锁")
@@ -215,77 +263,77 @@ struct HGConsolePane: View {
         .frame(height: 40)
     }
 
+    /// 音量 | 亮度：一块圆角底板，中间一条竖线隔开
+    private var sliderCard: some View {
+        HStack(spacing: 8) {
+            HGCapsuleSlider(icon: volume <= 0.01 ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                            value: Double(volume)) { v in
+                volume = Float(v); HGSystemVolume.set(Float(v)); poke()
+            }
+            .accessibilityIdentifier("hg.console.volume")
+            Rectangle().fill(.white.opacity(0.16)).frame(width: 1, height: 22)
+            HGCapsuleSlider(icon: "sun.max.fill", value: Double(brightness)) { v in
+                brightness = CGFloat(v); HGScreenBrightness.set(CGFloat(v)); poke()
+            }
+            .accessibilityIdentifier("hg.console.brightness")
+        }
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .frame(height: 46)
+        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 23, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1))
+    }
+
     private func middleRow(height: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            boostZone(0, height: height)
-            Spacer(minLength: 4)
-            HStack(spacing: 18) {
-                roundButton("gobackward.10", size: 52, glyph: 22, id: "hg.console.back10") {
+        // 五个键靠拢放大（2026-11-19 老板要求）：固定小间距居中排；窄屏按可用宽度等比缩小
+        let gap: CGFloat = 10, tileW: CGFloat = 66, tileH: CGFloat = 60, small: CGFloat = 62
+        let big = min(max(height, 64), 84)
+        let natural = tileW * 2 + small * 2 + big + gap * 4
+        return GeometryReader { g in
+            let k = min(1, g.size.width / natural)
+            HStack(spacing: gap) {
+                stepTile("backward.end.fill", label: "上集", enabled: session.index > 0, id: "hg.console.prev", w: tileW, h: tileH) {
+                    session.previous(); poke()
+                }
+                roundButton("gobackward.10", size: small, glyph: 26, id: "hg.console.back10") {
                     session.seek(to: max(0, session.position - 10)); poke()
                 }
-                roundButton(session.isPlaying ? "pause.fill" : "play.fill", size: 72, glyph: 30, id: "hg.console.play") {
+                roundButton(session.isPlaying ? "pause.fill" : "play.fill", size: big, glyph: big * 0.4, id: "hg.console.play") {
                     session.togglePlay(); poke()
                 }
-                roundButton("goforward.10", size: 52, glyph: 22, id: "hg.console.fwd10") {
+                .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1.5).padding(-4))
+                roundButton("goforward.10", size: small, glyph: 26, id: "hg.console.fwd10") {
                     session.seek(to: min(session.duration, session.position + 10)); poke()
                 }
+                stepTile("forward.end.fill", label: "下集", enabled: session.hasNext, id: "hg.console.next", w: tileW, h: tileH) {
+                    session.next(); poke()
+                }
             }
-            Spacer(minLength: 4)
-            boostZone(1, height: height)
+            .scaleEffect(k)
+            .frame(width: g.size.width, height: g.size.height)
         }
         .frame(height: height)
     }
 
-    /// 两侧长按区：按住 2× 快进，松手恢复（DouDuo 长按加速同款倍率）
-    /// 参考图：两侧大圆一半探出屏幕边，圆高约等于中排高度的 1.15 倍
-    private func boostZone(_ s: Int, height: CGFloat) -> some View {
-        let active = boostSide == s
-        let d = max(150, height * 1.15)
-        let zoneW: CGFloat = 92
-        return ZStack {
-            Circle()
-                .fill(.white.opacity(active ? 0.1 : 0.035))
-                .overlay(Circle().stroke(.white.opacity(0.07), lineWidth: 1))
-                .frame(width: d, height: d)
-                .offset(x: (s == 0 ? -1 : 1) * (d / 2 - zoneW + side + 4))
-            Text(active ? "2× 快进中" : "长按快进")
-                .font(.caption).foregroundStyle(.white.opacity(active ? 0.9 : 0.4))
-                .offset(x: s == 0 ? -6 : 6)
-        }
-        .frame(width: zoneW, height: height)
-        .contentShape(Rectangle())
-        .gesture(DragGesture(minimumDistance: 0)
-            .onChanged { _ in
-                guard boostSide == nil, !boostPending else { return }
-                boostPending = true
-                boostTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(300))
-                    guard !Task.isCancelled else { return }
-                    boostSide = s; session.setBoost(true)
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
+    /// 上集 / 下集：圆角方块，图标在上、字在下
+    private func stepTile(_ icon: String, label: String, enabled: Bool, id: String, w: CGFloat, h: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 19, weight: .bold))
+                Text(label).font(.system(size: 13, weight: .medium))
             }
-            .onEnded { _ in
-                boostTask?.cancel(); boostPending = false
-                if boostSide != nil { session.setBoost(false); boostSide = nil }
-                poke()
-            })
-        .accessibilityElement()
-        .accessibilityIdentifier(s == 0 ? "hg.console.boost.left" : "hg.console.boost.right")
-        .accessibilityValue(active ? "boosting" : "idle")
+            .foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
+            .frame(width: w, height: h)
+            .contentShape(Rectangle())
+            .ddGlassRounded(16)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
     }
 
     private var progressRow: some View {
         HStack(spacing: 10) {
-            Button { session.next(); poke() } label: {
-                Image(systemName: "forward.end.fill").font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(session.hasNext ? .white : .white.opacity(0.3))
-                    .frame(width: 30, height: 30).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!session.hasNext)
-            .accessibilityLabel("下一集")
-            .accessibilityIdentifier("hg.console.next")
             Text(fmt(seeking ? target : session.position)).font(.caption2.monospacedDigit()).foregroundStyle(.white.opacity(0.8))
             HGHeatBar(position: seeking ? target : session.position, duration: session.duration,
                       heat: HGHeat.peaks(session.danmaku, duration: session.duration),
@@ -305,7 +353,7 @@ struct HGConsolePane: View {
     }
 
     private var bottomRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             tile(id: "hg.console.danmakuButton", on: popover == .danmaku) {
                 HStack(spacing: 1) {
                     Text("弹").font(.system(size: 17, weight: .semibold))
@@ -315,20 +363,35 @@ struct HGConsolePane: View {
                         .offset(y: 6)
                 }
             } action: { popover = popover == .danmaku ? nil : .danmaku; poke() }
+            tileDivider
             tile(id: "hg.console.ambient", on: deskLight) {
-                Text("环境光").font(.subheadline)
+                iconLabel("airplayvideo", "环境光")
             } action: {
                 withAnimation(.easeOut(duration: 0.3)) { deskLight.toggle() }
                 flash(deskLight ? "环境光投影：开" : "环境光投影：关"); poke()
             }
             .accessibilityValue(deskLight ? "on" : "off")
+            tileDivider
             tile(id: "hg.console.rate", on: popover == .rate) {
-                Text(session.rate == 1 ? "倍速" : String(format: "%g×", session.rate)).font(.subheadline)
+                iconLabel("play.circle", session.rate == 1 ? "倍速" : String(format: "%g×", session.rate))
             } action: { popover = popover == .rate ? nil : .rate; poke() }
-            tile(id: "hg.console.episodes") { Text("选集").font(.subheadline) } action: { onEpisodes() }
-            tile(id: "hg.console.more") { Text("更多").font(.subheadline) } action: { onMore() }
+            tileDivider
+            tile(id: "hg.console.episodes") { iconLabel("list.bullet", "选集") } action: { onEpisodes() }
+            tileDivider
+            tile(id: "hg.console.more") { iconLabel("ellipsis", "更多") } action: { onMore() }
         }
         .frame(height: 40)
+    }
+
+    private var tileDivider: some View {
+        Rectangle().fill(.white.opacity(0.16)).frame(width: 1, height: 20).padding(.horizontal, 3)
+    }
+
+    private func iconLabel(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 13, weight: .medium))
+            Text(text).font(.footnote).lineLimit(1).minimumScaleFactor(0.8)
+        }
     }
 
     @ViewBuilder private var popoverView: some View {
@@ -552,8 +615,7 @@ struct HGHeatBar: View {
             let frac = duration > 0 ? min(1, max(0, position / duration)) : 0
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.2)).frame(height: 6)
-                Capsule().fill(LinearGradient(colors: [Color(red: 0.35, green: 0.85, blue: 1), Color(red: 0.2, green: 0.9, blue: 0.55)],
-                                              startPoint: .leading, endPoint: .trailing))
+                Capsule().fill(.white.opacity(0.9))
                     .frame(width: max(6, w * frac), height: 6)
                 ForEach(heat, id: \.self) { h in
                     Circle().fill(.white.opacity(0.9)).frame(width: 5, height: 5)
@@ -603,7 +665,7 @@ struct HGCapsuleSlider: View {
                 set(min(1, max(0, v.location.x / max(g.size.width, 1))))
             })
         }
-        .frame(height: 40)
+        .frame(height: 38)
         .accessibilityElement()
         .accessibilityValue(String(format: "%.2f", value))
     }
@@ -635,6 +697,19 @@ struct HGVolumeHost: UIViewRepresentable {
     }
     static var value: CGFloat { screen?.brightness ?? 0.5 }
     static func set(_ v: CGFloat) { screen?.brightness = v }
+}
+
+/// AirPlay 投屏按钮：系统 AVRoutePickerView（点开系统设备列表），白色图标
+struct HGAirPlayButton: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let v = AVRoutePickerView()
+        v.tintColor = .white
+        v.activeTintColor = .systemGreen
+        v.prioritizesVideoDevices = true
+        v.backgroundColor = .clear
+        return v
+    }
+    func updateUIView(_ v: AVRoutePickerView, context: Context) {}
 }
 
 // MARK: - 四角取景框
