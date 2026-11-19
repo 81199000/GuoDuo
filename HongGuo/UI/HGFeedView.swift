@@ -265,6 +265,8 @@ struct HGFeedView: View {
         }
         .ignoresSafeArea()
         .toolbarVisibility(.hidden, for: .navigationBar)
+        // 推荐页不要主菜单（竖屏半折叠下半屏是触控板，系统标签栏会盖在上面）
+        .toolbarVisibility(.hidden, for: .tabBar)
         .onChange(of: current) { _, id in focus(id) }
         // 列表从空到有（切到还没备好的那种画幅、等它下完）：落到第一部
         .onChange(of: model.items.first?.id) { _, first in if current == nil { current = first } }

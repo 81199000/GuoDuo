@@ -147,6 +147,8 @@ struct HGRootView: View {
                     }
                 }
             }
+            // 推荐页（含竖屏半折叠）整个 TabView 层也压住系统标签栏，不只靠单个 Tab 内容上的修饰
+            .toolbarVisibility(tab == .feed ? .hidden : .automatic, for: .tabBar)
             // 系统会把上次选中的标签恢复回来（DouDuo 也踩过）：冷启动固定回发现页
             .task {
                 #if DEBUG

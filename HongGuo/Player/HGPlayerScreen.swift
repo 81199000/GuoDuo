@@ -33,7 +33,10 @@ struct HGPlayerScreen: View {
     @State private var railPush: CGFloat = 0
     @State private var peek = false
 
-    @State private var clean = false               // 清屏（全屏）：只留画面
+    @State private var clean = false               // 沉浸式（原「全屏」）：只留画面
+    /// 沉浸式下 2× 锁定提示只显示 5 秒（老板 2026-11-19 要求）
+    @State private var lockBadgeExpired = false
+    @State private var lockBadgeTask: Task<Void, Never>?
     @State private var showComments = false
     @State private var showEpisodes = false
     @State private var showMore = false
@@ -194,6 +197,20 @@ struct HGPlayerScreen: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.active, !session.pip.starting { session.pauseForBackground() }
         }
+        .onChange(of: session.lockedBoost) { _, _ in restartLockBadgeTimer() }
+        .onChange(of: clean) { _, _ in restartLockBadgeTimer() }
+    }
+
+    /// 沉浸式下锁定 2× 后，提示只留 5 秒；退出沉浸式或重新锁定会重新显示
+    private func restartLockBadgeTimer() {
+        lockBadgeTask?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) { lockBadgeExpired = false }
+        guard clean, session.lockedBoost else { return }
+        lockBadgeTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) { lockBadgeExpired = true }
+        }
     }
 
     @ViewBuilder private var pager: some View {
@@ -261,7 +278,7 @@ struct HGPlayerScreen: View {
                     onDoubleTap: { _, _ in doubleTapLike() },
                     onLongPress: { pressing in session.setBoost(pressing) },
                     onLongPressLock: { session.lockBoost(); flash("已锁定 2× 倍速") },
-                    onLongPressUnlock: { session.unlockBoost(); flash("已取消锁定") },
+                    onLongPressUnlock: { session.unlockBoost(); flash("已解锁") },
                     onSeekBegan: { seekAnchor = session.position; seekPreview = session.position; seeking = true },
                     onSeekChanged: { dx, w in
                         seekPreview = max(0, min(session.duration, seekAnchor + dx / max(w, 1) * session.duration * 0.9))
@@ -288,7 +305,7 @@ struct HGPlayerScreen: View {
                 if !session.isPlaying && session.status == nil && session.failed == nil && !seeking {
                     Image(systemName: "play.fill").font(.system(size: 54)).foregroundStyle(.white.opacity(0.75)).allowsHitTesting(false)
                 }
-                if session.boosting || session.lockedBoost { boostBadge }
+                if session.boosting || (session.lockedBoost && !lockBadgeExpired) { boostBadge }
                 if seeking && !consoleShown { seekOverlay }
                 statusOverlay
                 if clean { exitCleanButton } else if consoleShown { consoleTitle(ep) } else { chrome(ep) }   // 横屏评论从右滑出时，视频缩到左边，菜单栏仍贴视频右侧
@@ -609,7 +626,7 @@ struct HGPlayerScreen: View {
                     withAnimation(.easeOut(duration: 0.2)) { minimal.toggle() }
                     flash(minimal ? "极简模式：按住返回键看标题，暂停时显示详情" : "已退出极简")
                 }
-                moreItem("arrow.up.left.and.arrow.down.right.rectangle", "全屏", id: "hg.more.clean") {
+                moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
                     showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
                 }
                 if session.pip.supported {
@@ -723,12 +740,16 @@ struct HGPlayerScreen: View {
         .allowsHitTesting(false)
     }
 
+    /// 长按 2× / 锁定提示：屏幕最上方居中（2026-11-19 老板要求）
     private var boostBadge: some View {
-        Text(session.lockedBoost ? "2× 已锁定 · 上滑取消" : "2× 快进中 · 下滑锁定")
+        Text(session.lockedBoost ? "2× 已锁定 · 上滑解锁" : "2× 快进中 · 下滑锁定")
             .font(.caption.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 6)
             .background(.black.opacity(0.5), in: Capsule()).foregroundStyle(.white)
-            .frame(maxHeight: .infinity, alignment: .top).padding(.top, safeTop + 48)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(.top, 12)   // 沉浸式与普通状态同一位置：最上方
             .allowsHitTesting(false)
+            .transition(.opacity)
+            .accessibilityIdentifier("hg.player.boostBadge")
     }
 
     @ViewBuilder private var statusOverlay: some View {
