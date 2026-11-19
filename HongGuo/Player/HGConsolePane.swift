@@ -400,19 +400,21 @@ struct HGConsolePane: View {
     @ViewBuilder private var popoverView: some View {
         switch popover {
         case .danmaku:
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 Toggle(isOn: $danmakuOn) { Text("弹幕").font(.subheadline.weight(.semibold)).foregroundStyle(.white) }
                     .tint(.green)
                     .accessibilityIdentifier("hg.console.danmaku.toggle")
-                Text("显示位置").font(.caption).foregroundStyle(.white.opacity(0.6))
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Text("位置").font(.caption).foregroundStyle(.white.opacity(0.6)).frame(width: 40, alignment: .leading)
                     choice("影片区", on: !danmakuInConsole, id: "hg.console.danmaku.video") { danmakuInConsole = false; poke() }
                     choice("触控区", on: danmakuInConsole, id: "hg.console.danmaku.console") { danmakuInConsole = true; poke() }
                 }
                 .disabled(!danmakuOn).opacity(danmakuOn ? 1 : 0.4)
+                HGDanmakuStyleControls(compact: true)
+                    .disabled(!danmakuOn).opacity(danmakuOn ? 1 : 0.4)
             }
-            .padding(14)
-            .frame(width: 240)
+            .padding(12)
+            .frame(width: 320)
             .ddGlassCard()
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, side)
@@ -752,12 +754,20 @@ private struct HGConsoleDanmaku: View {
     let clock: DYDanmakuClock
     let top: CGFloat
     @AppStorage(DYDanmakuPolicy.deduplicateKey) private var deduplicate = true
+    @AppStorage(DYDanmakuPolicy.densityKey) private var densityRaw = DYDanmakuPolicy.Density.standard.rawValue
+    @AppStorage(DYDanmakuStyle.opacityKey) private var opacity = 1.0
+    @AppStorage(DYDanmakuStyle.fontKey) private var font = 17.0
     var body: some View {
         GeometryReader { g in
+            let density = DYDanmakuPolicy.Density(rawValue: densityRaw) ?? .standard
             let height = max(0, g.size.height - 40 - top)
-            let lanes = min(8, Int(height / DYDanmakuStyle.laneHeight))
+            let lane = CGFloat(font > 0 ? font : 17) + 15
+            // 整块下半屏能放的更多：简约 3 / 正常 5 / 密集 8 条
+            let cap = [3, 5, 8][density.rawValue]
+            let lanes = min(cap, Int(height / lane))
             DYDanmakuLiveSurface(items: items, clock: clock, regionTop: top, regionHeight: height,
-                                 lanes: lanes, density: .dense, deduplicate: deduplicate)
+                                 lanes: lanes, density: .dense, deduplicate: deduplicate,
+                                 opacity: opacity, fontSize: CGFloat(font > 0 ? font : 17))
                 .frame(width: g.size.width, height: g.size.height)
         }
         .allowsHitTesting(false)
