@@ -181,6 +181,9 @@ struct DYDanmakuLayer: View {
     let items: [DYDanmaku]
     let clock: DYDanmakuClock
     let topInset: CGFloat
+    /// 竖屏半折叠：视频只有上半块（~370pt），默认「上 1/3、顶部再让 64」的区域高度为 0、一条轨道都没有 →
+    /// 改用整块视频窗格（顶部让开左上角剧名那两行，底部留 12%）
+    var fullPane = false
     @AppStorage(DYDanmakuPolicy.densityKey) private var densityRaw = DYDanmakuPolicy.Density.standard.rawValue
     @AppStorage(DYDanmakuPolicy.deduplicateKey) private var deduplicate = true
 
@@ -196,7 +199,9 @@ struct DYDanmakuLayer: View {
     var body: some View {
         GeometryReader { g in
             let density = DYDanmakuPolicy.Density(rawValue: densityRaw) ?? .standard
-            let region = DYDanmakuPolicy.region(height: g.size.height, topInset: topInset, density: density)
+            let region = fullPane
+                ? DYDanmakuPolicy.Region(top: max(12, topInset) + 52, bottom: g.size.height * 0.88, lanes: density.maxLanes)
+                : DYDanmakuPolicy.region(height: g.size.height, topInset: topInset, density: density)
             // 字号变大后轨道变高：按新行高重算这块区域能放几条轨道
             let lanes = min(density.maxLanes, Int(max(0, (region.bottom - region.top) / DYDanmakuStyle.laneHeight)))
             DYDanmakuLiveSurface(items: renderItems, clock: clock, regionTop: region.top,

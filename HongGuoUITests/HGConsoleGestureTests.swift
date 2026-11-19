@@ -189,3 +189,36 @@ extension HGConsoleGestureTests {
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = "fullplayer"; a.lifetime = .keepAlways; add(a)
     }
 }
+
+extension HGConsoleGestureTests {
+    /// 竖屏半折叠、弹幕位置 = 影片区：上半屏视频上要有弹幕在飘
+    func testTabletopDanmakuOnVideo() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["DOUDUO_FOLD"] = "1"
+        app.launchEnvironment["HG_START_TAB"] = "feed"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        let any = app.descendants(matching: .any)
+        let pad = any["hg.console.pad"].firstMatch
+        XCTAssertTrue(pad.waitForExistence(timeout: 120)); sleep(4)
+        // 切到影片区
+        pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["hg.console.danmakuButton"].tap()
+        let video = app.buttons["hg.console.danmaku.video"]
+        XCTAssertTrue(video.waitForExistence(timeout: 3)); video.tap(); sleep(1)
+        pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.97)).tap()
+        let layer = any["hg.player.danmaku"].firstMatch
+        XCTAssertTrue(layer.waitForExistence(timeout: 20), "影片区没有弹幕层")
+        let count = Int(layer.value as? String ?? "") ?? 0
+        print("HGWD danmaku count=\(count) layer=\(layer.frame)")
+        // 等弹幕飘出来：弹幕文字是 StaticText，视频区域内应有可见文本
+        var seen = 0
+        for _ in 0..<15 {
+            sleep(1)
+            seen = app.staticTexts.allElementsBoundByIndex.filter { $0.frame.minY < layer.frame.maxY && $0.frame.minY > layer.frame.minY && $0.frame.width > 30 }.count
+            if seen > 0 { break }
+        }
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "tabletop-video-danmaku"; a.lifetime = .keepAlways; add(a)
+        print("HGWD visible=\(seen)")
+    }
+}
