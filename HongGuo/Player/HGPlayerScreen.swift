@@ -24,6 +24,9 @@ struct HGPlayerScreen: View {
     @State private var library = HGLibrary.shared
 
     @AppStorage("hg.danmaku.on") private var danmakuOn = true
+    @AppStorage(DYDanmakuPolicy.densityKey) private var danmakuDensity = DYDanmakuPolicy.Density.standard.rawValue
+    @AppStorage(DYDanmakuStyle.opacityKey) private var danmakuOpacity = 1.0
+    @AppStorage(DYDanmakuStyle.fontKey) private var danmakuFont = 17.0
     @AppStorage("hg.fillWidth") private var fillWidth = true
     /// 极简模式（DouDuo 同款）：不显示菜单栏和标题，只留右下一颗带进度外圈的返回圆键；
     /// 单击圆键弹菜单、按住看标题，点屏幕暂停时显示详情
@@ -172,7 +175,12 @@ struct HGPlayerScreen: View {
         .statusBarHidden(clean)
         .persistentSystemOverlays(clean ? .hidden : .automatic)
         .overlay(alignment: .top) { toastView }
-        .sheet(isPresented: $showMore) { moreSheet.presentationDetents([.height(consoleShown ? 400 : 300)]).presentationDragIndicator(.visible) }
+        .sheet(isPresented: $showMore) {
+            moreSheet
+                .presentationDetents([.height(moreSheetHeight), .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(HGTheme.surface)
+        }
         .sheet(isPresented: $showEpisodes) {
             HGEpisodeSheet(session: session) { showEpisodes = false }
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
@@ -612,49 +620,108 @@ struct HGPlayerScreen: View {
             .accessibilityValue(fav ? "已收藏" : "未收藏")
     }
 
+    /// 「更多」面板（2026-11-19 老板：竖屏 / 横屏展开都不协调、标题压在拖动条上）：
+    /// 顶部让开拖动条；内容限宽 560 居中；功能格用自适应列（宽屏不再被拉散）；
+    /// 下面是倍速、弹幕（密度 / 透明度 / 字号）两组，统一「标签在左、选项在右」；放不下就滚动。
     private var moreSheet: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(session.title).font(.headline).lineLimit(1)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 16) {
-                if consoleShown { socialItems }
-                moreItem("list.number", feed == nil ? "选集" : "看全集", id: "hg.more.episodes") {
-                    showMore = false
-                    if let feed { feed.openSeries(session.position) } else { showEpisodes = true }
-                }
-                moreItem(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "关弹幕" : "开弹幕", on: danmakuOn, id: "hg.more.danmaku") { danmakuOn.toggle() }
-                moreItem("rectangle", minimal ? "退出极简" : "极简模式", on: minimal, id: "hg.more.minimal") {
-                    showMore = false
-                    withAnimation(.easeOut(duration: 0.2)) { minimal.toggle() }
-                    flash(minimal ? "极简模式：按住返回键看标题，暂停时显示详情" : "已退出极简")
-                }
-                moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
-                    showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
-                }
-                if session.pip.supported {
-                    moreItem("pip.enter", "画中画", id: "hg.more.pip") { showMore = false; session.pip.start() }
-                }
-                if session.videoAspect > 1.05 {
-                    moreItem("rotate.right", landscape ? "竖屏" : "横屏", id: "hg.more.rotate") { showMore = false; setOrientation(landscape: !landscape) }
-                }
-            }
-            Text("倍速").font(.subheadline).foregroundStyle(HGTheme.textSecondary)
-            HStack(spacing: 8) {
-                ForEach(Self.rates, id: \.self) { r in
-                    let on = r == session.rate
-                    Button { session.setRate(r) } label: {
-                        Text(String(format: "%g×", r)).font(.subheadline.weight(on ? .semibold : .regular).monospacedDigit())
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                            .background(on ? HGTheme.accent : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
-                            .foregroundStyle(on ? Color.white : HGTheme.textPrimary)
+        GeometryReader { g in
+        // 内容宽：面板宽减两侧 20，最宽 600（展开横屏不铺散）；功能格按宽度分列（每格 ≥70）、等分铺满
+        // 外屏右侧有系统状态栏列，安全区会把内容往左挤、右边空一截——面板在它下面，横向忽略安全区
+        let w = min(g.size.width - 40, 600)
+        let cols = max(4, min(7, Int(w / 70)))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(session.title).font(.headline).lineLimit(1).foregroundStyle(HGTheme.textPrimary)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), alignment: .leading, spacing: 14) {
+                    if consoleShown { socialItems }
+                    moreItem("list.number", feed == nil ? "选集" : "看全集", id: "hg.more.episodes") {
+                        showMore = false
+                        if let feed { feed.openSeries(session.position) } else { showEpisodes = true }
                     }
-                    .accessibilityIdentifier("hg.more.rate.\(r)")
+                    moreItem(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "关弹幕" : "开弹幕", on: danmakuOn, id: "hg.more.danmaku") { danmakuOn.toggle() }
+                    moreItem("rectangle", minimal ? "退出极简" : "极简模式", on: minimal, id: "hg.more.minimal") {
+                        showMore = false
+                        withAnimation(.easeOut(duration: 0.2)) { minimal.toggle() }
+                        flash(minimal ? "极简模式：按住返回键看标题，暂停时显示详情" : "已退出极简")
+                    }
+                    moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
+                        showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
+                    }
+                    if session.pip.supported {
+                        moreItem("pip.enter", "画中画", id: "hg.more.pip") { showMore = false; session.pip.start() }
+                    }
+                    if session.videoAspect > 1.05 {
+                        moreItem("rotate.right", landscape ? "竖屏" : "横屏", id: "hg.more.rotate") { showMore = false; setOrientation(landscape: !landscape) }
+                    }
                 }
+                VStack(alignment: .leading, spacing: 10) {
+                    sheetGroup("播放")
+                    optionRow("倍速") {
+                        ForEach(Self.rates, id: \.self) { r in
+                            sheetPill(String(format: "%g×", r), on: r == session.rate, id: "hg.more.rate.\(r)") { session.setRate(r) }
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    sheetGroup("弹幕")
+                    optionRow("密度") {
+                        ForEach(DYDanmakuPolicy.Density.allCases) { d in
+                            sheetPill(d.title, on: danmakuDensity == d.rawValue, id: "hg.danmaku.density.\(d.rawValue)") { danmakuDensity = d.rawValue }
+                        }
+                    }
+                    optionRow("透明度") {
+                        ForEach(DYDanmakuStyle.opacities, id: \.value) { o in
+                            sheetPill(o.title, on: abs(danmakuOpacity - o.value) < 0.01, id: "hg.danmaku.opacity.\(Int(o.value * 100))") { danmakuOpacity = o.value }
+                        }
+                    }
+                    optionRow("字号") {
+                        ForEach(DYDanmakuStyle.fontSizes, id: \.size) { f in
+                            sheetPill(f.title, on: abs(danmakuFont - f.size) < 0.1, id: "hg.danmaku.font.\(Int(f.size))") { danmakuFont = f.size }
+                        }
+                    }
+                }
+                .disabled(!danmakuOn).opacity(danmakuOn ? 1 : 0.45)
             }
-            Spacer(minLength: 0)
+            .frame(width: w, alignment: .leading)
+            .padding(.top, 28)      // 让开系统拖动条
+            .padding(.bottom, 20)
+            .frame(maxWidth: .infinity)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .scrollBounceBehavior(.basedOnSize)
+        }
+        .ignoresSafeArea(.container, edges: .horizontal)
         .background(HGTheme.surface)
+        .accessibilityIdentifier("hg.more.sheet")
+    }
+
+    private func sheetGroup(_ title: String) -> some View {
+        Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(HGTheme.textSecondary)
+    }
+
+    private func optionRow<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        HStack(spacing: 6) {
+            Text(title).font(.footnote).foregroundStyle(HGTheme.textSecondary).frame(width: 46, alignment: .leading)
+            content()
+        }
+    }
+
+    private func sheetPill(_ title: String, on: Bool, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.footnote.weight(on ? .semibold : .regular).monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(on ? HGTheme.accent : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
+                .foregroundStyle(on ? Color.white : HGTheme.textPrimary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+        .accessibilityValue(on ? "on" : "off")
+    }
+
+    /// 「更多」默认高度：内容自然高度（标题 + 两排功能 + 倍速 + 弹幕三行 ≈ 470，桌面姿态多一排社交 ≈ 560），不超过屏高 72%
+    private var moreSheetHeight: CGFloat {
+        let h = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.height ?? 700
+        return min(consoleShown ? 540 : 460, h * 0.8)
     }
 
     /// 桌面姿态没有右侧栏：点赞 / 评论 / 收藏 / 画面收进「更多」
@@ -684,9 +751,11 @@ struct HGPlayerScreen: View {
                 Image(systemName: icon).font(.title3).frame(width: 52, height: 52)
                     .background(on ? HGTheme.accent.opacity(0.2) : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
                     .foregroundStyle(on ? HGTheme.accent : HGTheme.textPrimary)
-                Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary)
+                Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary).lineLimit(1).minimumScaleFactor(0.8)
             }
+            .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier(id)
     }
 

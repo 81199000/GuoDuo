@@ -39,10 +39,6 @@ struct HGMineView: View {
                 Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
             }
             .listRowBackground(HGTheme.surface)
-            Section("弹幕") {
-                HGDanmakuStyleControls().padding(.vertical, 4)
-            }
-            .listRowBackground(HGTheme.surface)
             HGAboutSection()
             Section { HGBrandFooter() }
                 .listRowBackground(Color.clear)
