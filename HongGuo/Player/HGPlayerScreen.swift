@@ -328,8 +328,9 @@ struct HGPlayerScreen: View {
     private func chrome(_ ep: HGEpisode) -> some View {
         // 横屏（宽 > 高）：返回键并到右侧菜单栏最上面（跟首页右侧胶囊一个位置逻辑）
         let wide = isLandscapeWindow
-        // 返回键放到右侧菜单栏最上面：推荐页横竖屏都这样；完整播放页只在横屏这样
-        let backOnRail = wide || feed != nil
+        // 返回键放到右侧菜单栏最上面：推荐页、完整播放页，外屏 / 展开、横竖屏一律这样（老板 2026-11-19）
+        let backOnRail = true
+        _ = wide
         // 极简：菜单栏不变；标题平时隐藏（暂停 / 按住返回键时显示），进度条画成返回键外圈
         let paused = !session.isPlaying && session.status == nil && session.failed == nil && !seeking
         let showInfo = !minimal || peek || paused

@@ -117,7 +117,20 @@ globalThis.HG = {
           if (!r.url) throw Object.assign(new Error(r.error || '片源不可用'), { code: r.locked ? 'LOCKED' : '' });
           return { vid: String(vid), variants: [{ url: r.url, contentKey: null, codec: 'h264', quality: '', userAgent: 'Mozilla/5.0', referer: '' }] };
         }
-        const s = await fetchAppPlayUrl(String(vid), { quality: quality || 'auto', signal: controller.signal });
+        // 红果 App 播放接口会随机回 HTTP 200 空包（2026-11-19 实测同一集连取 4 次约四成失败，不是某集坏了），
+        // 上游每次只内部重试 1 次；这里再整体重来最多 3 轮（每轮重新注册匿名设备），间隔 0.6s，总耗时封顶 ~25s
+        let s, lastErr;
+        for (let round = 0; round < 4 && !s; round++) {
+          if (round) await new Promise(r => setTimeout(r, 600));
+          if (controller.signal.aborted) break;
+          try { s = await fetchAppPlayUrl(String(vid), { quality: quality || 'auto', signal: controller.signal }); }
+          catch (e) {
+            lastErr = e;
+            if (!['EMPTY_RESPONSE', 'ETIMEDOUT', 'ECONNABORTED', 'ERR_NETWORK'].includes(e?.code)) throw e;
+            Native.log(`source retry vid=${vid} round=${round + 1} code=${e.code}`);
+          }
+        }
+        if (!s) throw lastErr || new Error('取源失败');
         const all = s.variants || [s];
         const variants = all.filter(v => PLAYABLE.includes(String(v.codec).toLowerCase()))
           .map(v => ({ url: v.url, contentKey: v.contentKey || null, codec: v.codec, quality: v.quality || s.quality || '', userAgent: v.userAgent || s.userAgent || '', referer: v.referer || '' }));
