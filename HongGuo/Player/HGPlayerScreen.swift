@@ -24,6 +24,9 @@ struct HGPlayerScreen: View {
     @State private var library = HGLibrary.shared
 
     @AppStorage("hg.danmaku.on") private var danmakuOn = true
+    @AppStorage(DYDanmakuPolicy.densityKey) private var danmakuDensity = DYDanmakuPolicy.Density.standard.rawValue
+    @AppStorage(DYDanmakuStyle.opacityKey) private var danmakuOpacity = 1.0
+    @AppStorage(DYDanmakuStyle.fontKey) private var danmakuFont = 17.0
     @AppStorage("hg.fillWidth") private var fillWidth = true
     /// 极简模式（DouDuo 同款）：不显示菜单栏和标题，只留右下一颗带进度外圈的返回圆键；
     /// 单击圆键弹菜单、按住看标题，点屏幕暂停时显示详情
@@ -172,7 +175,12 @@ struct HGPlayerScreen: View {
         .statusBarHidden(clean)
         .persistentSystemOverlays(clean ? .hidden : .automatic)
         .overlay(alignment: .top) { toastView }
-        .sheet(isPresented: $showMore) { moreSheet.presentationDetents([.height(consoleShown ? 400 : 300)]).presentationDragIndicator(.visible) }
+        .sheet(isPresented: $showMore) {
+            moreSheet
+                .presentationDetents([.height(moreSheetHeight), .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(HGTheme.surface)
+        }
         .sheet(isPresented: $showEpisodes) {
             HGEpisodeSheet(session: session) { showEpisodes = false }
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
@@ -193,7 +201,11 @@ struct HGPlayerScreen: View {
             }
             #endif
         }
-        .onDisappear { if feed == nil { session.stop(); setOrientation(landscape: false) } }
+        .onAppear { HGOrientation.playerAppeared() }
+        .onDisappear {
+            if feed == nil { session.stop() }
+            HGOrientation.playerDisappeared()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.active, !session.pip.starting { session.pauseForBackground() }
         }
@@ -268,7 +280,7 @@ struct HGPlayerScreen: View {
                     .scaleEffect(userScale * pinchScale)
                     .clipped()
                 if danmakuOn && !clean && (!consoleShown || !danmakuInConsole) {
-                    DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop)
+                    DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop, fullPane: consoleShown)
                         .accessibilityElement()
                         .accessibilityIdentifier("hg.player.danmaku")
                         .accessibilityValue("\(session.danmaku.count)")
@@ -612,49 +624,108 @@ struct HGPlayerScreen: View {
             .accessibilityValue(fav ? "已收藏" : "未收藏")
     }
 
+    /// 「更多」面板（2026-11-19 老板：竖屏 / 横屏展开都不协调、标题压在拖动条上）：
+    /// 顶部让开拖动条；内容限宽 560 居中；功能格用自适应列（宽屏不再被拉散）；
+    /// 下面是倍速、弹幕（密度 / 透明度 / 字号）两组，统一「标签在左、选项在右」；放不下就滚动。
     private var moreSheet: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(session.title).font(.headline).lineLimit(1)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 16) {
-                if consoleShown { socialItems }
-                moreItem("list.number", feed == nil ? "选集" : "看全集", id: "hg.more.episodes") {
-                    showMore = false
-                    if let feed { feed.openSeries(session.position) } else { showEpisodes = true }
-                }
-                moreItem(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "关弹幕" : "开弹幕", on: danmakuOn, id: "hg.more.danmaku") { danmakuOn.toggle() }
-                moreItem("rectangle", minimal ? "退出极简" : "极简模式", on: minimal, id: "hg.more.minimal") {
-                    showMore = false
-                    withAnimation(.easeOut(duration: 0.2)) { minimal.toggle() }
-                    flash(minimal ? "极简模式：按住返回键看标题，暂停时显示详情" : "已退出极简")
-                }
-                moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
-                    showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
-                }
-                if session.pip.supported {
-                    moreItem("pip.enter", "画中画", id: "hg.more.pip") { showMore = false; session.pip.start() }
-                }
-                if session.videoAspect > 1.05 {
-                    moreItem("rotate.right", landscape ? "竖屏" : "横屏", id: "hg.more.rotate") { showMore = false; setOrientation(landscape: !landscape) }
-                }
-            }
-            Text("倍速").font(.subheadline).foregroundStyle(HGTheme.textSecondary)
-            HStack(spacing: 8) {
-                ForEach(Self.rates, id: \.self) { r in
-                    let on = r == session.rate
-                    Button { session.setRate(r) } label: {
-                        Text(String(format: "%g×", r)).font(.subheadline.weight(on ? .semibold : .regular).monospacedDigit())
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                            .background(on ? HGTheme.accent : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
-                            .foregroundStyle(on ? Color.white : HGTheme.textPrimary)
+        GeometryReader { g in
+        // 内容宽：面板宽减两侧 20，最宽 600（展开横屏不铺散）；功能格按宽度分列（每格 ≥70）、等分铺满
+        // 外屏右侧有系统状态栏列，安全区会把内容往左挤、右边空一截——面板在它下面，横向忽略安全区
+        let w = min(g.size.width - 40, 600)
+        let cols = max(4, min(7, Int(w / 70)))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(session.title).font(.headline).lineLimit(1).foregroundStyle(HGTheme.textPrimary)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), alignment: .leading, spacing: 14) {
+                    if consoleShown { socialItems }
+                    moreItem("list.number", feed == nil ? "选集" : "看全集", id: "hg.more.episodes") {
+                        showMore = false
+                        if let feed { feed.openSeries(session.position) } else { showEpisodes = true }
                     }
-                    .accessibilityIdentifier("hg.more.rate.\(r)")
+                    moreItem(danmakuOn ? "captions.bubble.fill" : "captions.bubble", danmakuOn ? "关弹幕" : "开弹幕", on: danmakuOn, id: "hg.more.danmaku") { danmakuOn.toggle() }
+                    moreItem("rectangle", minimal ? "退出极简" : "极简模式", on: minimal, id: "hg.more.minimal") {
+                        showMore = false
+                        withAnimation(.easeOut(duration: 0.2)) { minimal.toggle() }
+                        flash(minimal ? "极简模式：按住返回键看标题，暂停时显示详情" : "已退出极简")
+                    }
+                    moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
+                        showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
+                    }
+                    if session.pip.supported {
+                        moreItem("pip.enter", "画中画", id: "hg.more.pip") { showMore = false; session.pip.start() }
+                    }
+                    if session.videoAspect > 1.05 {
+                        moreItem("rotate.right", landscape ? "竖屏" : "横屏", id: "hg.more.rotate") { showMore = false; setOrientation(landscape: !landscape) }
+                    }
                 }
+                VStack(alignment: .leading, spacing: 10) {
+                    sheetGroup("播放")
+                    optionRow("倍速") {
+                        ForEach(Self.rates, id: \.self) { r in
+                            sheetPill(String(format: "%g×", r), on: r == session.rate, id: "hg.more.rate.\(r)") { session.setRate(r) }
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    sheetGroup("弹幕")
+                    optionRow("密度") {
+                        ForEach(DYDanmakuPolicy.Density.allCases) { d in
+                            sheetPill(d.title, on: danmakuDensity == d.rawValue, id: "hg.danmaku.density.\(d.rawValue)") { danmakuDensity = d.rawValue }
+                        }
+                    }
+                    optionRow("透明度") {
+                        ForEach(DYDanmakuStyle.opacities, id: \.value) { o in
+                            sheetPill(o.title, on: abs(danmakuOpacity - o.value) < 0.01, id: "hg.danmaku.opacity.\(Int(o.value * 100))") { danmakuOpacity = o.value }
+                        }
+                    }
+                    optionRow("字号") {
+                        ForEach(DYDanmakuStyle.fontSizes, id: \.size) { f in
+                            sheetPill(f.title, on: abs(danmakuFont - f.size) < 0.1, id: "hg.danmaku.font.\(Int(f.size))") { danmakuFont = f.size }
+                        }
+                    }
+                }
+                .disabled(!danmakuOn).opacity(danmakuOn ? 1 : 0.45)
             }
-            Spacer(minLength: 0)
+            .frame(width: w, alignment: .leading)
+            .padding(.top, 28)      // 让开系统拖动条
+            .padding(.bottom, 20)
+            .frame(maxWidth: .infinity)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .scrollBounceBehavior(.basedOnSize)
+        }
+        .ignoresSafeArea(.container, edges: .horizontal)
         .background(HGTheme.surface)
+        .accessibilityIdentifier("hg.more.sheet")
+    }
+
+    private func sheetGroup(_ title: String) -> some View {
+        Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(HGTheme.textSecondary)
+    }
+
+    private func optionRow<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        HStack(spacing: 6) {
+            Text(title).font(.footnote).foregroundStyle(HGTheme.textSecondary).frame(width: 46, alignment: .leading)
+            content()
+        }
+    }
+
+    private func sheetPill(_ title: String, on: Bool, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.footnote.weight(on ? .semibold : .regular).monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(on ? HGTheme.accent : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
+                .foregroundStyle(on ? Color.white : HGTheme.textPrimary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+        .accessibilityValue(on ? "on" : "off")
+    }
+
+    /// 「更多」默认高度：内容自然高度（标题 + 两排功能 + 倍速 + 弹幕三行 ≈ 470，桌面姿态多一排社交 ≈ 560），不超过屏高 72%
+    private var moreSheetHeight: CGFloat {
+        let h = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.height ?? 700
+        return min(consoleShown ? 540 : 460, h * 0.8)
     }
 
     /// 桌面姿态没有右侧栏：点赞 / 评论 / 收藏 / 画面收进「更多」
@@ -684,9 +755,11 @@ struct HGPlayerScreen: View {
                 Image(systemName: icon).font(.title3).frame(width: 52, height: 52)
                     .background(on ? HGTheme.accent.opacity(0.2) : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
                     .foregroundStyle(on ? HGTheme.accent : HGTheme.textPrimary)
-                Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary)
+                Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary).lineLimit(1).minimumScaleFactor(0.8)
             }
+            .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier(id)
     }
 
@@ -892,9 +965,39 @@ final class HGPlayerLayerView: UIView {
     }
 }
 
-/// 横屏只在播放页按「横屏」后放开。
-enum HGOrientation {
+/// 普通 iPhone（非 Duo、非 iPad）的横竖屏：
+/// - 播放页（推荐页 / 完整播放页）在屏上时跟着手机重力感应转（老板 2026-11-19：Air 上横过来不转）；
+/// - 离开播放页回到发现 / 搜索 / 我的：锁回竖屏，并主动把界面转回来；
+/// - 「更多 → 横屏 / 竖屏」仍可手动强制。
+@MainActor enum HGOrientation {
     nonisolated(unsafe) static var allowLandscape = false
+    /// 屏上的播放页个数（推荐流翻页时新旧两页会短暂同时在）
+    private(set) static var players = 0
+    nonisolated(unsafe) static var followsSensor = false
+    static func playerAppeared() {
+        players += 1
+        followsSensor = true
+        refresh()
+    }
+    static func playerDisappeared() {
+        players = max(0, players - 1)
+        // 翻页时旧页先 disappear、新页随后 appear：稍等再判断，避免中途锁回竖屏闪一下
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard players == 0 else { return }
+            followsSensor = false
+            allowLandscape = false
+            refresh(forcePortrait: true)
+        }
+    }
+    static func refresh(forcePortrait: Bool = false) {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        if forcePortrait, scene.effectiveGeometry.interfaceOrientation.isLandscape,
+           UIDevice.current.userInterfaceIdiom == .phone, !DYDuoMetrics.isDuoHardware {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+        }
+    }
 }
 
 enum HGBackgroundPlayback {

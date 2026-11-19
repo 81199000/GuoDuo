@@ -43,7 +43,7 @@ enum DYDanmakuPolicy {
         case sparse = 0, standard = 1, dense = 2
         var id: Int { rawValue }
         var title: String {
-            switch self { case .sparse: "稀疏"; case .standard: "标准"; case .dense: "密集" }
+            switch self { case .sparse: "简约"; case .standard: "正常"; case .dense: "密集" }
         }
         var maxLanes: Int {
             switch self { case .sparse: 2; case .standard: 4; case .dense: 6 }
@@ -181,8 +181,13 @@ struct DYDanmakuLayer: View {
     let items: [DYDanmaku]
     let clock: DYDanmakuClock
     let topInset: CGFloat
+    /// 竖屏半折叠：视频只有上半块（~370pt），默认「上 1/3、顶部再让 64」的区域高度为 0、一条轨道都没有 →
+    /// 改用整块视频窗格，从顶部开始往下排（老板：从顶部显示），底部留 12%
+    var fullPane = false
     @AppStorage(DYDanmakuPolicy.densityKey) private var densityRaw = DYDanmakuPolicy.Density.standard.rawValue
     @AppStorage(DYDanmakuPolicy.deduplicateKey) private var deduplicate = true
+    @AppStorage(DYDanmakuStyle.opacityKey) private var opacity = 1.0
+    @AppStorage(DYDanmakuStyle.fontKey) private var font = 17.0
 
     private var renderItems: [DYDanmaku] {
         #if DEBUG
@@ -196,12 +201,15 @@ struct DYDanmakuLayer: View {
     var body: some View {
         GeometryReader { g in
             let density = DYDanmakuPolicy.Density(rawValue: densityRaw) ?? .standard
-            let region = DYDanmakuPolicy.region(height: g.size.height, topInset: topInset, density: density)
+            let region = fullPane
+                ? DYDanmakuPolicy.Region(top: max(6, topInset * 0.5), bottom: g.size.height * 0.88, lanes: density.maxLanes)
+                : DYDanmakuPolicy.region(height: g.size.height, topInset: topInset, density: density)
             // 字号变大后轨道变高：按新行高重算这块区域能放几条轨道
             let lanes = min(density.maxLanes, Int(max(0, (region.bottom - region.top) / DYDanmakuStyle.laneHeight)))
             DYDanmakuLiveSurface(items: renderItems, clock: clock, regionTop: region.top,
                                  regionHeight: max(0, region.bottom - region.top), lanes: lanes,
-                                 density: density, deduplicate: deduplicate)
+                                 density: density, deduplicate: deduplicate,
+                                 opacity: opacity, fontSize: CGFloat(font > 0 ? font : 17))
                 .frame(width: g.size.width, height: g.size.height)
         }
         .allowsHitTesting(false)

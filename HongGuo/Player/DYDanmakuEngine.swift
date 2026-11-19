@@ -20,9 +20,16 @@ import QuartzCore
 //   - 跳转/暂停后重新开始就清屏，从当前时间往后排。
 
 enum DYDanmakuStyle {
-    /// 抖音的弹幕比原来大一号（原来 15）
-    static let fontSize: CGFloat = 17
-    static let laneHeight: CGFloat = 32
+    /// 字号：设置里可选 小 15 / 中 17（默认，抖音大一号）/ 大 20；轨道高 = 字号 + 15
+    static let fontKey = "hg.danmaku.font.v1"
+    static let opacityKey = "hg.danmaku.opacity.v1"
+    static let fontSizes: [(title: String, size: Double)] = [("小", 15), ("中", 17), ("大", 20)]
+    static let opacities: [(title: String, value: Double)] = [("25%", 0.25), ("50%", 0.5), ("75%", 0.75), ("100%", 1)]
+    static var fontSize: CGFloat {
+        let v = UserDefaults.standard.double(forKey: fontKey)
+        return CGFloat(v > 0 ? v : 17)
+    }
+    static var laneHeight: CGFloat { fontSize + 15 }
     /// 一条弹幕从右边进屏到左边完全出屏用的时间：短的偏慢、长的偏快（抖音观感）
     /// 过屏时长按长度线性插值：屏宽的弹幕约 8.5s，宽度为屏宽 60% 以上的长弹幕约 6.0s
     static func travelSeconds(width: CGFloat, screen: CGFloat) -> Double {
@@ -83,8 +90,16 @@ final class DYDanmakuEngineView: UIView {
     }
     required init?(coder: NSCoder) { fatalError() }
 
+    private var renderedFont: CGFloat = 0
+
     func update(items: [DYDanmaku], clock c: DYDanmakuClock, regionTop: CGFloat, regionHeight: CGFloat,
-                lanes l: Int, density: DYDanmakuPolicy.Density, deduplicate dd: Bool) {
+                lanes l: Int, density: DYDanmakuPolicy.Density, deduplicate dd: Bool,
+                opacity: Double = 1, fontSize: CGFloat = DYDanmakuStyle.fontSize) {
+        // 字号变了：缓存的文字图全作废，在飞的也清掉重出（位置按新轨道高）
+        if renderedFont != fontSize {
+            if renderedFont != 0 { images.removeAll(); sizes.removeAll(); restart(at: c.now(Date())) }
+            renderedFont = fontSize
+        }
         let jumped = c.epoch != clock.epoch
         clock = c
         lanes = l
@@ -92,6 +107,7 @@ final class DYDanmakuEngineView: UIView {
         maxPerSecond = density.maxPerSecond * 3   // 抖音密度：每秒能出的条数比原来宽
         CATransaction.begin(); CATransaction.setDisableActions(true)
         clip.frame = CGRect(x: 0, y: regionTop, width: bounds.width, height: regionHeight)
+        clip.opacity = Float(max(0.1, min(1, opacity)))
         CATransaction.commit()
         merge(items)
         if jumped { restart(at: clock.now(Date())) }
@@ -288,11 +304,13 @@ struct DYDanmakuLiveSurface: UIViewRepresentable {
     let lanes: Int
     let density: DYDanmakuPolicy.Density
     let deduplicate: Bool
+    var opacity: Double = 1
+    var fontSize: CGFloat = DYDanmakuStyle.fontSize
 
     func makeUIView(context: Context) -> DYDanmakuEngineView { DYDanmakuEngineView() }
     func updateUIView(_ v: DYDanmakuEngineView, context: Context) {
         v.update(items: items, clock: clock, regionTop: regionTop, regionHeight: regionHeight,
-                 lanes: lanes, density: density, deduplicate: deduplicate)
+                 lanes: lanes, density: density, deduplicate: deduplicate, opacity: opacity, fontSize: fontSize)
     }
     static func dismantleUIView(_ v: DYDanmakuEngineView, coordinator: ()) { v.stop() }
 }

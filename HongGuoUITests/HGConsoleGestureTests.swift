@@ -189,3 +189,94 @@ extension HGConsoleGestureTests {
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = "fullplayer"; a.lifetime = .keepAlways; add(a)
     }
 }
+
+extension HGConsoleGestureTests {
+    /// 竖屏半折叠、弹幕位置 = 影片区：上半屏视频上有弹幕；弹窗里能设密度 / 透明度 / 字号
+    func testTabletopDanmakuOnVideo() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["DOUDUO_FOLD"] = "1"
+        app.launchEnvironment["HG_START_TAB"] = "feed"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        let any = app.descendants(matching: .any)
+        let pad = any["hg.console.pad"].firstMatch
+        XCTAssertTrue(pad.waitForExistence(timeout: 120)); sleep(4)
+        pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["hg.console.danmakuButton"].tap()
+        let video = app.buttons["hg.console.danmaku.video"]
+        XCTAssertTrue(video.waitForExistence(timeout: 3)); video.tap()
+        pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.97)).tap()
+        let layer = any["hg.player.danmaku"].firstMatch
+        XCTAssertTrue(layer.waitForExistence(timeout: 20), "影片区没有弹幕层")
+        XCTAssertGreaterThan(Int(layer.value as? String ?? "") ?? 0, 0, "没拉到弹幕")
+        sleep(7)
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "tabletop-video-danmaku"; a.lifetime = .keepAlways; add(a)
+    }
+}
+
+extension HGConsoleGestureTests {
+    /// 「更多」里有倍速 + 弹幕（密度 / 透明度 / 字号），标题不压拖动条；竖屏、横屏、半折叠各截一张
+    func testMoreSheetLayout() throws {
+        // Duo 外屏模拟器不跟着转横屏：横屏单独在展开尺寸（iPad 11 寸）模拟器上跑，HG_MORE_ONLY=landscape
+        let only = ProcessInfo.processInfo.environment["HG_MORE_ONLY"]
+        let cases: [(String, Bool, UIDeviceOrientation)] = only == "landscape" ? [("landscape", false, .landscapeLeft), ("unfold-portrait", false, .portrait)]
+            : [("portrait", false, .portrait), ("fold", true, .portrait)]
+        for (name, fold, orient) in cases {
+            let app = XCUIApplication()
+            app.launchEnvironment["HG_START_TAB"] = "discover"
+            app.launchEnvironment["HG_DEMO_SERIES"] = "7697459724635098174"
+            app.launchEnvironment["HG_DEMO_EP"] = "2"
+            if fold { app.launchEnvironment["DOUDUO_FOLD"] = "1" }
+            XCUIDevice.shared.orientation = orient
+            app.launch()
+            let any = app.descendants(matching: .any)
+            if fold {
+                let pad = any["hg.console.pad"].firstMatch
+                XCTAssertTrue(pad.waitForExistence(timeout: 60)); sleep(4)
+                pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                app.buttons["hg.console.more"].tap()
+            } else {
+                let more = app.buttons["hg.rail.more"]
+                XCTAssertTrue(more.waitForExistence(timeout: 60)); sleep(4)
+                more.tap()
+            }
+            let dense = app.buttons["hg.danmaku.density.2"]
+            XCTAssertTrue(dense.waitForExistence(timeout: 5), "\(name): 更多里没有弹幕密度")
+            sleep(1)
+            let sheet = any["hg.more.sheet"].firstMatch
+            print("HGWM \(name) sheet=\(sheet.frame) rate1=\(app.buttons["hg.more.rate.1.0"].frame) dense=\(dense.frame) font=\(app.buttons["hg.danmaku.font.20"].frame)")
+            let a = XCTAttachment(screenshot: app.screenshot()); a.name = "more-\(name)"; a.lifetime = .keepAlways; add(a)
+            if !app.buttons["hg.danmaku.font.20"].isHittable { sheet.swipeUp(); sleep(1) }
+            app.buttons["hg.danmaku.font.20"].tap()
+            XCTAssertEqual(app.buttons["hg.danmaku.font.20"].value as? String, "on", "\(name): 字号没切上")
+            app.buttons["hg.danmaku.font.17"].tap()
+            app.terminate()
+        }
+        XCUIDevice.shared.orientation = .portrait
+    }
+}
+
+extension HGConsoleGestureTests {
+    /// 普通 iPhone：播放页跟着手机转横屏，回到发现页锁回竖屏
+    func testPhoneRotatesInPlayer() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "discover"
+        app.launchEnvironment["HG_DEMO_SERIES"] = "7697459724635098174"
+        app.launchEnvironment["HG_DEMO_EP"] = "2"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        XCTAssertTrue(app.buttons["hg.player.close"].waitForExistence(timeout: 60)); sleep(3)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(3)
+        let w = app.windows.firstMatch.frame
+        let any = app.descendants(matching: .any)
+        print("HGWO player landscape window=\(w) surface=\(any["hg.player.surface"].firstMatch.frame) close=\(app.buttons["hg.player.close"].frame) more=\(app.buttons["hg.rail.more"].frame) info=\(any["hg.player.info"].firstMatch.frame)")
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "phone-landscape"; a.lifetime = .keepAlways; add(a)
+        XCTAssertGreaterThan(w.width, w.height, "播放页没跟着转横屏")
+        app.buttons["hg.player.close"].tap(); sleep(3)
+        let w2 = app.windows.firstMatch.frame
+        print("HGWO after close window=\(w2)")
+        XCTAssertLessThan(w2.width, w2.height, "离开播放页没回竖屏")
+        XCUIDevice.shared.orientation = .portrait
+    }
+}
