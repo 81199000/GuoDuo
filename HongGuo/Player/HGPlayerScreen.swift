@@ -261,7 +261,7 @@ struct HGPlayerScreen: View {
                     onDoubleTap: { _, _ in doubleTapLike() },
                     onLongPress: { pressing in session.setBoost(pressing) },
                     onLongPressLock: { session.lockBoost(); flash("已锁定 2× 倍速") },
-                    onLongPressUnlock: { session.unlockBoost(); flash("已取消锁定") },
+                    onLongPressUnlock: { session.unlockBoost(); flash("已解锁") },
                     onSeekBegan: { seekAnchor = session.position; seekPreview = session.position; seeking = true },
                     onSeekChanged: { dx, w in
                         seekPreview = max(0, min(session.duration, seekAnchor + dx / max(w, 1) * session.duration * 0.9))
@@ -724,7 +724,7 @@ struct HGPlayerScreen: View {
     }
 
     private var boostBadge: some View {
-        Text(session.lockedBoost ? "2× 已锁定 · 上滑取消" : "2× 快进中 · 下滑锁定")
+        Text(session.lockedBoost ? "2× 已锁定 · 上滑解锁" : "2× 快进中 · 下滑锁定")
             .font(.caption.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 6)
             .background(.black.opacity(0.5), in: Capsule()).foregroundStyle(.white)
             .frame(maxHeight: .infinity, alignment: .top).padding(.top, safeTop + 48)
