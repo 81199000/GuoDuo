@@ -33,79 +33,23 @@
 - 扫码登录红果账号同步云端观看记录、离线下载、储存空间管理
 - 检查更新：启动时自动检查 GitHub 新版本并显示更新内容
 
-每个版本的改动见 [更新说明](docs/releases/) 或 [GitHub Releases](https://github.com/81199000/HongGuo/releases)。
+每个版本的改动见 [更新说明](docs/releases/) 或 [GitHub Releases](https://github.com/81199000/GuoDuo/releases)。
 
-## 下载与签名安装
+## 下载安装
 
-支持 iOS / iPadOS **18.4 及以上**。GuoDuo 未上架 App Store，安装包是**未签名 IPA**（文件名带 `unsigned.ipa`），不能直接安装，需要自己签名。
+支持 iOS / iPadOS **18.4 及以上**。GuoDuo 未上架 App Store，用 **[一键签](https://github.com/81199000/OneDuo)** 安装：免费，用自己的 Apple ID，到期自动续签。
 
-- **下载**：[GitHub Releases](https://github.com/81199000/HongGuo/releases/latest)；不要下载源码 ZIP 代替 IPA
+1. 下载 [一键签](https://github.com/81199000/OneDuo/releases/latest)（Windows / Mac）
+2. 数据线连手机，在一键签里选 **GuoDuo**，点 **一键安装**
+3. 手机上 **设置 → 通用 → VPN 与设备管理** 信任你的 Apple ID
 
-两种主要方式，按自己情况选：
+详细步骤见 [一键签使用教程](https://github.com/81199000/OneDuo#使用教程)。
 
-| | 方式一：爱思助手 | 方式二：全能签 / 轻松签 |
-| --- | --- | --- |
-| 花钱吗 | 免费（用自己的 Apple ID） | 要买证书 |
-| 要电脑吗 | 每次签名都要连电脑 | 不要，全程在手机上 |
-| 有效期 | 7 天，到期重签 | 跟证书走，一般 1 年 |
-| 适合谁 | 有电脑、不想花钱 | 嫌 7 天重签麻烦 |
-
-### 方式一：爱思助手（Windows / Mac，免费）
-
-以下配图来自[爱思助手官方 IPA 签名教程](https://www.i4.cn/news_detail_38195.html)；**图中的应用文件名仅为官方示例，实际请选择下载的 `GuoDuo-x.y.z-unsigned.ipa`**。
-
-#### 1. 连接手机，打开 IPA 签名工具
-
-电脑安装 [爱思助手](https://www.i4.cn)，用数据线连接 iPhone / iPad；解锁设备并点「信任此电脑」，再进入 **工具箱 → IPA 签名**。
-
-![爱思助手工具箱中的 IPA 文件签名入口](docs/install/i4/01-toolbox.png)
-
-#### 2. 添加 GuoDuo 安装包
-
-点击「添加 IPA 文件」，选择发行版附件中的 `GuoDuo-x.y.z-unsigned.ipa`，不要选择源码 ZIP。
-
-![点击添加 IPA 文件](docs/install/i4/02-add-ipa.png)
-
-#### 3. 使用 Apple ID 签名，选择要安装的设备
-
-选择 **使用 Apple ID 签名 → 添加 Apple ID**，输入 Apple ID 和密码（建议使用专门的小号），并选择当前连接手机的设备标识。
-
-![添加 Apple ID 并选择设备标识](docs/install/i4/03-apple-id.png)
-
-> **签名失败时：先用同一个 Apple ID 登录一次 iCloud。** 在手机 Safari 打开 [icloud.com](https://www.icloud.com)，用准备签名的那个 Apple ID 登录一次，再回爱思助手重新签名。
-
-#### 4. 勾选安装包和 Apple ID，开始签名
-
-等待状态显示「签名成功」。
-
-![勾选 IPA 和 Apple ID 后签名](docs/install/i4/04-sign.png)
-
-#### 5. 安装已签名的 IPA
-
-**签名完成不等于已经安装。** 点「签名文件保存到」旁边的「打开」，找到新生成的已签名 IPA，交给爱思助手安装；**不要拿未签名原包直接安装**。
-
-![打开已签名文件保存目录](docs/install/i4/05-open-signed-folder.png)
-
-#### 6. 在手机上信任开发者并打开应用
-
-手机打开 **设置 → 通用 → VPN 与设备管理**，找到签名用的 Apple ID，点「信任」。如系统要求，再打开 **设置 → 隐私与安全性 → 开发者模式**，按提示重启并启用，随后打开 GuoDuo。
-
-> **7 天到期怎么办？** 免费 Apple ID 签名 7 天后过期，重复以上流程覆盖安装即可。**不要先卸载旧 App**，观看记录和收藏会保留。
-
-### 方式二：全能签 / 轻松签（手机上签名安装）
-
-先买证书（`.p12` + `.mobileprovision`，绑定这台手机的 UDID），导入全能签或轻松签。然后把 Releases 里的 `GuoDuo-x.y.z-unsigned.ipa` 下载到手机，用分享菜单「用全能签打开」→ 签名 → 安装。更新时同样操作，覆盖安装不丢数据。
-
-> ⚠️ 买来的证书可能被苹果吊销（掉签），掉签后要换证书重签。不要用网上流传的「免费 / 共享证书」。
-
-### 其他方式
-
-- **[Sideloadly](https://sideloadly.io) / [AltStore](https://altstore.io) / [SideStore](https://sidestore.io)**：免费 Apple ID 签名，可自动续签
-- **自己编译（有 Mac）**：见下方「构建」，Xcode 里 Team 选自己的 Apple ID、Bundle Identifier 改成自己的，连上手机运行
+> 更新也在一键签里完成：有新版会自动装上，观看记录和收藏会保留。
 
 ## 常见问题
 
-- **打开就闪退**：签名过期了，重新签名安装
+- **打开就闪退**：签名过期了，打开一键签点「立即全部续签」
 - **某部剧放不了**：部分集数只有 ByteVC2 编码，iOS 不支持；或在红果需要解锁
 - **推荐 / 取源全部失败**：红果接口变了，等上游修复后更新 GuoDuo
 - **占用空间大**：「我的 → 储存空间 → 清理缓存」，离线下载的视频不会被清
@@ -115,7 +59,7 @@
 需要 Xcode 26 以上、Node.js 和 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。
 
 ```sh
-git clone https://github.com/81199000/HongGuo.git && cd HongGuo
+git clone https://github.com/81199000/GuoDuo.git && cd GuoDuo
 brew install xcodegen
 cd core && npm ci && node build.cjs && cd ..
 xcodegen generate
