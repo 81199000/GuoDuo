@@ -131,3 +131,16 @@ extension HGConsoleGestureTests {
         print("HGWL gone at ~\(Date().timeIntervalSince(t0))s")
     }
 }
+
+extension HGConsoleGestureTests {
+    func testShotDeskLight() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["DOUDUO_FOLD"] = "1"
+        app.launchEnvironment["HG_START_TAB"] = "feed"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["hg.console.pad"].firstMatch.waitForExistence(timeout: 120))
+        sleep(12)
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "desklight"; a.lifetime = .keepAlways; add(a)
+    }
+}

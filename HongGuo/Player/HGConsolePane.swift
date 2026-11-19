@@ -17,6 +17,8 @@ struct HGConsolePane: View {
     @Binding var danmakuInConsole: Bool
     /// 折痕带落在本面板顶部的那一截，内容从它下面开始
     var creaseTop: CGFloat
+    /// 上半屏视频窗格高度（倒影按它算画面实际显示宽度）
+    var videoHeight: CGFloat = 0
     var bottomInset: CGFloat
     var onBack: () -> Void
     var onEpisodes: () -> Void
@@ -100,7 +102,7 @@ struct HGConsolePane: View {
         ZStack {
             Color.black
             if deskLight {
-                DYDeskLight().blendMode(.screen).opacity(0.85)
+                DYDeskLight(top: creaseTop, videoHeight: videoHeight).blendMode(.screen).opacity(0.9)
             }
         }
         .allowsHitTesting(false)
