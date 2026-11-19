@@ -22,6 +22,13 @@ struct HGPlayerRequest: Identifiable {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
     }
+    /// 退出 App（没开听书、没在画中画）：交还音频会话、清掉锁屏 / 灵动岛的「正在播放」，
+    /// 否则系统会把刚暂停的会话当成还在放，灵动岛闪一下播放图标（老板 2026-11-19 反馈）
+    static func releaseForBackground() {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        done = false
+    }
 }
 
 @MainActor @Observable
@@ -74,6 +81,11 @@ final class HGPlaybackSession {
         attachObservers()
     }
     private var bgObserver: NSObjectProtocol?
+    private var resignObserver: NSObjectProtocol?
+    private var activeObserver: NSObjectProtocol?
+    private var fgObserver: NSObjectProtocol?
+    /// 失去前台那一刻因为要退出而先停的：没真进后台（只拉了控制中心 / 通知）就接着放
+    private var pausedOnResign = false
 
     private func attachObservers() {
         if timeObserver == nil {
@@ -85,12 +97,42 @@ final class HGPlaybackSession {
         // 预热中的（挂起）不抢锁屏 / 耳机按键，转正时 resumeIfSuspended 再挂
         if !suspended { setupRemoteCommands() }
         // scenePhase 在 fullScreenCover 里偶尔不回调：UIKit 通知兜底
+        let nc = NotificationCenter.default
         if bgObserver == nil {
-            bgObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            bgObserver = nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self, !HGBackgroundPlayback.enabled, !self.pip.active, !self.pip.starting else { return }
+                    self.pausedOnResign = false
                     self.pauseForBackground()
+                    HGAudioSession.releaseForBackground()
                 }
+            }
+        }
+        // 退出就是退出：上滑回桌面的动画一开始（willResignActive）就停声音，不等动画放完才进后台
+        // （之前在 didEnterBackground 才停，动画那半秒还在出声，灵动岛刷出播放图标）
+        if resignObserver == nil {
+            resignObserver = nc.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, !HGBackgroundPlayback.enabled, !self.pip.active, !self.pip.starting,
+                          !self.suspended, self.player.timeControlStatus != .paused else { return }
+                    self.player.pause()
+                    self.pausedOnResign = true
+                }
+            }
+        }
+        if activeObserver == nil {
+            activeObserver = nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.pausedOnResign else { return }
+                    self.pausedOnResign = false
+                    // 只是拉了控制中心 / 来了通知横幅又回来：接着放
+                    if !self.suspended, self.isPlaying { self.player.playImmediately(atRate: self.effectiveRate) }
+                }
+            }
+        }
+        if fgObserver == nil {
+            fgObserver = nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { HGAudioSession.activate() }
             }
         }
     }
@@ -230,8 +272,8 @@ final class HGPlaybackSession {
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         timeObserver = nil
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        if let bgObserver { NotificationCenter.default.removeObserver(bgObserver) }
-        bgObserver = nil
+        for o in [bgObserver, resignObserver, activeObserver, fgObserver].compactMap({ $0 }) { NotificationCenter.default.removeObserver(o) }
+        bgObserver = nil; resignObserver = nil; activeObserver = nil; fgObserver = nil
         if !suspended {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
             let c = MPRemoteCommandCenter.shared()

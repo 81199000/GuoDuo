@@ -45,7 +45,7 @@ struct HGConsolePane: View {
     @State private var lastBoostEnd = Date.distantPast
     /// 一次拖动只认一个方向：横 = 快进退，竖 = 切视频
     @State private var dragAxis: Axis?
-    enum Popover { case danmaku, rate }
+    enum Popover { case danmaku, rate, volume, brightness }
 
     private static let rates: [Float] = [0.75, 1.0, 1.25, 1.5, 2.0, 3.0]
     private let side: CGFloat = 16
@@ -205,128 +205,171 @@ struct HGConsolePane: View {
 
     // MARK: 控制层
 
-    /// 控制层照老板 2026-11-19 的参考图排：
-    /// 顶排（返回 · 剧名 + 第几集 | 时长 · AirPlay · 锁定 · 截图）→ 音量 | 亮度合并一块 →
-    /// 上集 · -10 · 播放 · +10 · 下集 → 时间 + 进度条 + 总时长 → 弹 / 环境光 / 倍速 / 选集 / 更多（竖线隔开）。
-    /// 多出来的高度按比例分给各段间距。
+    /// 控制层：大方块排版（老板 2026-11-19 给的奈飞半折叠参考图）。四排深灰圆角方块铺满下半屏：
+    /// ① 返回 · 剧名第 N 集（点开选集）· 投屏 · 锁定
+    /// ② -10 · 播放 / 暂停 · +10 三个大块
+    /// ③ 进度条（带弹幕热度点）+ 剩余时间
+    /// ④ 截图 · 倍速 · 亮度 · 音量 · 弹幕 · 环境光 · 下一集 · 更多（图标 + 文字；亮度 / 音量点开弹滑条）
+    /// 四排高度按 52 : 104 : 36 : 62 铺满整块面板。
     private var controlsLayer: some View {
         GeometryReader { g in
-            let fixed: CGFloat = 10 + 40 + 46 + 28 + 40
-            let avail = max(0, g.size.height - creaseTop - bottomPad - fixed)
-            let middleH = min(110, max(72, avail * 0.42))
-            let rest = max(0, avail - middleH)
-            VStack(spacing: 0) {
-                Color.clear.frame(height: creaseTop + 10)
-                topRow
-                Color.clear.frame(height: rest * 0.2)
-                sliderCard
-                Color.clear.frame(height: rest * 0.3)
-                middleRow(height: middleH)
-                Color.clear.frame(height: rest * 0.25)
-                progressRow
-                Color.clear.frame(height: rest * 0.25)
-                bottomRow
+            // 2026-11-19 真机反馈：上面空太多、底排太小没字 → 四排按比例铺满整块面板（不封顶），底排加高带文字
+            let gap: CGFloat = 8
+            let avail = max(0, g.size.height - creaseTop - 10 - bottomPad - gap * 3)
+            let k = avail / (52 + 104 + 36 + 62)
+            VStack(spacing: gap) {
+                topRow.frame(height: 52 * k)
+                middleRow(height: 104 * k)
+                progressCard.frame(height: 36 * k)
+                bottomRow.frame(height: 62 * k)
             }
-            .padding(.horizontal, side)
+            .padding(.top, creaseTop + 10)
+            .padding(.horizontal, 10)
             .padding(.bottom, bottomPad)
-            .frame(width: g.size.width, height: g.size.height, alignment: .top)
-            .overlay(alignment: .top) {
-                Capsule().fill(.white.opacity(0.28)).frame(width: 38, height: 4)
-                    .padding(.top, creaseTop + 5).allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
+            .frame(width: g.size.width, height: g.size.height, alignment: .bottom)
         }
-        .overlay(alignment: .bottom) { popoverView.padding(.bottom, bottomPad + 48) }
+        .overlay(alignment: .bottom) { popoverView.padding(.bottom, bottomPad + 52) }
     }
 
     private var topRow: some View {
-        HStack(spacing: 10) {
-            circleButton("chevron.backward", id: "hg.player.close", label: "返回") { onBack() }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(session.series.series_title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text("第\(session.episode.number)集" + (session.duration > 0 ? " | \(Int((session.duration / 60).rounded(.up)))分钟" : ""))
-                    .font(.caption2).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("hg.console.panelTitle")
-            HGAirPlayButton()
-                .frame(width: 40, height: 40)
-                .ddMediaGlassCircle()
+        GeometryReader { g in
+            let gap: CGFloat = 8
+            let unit = (g.size.width - gap * 3) / 6.2   // 小块 : 标题块 = 1 : 3.2（参考图）
+            HStack(spacing: gap) {
+                block(id: "hg.player.close", label: "返回") { onBack() } content: {
+                    Image(systemName: "xmark").font(.system(size: 19, weight: .medium))
+                }
+                .frame(width: unit)
+                block(id: "hg.console.episodes", label: "选集") { onEpisodes() } content: {
+                    HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(session.series.series_title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text("第\(session.episode.number)集" + (session.duration > 0 ? " | \(Int((session.duration / 60).rounded(.up)))分钟" : ""))
+                                .font(.caption2).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .frame(width: unit * 3.2)
+                .accessibilityIdentifier("hg.console.panelTitle")
+                ZStack {
+                    blockBackground
+                    HGAirPlayButton().frame(width: 44, height: 44)
+                }
+                .frame(width: unit)
                 .accessibilityLabel("投屏")
                 .accessibilityIdentifier("hg.console.airplay")
-            circleButton("lock.open", id: "hg.console.lock", label: "锁定") {
-                locked = true; controlsShown = false
-                flash("已锁定，轻点下半屏显示解锁")
+                block(id: "hg.console.lock", label: "锁定") {
+                    locked = true; controlsShown = false
+                    flash("已锁定，轻点下半屏显示解锁")
+                } content: {
+                    Image(systemName: "lock.open").font(.system(size: 18, weight: .medium))
+                }
+                .frame(width: unit)
             }
-            circleButton("camera", id: "hg.console.shot", label: "截图") { takeShot() }
         }
-        .frame(height: 40)
-    }
-
-    /// 音量 | 亮度：一块圆角底板，中间一条竖线隔开
-    private var sliderCard: some View {
-        HStack(spacing: 8) {
-            HGCapsuleSlider(icon: volume <= 0.01 ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                            value: Double(volume)) { v in
-                volume = Float(v); HGSystemVolume.set(Float(v)); poke()
-            }
-            .accessibilityIdentifier("hg.console.volume")
-            Rectangle().fill(.white.opacity(0.16)).frame(width: 1, height: 22)
-            HGCapsuleSlider(icon: "sun.max.fill", value: Double(brightness)) { v in
-                brightness = CGFloat(v); HGScreenBrightness.set(CGFloat(v)); poke()
-            }
-            .accessibilityIdentifier("hg.console.brightness")
-        }
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .frame(height: 46)
-        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 23, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1))
     }
 
     private func middleRow(height: CGFloat) -> some View {
-        // 五个键靠拢放大（2026-11-19 老板要求）：固定小间距居中排；窄屏按可用宽度等比缩小
-        let gap: CGFloat = 10, tileW: CGFloat = 66, tileH: CGFloat = 60, small: CGFloat = 62
-        let big = min(max(height, 64), 84)
-        let natural = tileW * 2 + small * 2 + big + gap * 4
-        return GeometryReader { g in
-            let k = min(1, g.size.width / natural)
-            HStack(spacing: gap) {
-                stepTile("backward.end.fill", label: "上集", enabled: session.index > 0, id: "hg.console.prev", w: tileW, h: tileH) {
-                    session.previous(); poke()
-                }
-                roundButton("gobackward.10", size: small, glyph: 26, id: "hg.console.back10") {
-                    session.seek(to: max(0, session.position - 10)); poke()
-                }
-                roundButton(session.isPlaying ? "pause.fill" : "play.fill", size: big, glyph: big * 0.4, id: "hg.console.play") {
-                    session.togglePlay(); poke()
-                }
-                .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1.5).padding(-4))
-                roundButton("goforward.10", size: small, glyph: 26, id: "hg.console.fwd10") {
-                    session.seek(to: min(session.duration, session.position + 10)); poke()
-                }
-                stepTile("forward.end.fill", label: "下集", enabled: session.hasNext, id: "hg.console.next", w: tileW, h: tileH) {
-                    session.next(); poke()
-                }
-            }
-            .scaleEffect(k)
-            .frame(width: g.size.width, height: g.size.height)
+        HStack(spacing: 8) {
+            block(id: "hg.console.back10", label: "后退 10 秒") {
+                session.seek(to: max(0, session.position - 10)); poke()
+            } content: { Image(systemName: "gobackward.10").font(.system(size: 30, weight: .regular)) }
+            block(id: "hg.console.play", label: session.isPlaying ? "暂停" : "播放") {
+                session.togglePlay(); poke()
+            } content: { Image(systemName: session.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34, weight: .bold)) }
+            block(id: "hg.console.fwd10", label: "快进 10 秒") {
+                session.seek(to: min(session.duration, session.position + 10)); poke()
+            } content: { Image(systemName: "goforward.10").font(.system(size: 30, weight: .regular)) }
         }
         .frame(height: height)
     }
 
-    /// 上集 / 下集：圆角方块，图标在上、字在下
-    private func stepTile(_ icon: String, label: String, enabled: Bool, id: String, w: CGFloat, h: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 19, weight: .bold))
-                Text(label).font(.system(size: 13, weight: .medium))
+    /// 进度条块：左进度条（带弹幕热度点）、右剩余时间；拖动时显示当前时间
+    private var progressCard: some View {
+        ZStack {
+            blockBackground
+            HStack(spacing: 12) {
+                HGHeatBar(position: seeking ? target : session.position, duration: session.duration,
+                          heat: HGHeat.peaks(session.danmaku, duration: session.duration),
+                          active: seeking) { frac, phase in
+                    let d = session.duration
+                    guard d > 0 else { return }
+                    switch phase {
+                    case .began: beginSeek(); target = frac * d; session.requestPreview(target)
+                    case .changed: target = frac * d; session.requestPreview(target)
+                    case .ended: target = frac * d; endSeek()
+                    }
+                }
+                .accessibilityIdentifier("hg.console.bar")
+                Text(seeking ? fmt(target) : fmt(max(0, session.duration - session.position)))
+                    .font(.footnote.monospacedDigit()).foregroundStyle(.white.opacity(0.9))
+                    .frame(minWidth: 44, alignment: .trailing)
             }
-            .foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
-            .frame(width: w, height: h)
-            .contentShape(Rectangle())
-            .ddGlassRounded(16)
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var bottomRow: some View {
+        HStack(spacing: 6) {
+            labeled(id: "hg.console.shot", icon: "camera", text: "截图") { takeShot() }
+            labeled(id: "hg.console.rate", icon: "gauge.with.dots.needle.33percent",
+                    text: session.rate == 1 ? "倍速" : String(format: "%g×", session.rate),
+                    on: popover == .rate || session.rate != 1) {
+                popover = popover == .rate ? nil : .rate; poke()
+            }
+            labeled(id: "hg.console.brightness", icon: "sun.max", text: "亮度", on: popover == .brightness) {
+                popover = popover == .brightness ? nil : .brightness; poke()
+            }
+            labeled(id: "hg.console.volume", icon: volume <= 0.01 ? "speaker.slash" : "speaker.wave.2", text: "音量", on: popover == .volume) {
+                popover = popover == .volume ? nil : .volume; poke()
+            }
+            labeled(id: "hg.console.danmakuButton", icon: danmakuOn ? "text.bubble" : "text.bubble.badge.xmark",
+                    text: danmakuOn ? "弹幕" : "弹幕关", on: popover == .danmaku) {
+                popover = popover == .danmaku ? nil : .danmaku; poke()
+            }
+            labeled(id: "hg.console.ambient", icon: deskLight ? "light.max" : "light.min", text: "环境光", on: deskLight) {
+                withAnimation(.easeOut(duration: 0.3)) { deskLight.toggle() }
+                flash(deskLight ? "环境光投影：开" : "环境光投影：关"); poke()
+            }
+            .accessibilityValue(deskLight ? "on" : "off")
+            labeled(id: "hg.console.next", icon: "forward.end", text: "下一集", enabled: session.hasNext) {
+                session.next(); poke()
+            }
+            labeled(id: "hg.console.more", icon: "ellipsis", text: "更多") { onMore() }
+        }
+    }
+
+    /// 底排小方块：图标在上、文字在下
+    private func labeled(id: String, icon: String, text: String, on: Bool = false, enabled: Bool = true,
+                         action: @escaping () -> Void) -> some View {
+        block(id: id, label: text, on: on, enabled: enabled, action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 18, weight: .medium)).frame(height: 22)
+                Text(text).font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    /// 参考图的深灰圆角方块
+    private var blockBackground: some View {
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(Color(white: 0.13))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.07), lineWidth: 1))
+    }
+
+    private func block<C: View>(id: String, label: String, on: Bool = false, enabled: Bool = true,
+                                action: @escaping () -> Void, @ViewBuilder content: () -> C) -> some View {
+        Button(action: action) {
+            ZStack {
+                blockBackground
+                if on { RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.12)) }
+                content().foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -352,48 +395,6 @@ struct HGConsolePane: View {
             Text(fmt(session.duration)).font(.caption2.monospacedDigit()).foregroundStyle(.white.opacity(0.8))
         }
         .frame(height: 28)
-    }
-
-    private var bottomRow: some View {
-        HStack(spacing: 0) {
-            tile(id: "hg.console.danmakuButton", on: popover == .danmaku) {
-                HStack(spacing: 1) {
-                    Text("弹").font(.system(size: 17, weight: .semibold))
-                    Image(systemName: danmakuOn ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(danmakuOn ? Color.green : .white.opacity(0.5))
-                        .offset(y: 6)
-                }
-            } action: { popover = popover == .danmaku ? nil : .danmaku; poke() }
-            tileDivider
-            tile(id: "hg.console.ambient", on: deskLight) {
-                iconLabel("airplayvideo", "环境光")
-            } action: {
-                withAnimation(.easeOut(duration: 0.3)) { deskLight.toggle() }
-                flash(deskLight ? "环境光投影：开" : "环境光投影：关"); poke()
-            }
-            .accessibilityValue(deskLight ? "on" : "off")
-            tileDivider
-            tile(id: "hg.console.rate", on: popover == .rate) {
-                iconLabel("play.circle", session.rate == 1 ? "倍速" : String(format: "%g×", session.rate))
-            } action: { popover = popover == .rate ? nil : .rate; poke() }
-            tileDivider
-            tile(id: "hg.console.episodes") { iconLabel("list.bullet", "选集") } action: { onEpisodes() }
-            tileDivider
-            tile(id: "hg.console.more") { iconLabel("ellipsis", "更多") } action: { onMore() }
-        }
-        .frame(height: 40)
-    }
-
-    private var tileDivider: some View {
-        Rectangle().fill(.white.opacity(0.16)).frame(width: 1, height: 20).padding(.horizontal, 3)
-    }
-
-    private func iconLabel(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 13, weight: .medium))
-            Text(text).font(.footnote).lineLimit(1).minimumScaleFactor(0.8)
-        }
     }
 
     @ViewBuilder private var popoverView: some View {
@@ -428,6 +429,19 @@ struct HGConsolePane: View {
             .ddGlassCard()
             .padding(.horizontal, side)
             .transition(.opacity.combined(with: .move(edge: .bottom)))
+        case .volume, .brightness:
+            let isVol = popover == .volume
+            HGCapsuleSlider(icon: isVol ? (volume <= 0.01 ? "speaker.slash.fill" : "speaker.wave.2.fill") : "sun.max.fill",
+                            value: isVol ? Double(volume) : Double(brightness)) { v in
+                if isVol { volume = Float(v); HGSystemVolume.set(Float(v)) }
+                else { brightness = CGFloat(v); HGScreenBrightness.set(CGFloat(v)) }
+                poke()
+            }
+            .padding(10)
+            .ddGlassCard()
+            .padding(.horizontal, side)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .accessibilityIdentifier(isVol ? "hg.console.volume.slider" : "hg.console.brightness.slider")
         case nil:
             EmptyView()
         }
@@ -523,31 +537,6 @@ struct HGConsolePane: View {
     }
 
     // MARK: 零件
-
-    private func circleButton(_ icon: String, id: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon).font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .contentShape(Circle())
-                .ddMediaGlassCircle()
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(id)
-    }
-
-    private func roundButton(_ icon: String, size: CGFloat, glyph: CGFloat, id: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon).font(.system(size: glyph, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: size, height: size)
-                .contentShape(Circle())
-                .ddMediaGlassCircle()
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(id)
-    }
 
     private func tile<L: View>(id: String, on: Bool = false, @ViewBuilder label: () -> L, action: @escaping () -> Void) -> some View {
         Button(action: action) {
