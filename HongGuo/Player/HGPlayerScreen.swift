@@ -746,7 +746,7 @@ struct HGPlayerScreen: View {
             .font(.caption.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 6)
             .background(.black.opacity(0.5), in: Capsule()).foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.top, clean ? 12 : max(safeTop, 12) + 2)
+            .padding(.top, 12)   // 沉浸式与普通状态同一位置：最上方
             .allowsHitTesting(false)
             .transition(.opacity)
             .accessibilityIdentifier("hg.player.boostBadge")
