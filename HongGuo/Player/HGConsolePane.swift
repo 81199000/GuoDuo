@@ -100,7 +100,7 @@ struct HGConsolePane: View {
         ZStack {
             Color.black
             if deskLight {
-                DYDeskLight().blendMode(.screen).opacity(0.85)
+                DYDeskLight().blendMode(.screen).opacity(0.9)
             }
         }
         .allowsHitTesting(false)

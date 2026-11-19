@@ -129,7 +129,11 @@ final class DYAmbientFrameView: UIView {
             .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.85])
         guard let cg = Self.ci.createCGImage(blurred, from: small.extent) else { return }
         imageView.image = UIImage(cgImage: cg)
-        DYDeskLightHub.publish(cg)
+        // 桌面投影要清晰：单独取一张 360 宽、不糊的帧（只有投影在屏幕上时才取）
+        if DYDeskLightHub.wanted {
+            let big = src.transformed(by: CGAffineTransform(scaleX: 360 / max(src.extent.width, 1), y: 360 / max(src.extent.width, 1)))
+            if let sharp = Self.ci.createCGImage(big, from: big.extent) { DYDeskLightHub.publish(sharp) }
+        }
         if imageView.alpha == 0 {
             UIView.animate(withDuration: 0.25) { self.imageView.alpha = 1; self.dimView.alpha = 1 }
         }
