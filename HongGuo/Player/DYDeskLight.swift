@@ -13,8 +13,9 @@ enum DYDeskLightHub {
     static var wanted: Bool { sinks.allObjects.contains { $0.window != nil } }
     static func add(_ v: DYDeskLightView) { sinks.add(v) }
     static func remove(_ v: DYDeskLightView) { sinks.remove(v) }
-    static func publish(_ image: CGImage) {
-        for v in sinks.allObjects where v.window != nil { v.show(image) }
+    /// image = 倒影（半糊），glow = 环境光（极糊的小图）
+    static func publish(_ image: CGImage, glow: CGImage?) {
+        for v in sinks.allObjects where v.window != nil { v.show(image, glow: glow) }
     }
 }
 
@@ -32,11 +33,14 @@ struct DYDeskLight: UIViewRepresentable {
 /// 照奈飞半折叠实拍（老板 2026-11-19 照片）做的「桌面倒影」：
 /// - 和上方视频同宽、同比例，左右位置一一对应（不拉伸铺满）；
 /// - 上下翻转，只占视频那么高，下面留黑；
-/// - 很暗（整体约 25%）、起点离折痕一小段、先淡入再淡出；
-/// - 半糊：能看出色块和轮廓，认不出五官。
+/// - 很暗、起点离折痕一小段、先淡入再淡出；
+/// - 糊：只剩色块和大轮廓（老板反馈 150px+σ1.6 太清楚太亮 → 72px+σ2.4，峰值 0.3）；
+/// - 底下垫一层环境光：同画面缩到 16px 重度模糊，比视频宽 1.5 倍、铺满下半屏后淡出，像屏幕的光洒在桌面上。
 final class DYDeskLightView: UIView {
     var topInset: CGFloat = 0 { didSet { if topInset != oldValue { setNeedsLayout() } } }
     var videoHeight: CGFloat = 0 { didSet { if videoHeight != oldValue { setNeedsLayout() } } }
+    private let glowView = UIImageView()
+    private let glowMask = CAGradientLayer()
     private let box = UIView()
     private let imageView = UIImageView()
     private let falloff = CAGradientLayer()
@@ -48,6 +52,18 @@ final class DYDeskLightView: UIView {
         backgroundColor = .clear
         clipsToBounds = true
         alpha = 0
+        // 环境光：同一画面缩到很小、重度模糊，翻转后向两侧和下方铺开，只留颜色氛围
+        glowView.contentMode = .scaleToFill
+        glowView.layer.magnificationFilter = .linear
+        glowView.alpha = 0.32
+        glowMask.startPoint = CGPoint(x: 0.5, y: 0)
+        glowMask.endPoint = CGPoint(x: 0.5, y: 1)
+        glowMask.colors = [UIColor(white: 1, alpha: 0.9).cgColor,
+                           UIColor(white: 1, alpha: 0.45).cgColor,
+                           UIColor(white: 1, alpha: 0).cgColor]
+        glowMask.locations = [0, 0.45, 1]
+        glowView.layer.mask = glowMask
+        addSubview(glowView)
         box.clipsToBounds = true
         imageView.contentMode = .scaleToFill
         imageView.layer.magnificationFilter = .linear
@@ -58,8 +74,8 @@ final class DYDeskLightView: UIView {
         falloff.startPoint = CGPoint(x: 0.5, y: 0)
         falloff.endPoint = CGPoint(x: 0.5, y: 1)
         falloff.colors = [UIColor(white: 1, alpha: 0).cgColor,
-                          UIColor(white: 1, alpha: 0.55).cgColor,
-                          UIColor(white: 1, alpha: 0.32).cgColor,
+                          UIColor(white: 1, alpha: 0.3).cgColor,
+                          UIColor(white: 1, alpha: 0.16).cgColor,
                           UIColor(white: 1, alpha: 0).cgColor]
         falloff.locations = [0, 0.14, 0.55, 1]
         box.layer.mask = falloff
@@ -73,6 +89,12 @@ final class DYDeskLightView: UIView {
         if videoHeight > 1, aspect > 0 { w = min(w, videoHeight * aspect) }
         let h = w / max(aspect, 0.1)
         box.frame = CGRect(x: (bounds.width - w) / 2, y: topInset + 6, width: w, height: h)
+        // 环境光比倒影宽一圈（溢出屏幕两侧），往下铺满整块下半屏后淡出
+        let gw = max(bounds.width, w) * 1.5
+        glowView.transform = .identity
+        glowView.frame = CGRect(x: (bounds.width - gw) / 2, y: topInset, width: gw, height: max(1, bounds.height - topInset))
+        glowView.transform = CGAffineTransform(scaleX: 1, y: -1)
+        glowMask.frame = glowView.bounds
         imageView.transform = .identity
         imageView.frame = box.bounds
         imageView.transform = CGAffineTransform(scaleX: 1, y: -1)
@@ -84,7 +106,8 @@ final class DYDeskLightView: UIView {
         if window != nil { DYDeskLightHub.add(self) } else { DYDeskLightHub.remove(self); alpha = 0 }
     }
 
-    func show(_ image: CGImage) {
+    func show(_ image: CGImage, glow: CGImage?) {
+        if let glow { glowView.image = UIImage(cgImage: glow) }
         let a = CGFloat(image.width) / CGFloat(max(image.height, 1))
         if abs(a - aspect) > 0.01 { aspect = a; setNeedsLayout() }
         imageView.image = UIImage(cgImage: image)

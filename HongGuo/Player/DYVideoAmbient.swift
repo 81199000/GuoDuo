@@ -129,12 +129,15 @@ final class DYAmbientFrameView: UIView {
             .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.85])
         guard let cg = Self.ci.createCGImage(blurred, from: small.extent) else { return }
         imageView.image = UIImage(cgImage: cg)
-        // 桌面倒影：单独取一张 150 宽、轻微模糊的帧（只有倒影在屏幕上时才取；奈飞实拍是「半糊」——看得出色块轮廓、认不出五官）
+        // 桌面倒影：72 宽 + σ2.4 模糊（只剩色块轮廓）；环境光：16 宽 + σ3 极糊。只有倒影在屏幕上时才取
         if DYDeskLightHub.wanted {
-            let k = 150 / max(src.extent.width, 1)
-            let mid = src.transformed(by: CGAffineTransform(scaleX: k, y: k))
-            let soft = mid.clampedToExtent().applyingGaussianBlur(sigma: 1.6).cropped(to: mid.extent)
-            if let cgSoft = Self.ci.createCGImage(soft, from: mid.extent) { DYDeskLightHub.publish(cgSoft) }
+            func shrink(_ width: CGFloat, _ sigma: Double) -> CGImage? {
+                let k = width / max(src.extent.width, 1)
+                let m = src.transformed(by: CGAffineTransform(scaleX: k, y: k))
+                let b = m.clampedToExtent().applyingGaussianBlur(sigma: sigma).cropped(to: m.extent)
+                return Self.ci.createCGImage(b, from: m.extent)
+            }
+            if let refl = shrink(72, 2.4) { DYDeskLightHub.publish(refl, glow: shrink(16, 3)) }
         }
         if imageView.alpha == 0 {
             UIView.animate(withDuration: 0.25) { self.imageView.alpha = 1; self.dimView.alpha = 1 }
