@@ -43,7 +43,7 @@ enum DYDanmakuPolicy {
         case sparse = 0, standard = 1, dense = 2
         var id: Int { rawValue }
         var title: String {
-            switch self { case .sparse: "稀疏"; case .standard: "标准"; case .dense: "密集" }
+            switch self { case .sparse: "简约"; case .standard: "正常"; case .dense: "密集" }
         }
         var maxLanes: Int {
             switch self { case .sparse: 2; case .standard: 4; case .dense: 6 }
@@ -182,10 +182,12 @@ struct DYDanmakuLayer: View {
     let clock: DYDanmakuClock
     let topInset: CGFloat
     /// 竖屏半折叠：视频只有上半块（~370pt），默认「上 1/3、顶部再让 64」的区域高度为 0、一条轨道都没有 →
-    /// 改用整块视频窗格（顶部让开左上角剧名那两行，底部留 12%）
+    /// 改用整块视频窗格，从顶部开始往下排（老板：从顶部显示），底部留 12%
     var fullPane = false
     @AppStorage(DYDanmakuPolicy.densityKey) private var densityRaw = DYDanmakuPolicy.Density.standard.rawValue
     @AppStorage(DYDanmakuPolicy.deduplicateKey) private var deduplicate = true
+    @AppStorage(DYDanmakuStyle.opacityKey) private var opacity = 1.0
+    @AppStorage(DYDanmakuStyle.fontKey) private var font = 17.0
 
     private var renderItems: [DYDanmaku] {
         #if DEBUG
@@ -200,15 +202,72 @@ struct DYDanmakuLayer: View {
         GeometryReader { g in
             let density = DYDanmakuPolicy.Density(rawValue: densityRaw) ?? .standard
             let region = fullPane
-                ? DYDanmakuPolicy.Region(top: max(12, topInset) + 52, bottom: g.size.height * 0.88, lanes: density.maxLanes)
+                ? DYDanmakuPolicy.Region(top: max(6, topInset * 0.5), bottom: g.size.height * 0.88, lanes: density.maxLanes)
                 : DYDanmakuPolicy.region(height: g.size.height, topInset: topInset, density: density)
             // 字号变大后轨道变高：按新行高重算这块区域能放几条轨道
             let lanes = min(density.maxLanes, Int(max(0, (region.bottom - region.top) / DYDanmakuStyle.laneHeight)))
             DYDanmakuLiveSurface(items: renderItems, clock: clock, regionTop: region.top,
                                  regionHeight: max(0, region.bottom - region.top), lanes: lanes,
-                                 density: density, deduplicate: deduplicate)
+                                 density: density, deduplicate: deduplicate,
+                                 opacity: opacity, fontSize: CGFloat(font > 0 ? font : 17))
                 .frame(width: g.size.width, height: g.size.height)
         }
         .allowsHitTesting(false)
+    }
+}
+
+/// 弹幕设置（密度 / 透明度 / 字号）：「我的」里和操作台弹幕弹窗共用同一组 key
+struct HGDanmakuStyleControls: View {
+    @AppStorage(DYDanmakuPolicy.densityKey) private var densityRaw = DYDanmakuPolicy.Density.standard.rawValue
+    @AppStorage(DYDanmakuStyle.opacityKey) private var opacity = 1.0
+    @AppStorage(DYDanmakuStyle.fontKey) private var font = 17.0
+    /// 操作台玻璃弹窗里用白字小号；「我的」列表里用系统样式
+    var compact = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 8 : 14) {
+            row("密度") {
+                ForEach(DYDanmakuPolicy.Density.allCases) { d in
+                    pill(d.title, on: densityRaw == d.rawValue, id: "hg.danmaku.density.\(d.rawValue)") { densityRaw = d.rawValue }
+                }
+            }
+            row("透明度") {
+                ForEach(DYDanmakuStyle.opacities, id: \.value) { o in
+                    pill(o.title, on: abs(opacity - o.value) < 0.01, id: "hg.danmaku.opacity.\(Int(o.value * 100))") { opacity = o.value }
+                }
+            }
+            row("字号") {
+                ForEach(DYDanmakuStyle.fontSizes, id: \.size) { f in
+                    pill(f.title, on: abs(font - f.size) < 0.1, id: "hg.danmaku.font.\(Int(f.size))") { font = f.size }
+                }
+            }
+        }
+    }
+
+    /// 操作台弹窗：标签在左、选项在右一行排完（下半屏高度有限）；「我的」里标签在上
+    @ViewBuilder private func row<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        if compact {
+            HStack(spacing: 6) {
+                Text(title).font(.caption).foregroundStyle(Color.white.opacity(0.6)).frame(width: 40, alignment: .leading)
+                content()
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary)
+                HStack(spacing: 6) { content() }
+            }
+        }
+    }
+
+    private func pill(_ title: String, on: Bool, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.footnote.weight(on ? .semibold : .regular))
+                .foregroundStyle(on ? Color.black : (compact ? Color.white : HGTheme.textPrimary))
+                .frame(maxWidth: .infinity, minHeight: compact ? 28 : 30)
+                .background(on ? Color.white : Color.white.opacity(0.1), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+        .accessibilityValue(on ? "on" : "off")
     }
 }

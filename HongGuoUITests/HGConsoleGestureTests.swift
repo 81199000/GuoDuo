@@ -191,7 +191,7 @@ extension HGConsoleGestureTests {
 }
 
 extension HGConsoleGestureTests {
-    /// 竖屏半折叠、弹幕位置 = 影片区：上半屏视频上要有弹幕在飘
+    /// 竖屏半折叠、弹幕位置 = 影片区：上半屏视频上有弹幕；弹窗里能设密度 / 透明度 / 字号
     func testTabletopDanmakuOnVideo() throws {
         let app = XCUIApplication()
         app.launchEnvironment["DOUDUO_FOLD"] = "1"
@@ -201,24 +201,40 @@ extension HGConsoleGestureTests {
         let any = app.descendants(matching: .any)
         let pad = any["hg.console.pad"].firstMatch
         XCTAssertTrue(pad.waitForExistence(timeout: 120)); sleep(4)
-        // 切到影片区
         pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         app.buttons["hg.console.danmakuButton"].tap()
         let video = app.buttons["hg.console.danmaku.video"]
-        XCTAssertTrue(video.waitForExistence(timeout: 3)); video.tap(); sleep(1)
-        pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.97)).tap()
+        XCTAssertTrue(video.waitForExistence(timeout: 3)); video.tap()
+        // 密集 / 50% / 大字
+        for id in ["hg.danmaku.density.2", "hg.danmaku.opacity.50", "hg.danmaku.font.20"] {
+            let b = app.buttons[id]; XCTAssertTrue(b.waitForExistence(timeout: 3), id); b.tap()
+            XCTAssertEqual(b.value as? String, "on", id)
+        }
+        let p = XCTAttachment(screenshot: app.screenshot()); p.name = "danmaku-popover"; p.lifetime = .keepAlways; add(p)
+        // 弹窗顶部（开关）不能被折痕 / 视频挡住：整块在操作台里
+        let tog = app.switches["hg.console.danmaku.toggle"].exists ? app.switches["hg.console.danmaku.toggle"].frame : any["hg.console.danmaku.toggle"].firstMatch.frame
+        print("HGWD toggle=\(tog) console=\(any["hg.console"].firstMatch.frame)")
+        XCTAssertGreaterThanOrEqual(tog.minY, any["hg.console"].firstMatch.frame.minY + 8, "弹窗顶部被截")
+        // 恢复正常 / 100% / 中，等控制层自动收起
+        for id in ["hg.danmaku.density.1", "hg.danmaku.opacity.100", "hg.danmaku.font.17"] { app.buttons[id].tap() }
+        app.buttons["hg.console.danmakuButton"].tap()
         let layer = any["hg.player.danmaku"].firstMatch
         XCTAssertTrue(layer.waitForExistence(timeout: 20), "影片区没有弹幕层")
-        let count = Int(layer.value as? String ?? "") ?? 0
-        print("HGWD danmaku count=\(count) layer=\(layer.frame)")
-        // 等弹幕飘出来：弹幕文字是 StaticText，视频区域内应有可见文本
-        var seen = 0
-        for _ in 0..<15 {
-            sleep(1)
-            seen = app.staticTexts.allElementsBoundByIndex.filter { $0.frame.minY < layer.frame.maxY && $0.frame.minY > layer.frame.minY && $0.frame.width > 30 }.count
-            if seen > 0 { break }
-        }
+        XCTAssertGreaterThan(Int(layer.value as? String ?? "") ?? 0, 0, "没拉到弹幕")
+        sleep(7)
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = "tabletop-video-danmaku"; a.lifetime = .keepAlways; add(a)
-        print("HGWD visible=\(seen)")
+    }
+}
+
+extension HGConsoleGestureTests {
+    /// 「我的」里有弹幕设置
+    func testMineDanmakuSettings() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "mine"
+        app.launch()
+        let dense = app.buttons["hg.danmaku.density.2"]
+        for _ in 0..<6 where !dense.isHittable { app.swipeUp(); sleep(1) }
+        XCTAssertTrue(dense.waitForExistence(timeout: 10))
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "mine-danmaku"; a.lifetime = .keepAlways; add(a)
     }
 }
