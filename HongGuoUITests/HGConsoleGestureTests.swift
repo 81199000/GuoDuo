@@ -110,7 +110,7 @@ extension HGConsoleGestureTests {
         XCTAssertTrue(badge.exists, "锁定后没有提示")
         let f = badge.frame; let w = app.windows.firstMatch.frame
         print("HGWL badge=\(f) window=\(w)")
-        XCTAssertLessThan(f.minY, 80, "提示不在最上方")
+        XCTAssertLessThan(f.minY, 30, "提示不在最上方")
         XCTAssertEqual(f.midX, w.midX, accuracy: 6, "提示没居中")
         sleep(7); XCTAssertTrue(badge.exists, "非沉浸式不该 5 秒消失")
         // 解锁，进沉浸式
