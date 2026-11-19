@@ -201,7 +201,11 @@ struct HGPlayerScreen: View {
             }
             #endif
         }
-        .onDisappear { if feed == nil { session.stop(); setOrientation(landscape: false) } }
+        .onAppear { HGOrientation.playerAppeared() }
+        .onDisappear {
+            if feed == nil { session.stop() }
+            HGOrientation.playerDisappeared()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background, !HGBackgroundPlayback.enabled, !session.pip.active, !session.pip.starting { session.pauseForBackground() }
         }
@@ -961,9 +965,39 @@ final class HGPlayerLayerView: UIView {
     }
 }
 
-/// 横屏只在播放页按「横屏」后放开。
-enum HGOrientation {
+/// 普通 iPhone（非 Duo、非 iPad）的横竖屏：
+/// - 播放页（推荐页 / 完整播放页）在屏上时跟着手机重力感应转（老板 2026-11-19：Air 上横过来不转）；
+/// - 离开播放页回到发现 / 搜索 / 我的：锁回竖屏，并主动把界面转回来；
+/// - 「更多 → 横屏 / 竖屏」仍可手动强制。
+@MainActor enum HGOrientation {
     nonisolated(unsafe) static var allowLandscape = false
+    /// 屏上的播放页个数（推荐流翻页时新旧两页会短暂同时在）
+    private(set) static var players = 0
+    nonisolated(unsafe) static var followsSensor = false
+    static func playerAppeared() {
+        players += 1
+        followsSensor = true
+        refresh()
+    }
+    static func playerDisappeared() {
+        players = max(0, players - 1)
+        // 翻页时旧页先 disappear、新页随后 appear：稍等再判断，避免中途锁回竖屏闪一下
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard players == 0 else { return }
+            followsSensor = false
+            allowLandscape = false
+            refresh(forcePortrait: true)
+        }
+    }
+    static func refresh(forcePortrait: Bool = false) {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        if forcePortrait, scene.effectiveGeometry.interfaceOrientation.isLandscape,
+           UIDevice.current.userInterfaceIdiom == .phone, !DYDuoMetrics.isDuoHardware {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+        }
+    }
 }
 
 enum HGBackgroundPlayback {
