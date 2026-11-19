@@ -58,7 +58,7 @@ final class HGTabletopTests: XCTestCase {
         let rel = { (y: CGFloat) in (y - console.frame.minY) / console.frame.height }
         let playC = app.buttons["hg.console.play"].frame.midY
         print("HGTAB spread top=\(rel(back.frame.midY)) play=\(rel(playC)) bar=\(rel(any["hg.console.bar"].firstMatch.frame.midY))")
-        XCTAssertTrue((0.18...0.42).contains(rel(back.frame.midY)), "顶排位置不对")
+        XCTAssertTrue((0.08...0.24).contains(rel(back.frame.midY)), "顶排位置不对")  // 2026-11-19 参考图：顶排紧贴面板上沿（~11%）
         XCTAssertTrue((0.42...0.66).contains(rel(playC)), "播放键位置不对")
         shot(app, "console-controls")
         // 暂停 / 继续
