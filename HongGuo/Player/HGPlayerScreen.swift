@@ -723,12 +723,15 @@ struct HGPlayerScreen: View {
         .allowsHitTesting(false)
     }
 
+    /// 长按 2× 提示：放左上角（2026-11-19 老板要求，不再居中）
     private var boostBadge: some View {
         Text(session.lockedBoost ? "2× 已锁定 · 上滑解锁" : "2× 快进中 · 下滑锁定")
             .font(.caption.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 6)
             .background(.black.opacity(0.5), in: Capsule()).foregroundStyle(.white)
-            .frame(maxHeight: .infinity, alignment: .top).padding(.top, safeTop + 48)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.leading, 16).padding(.top, max(safeTop, 12) + 6)
             .allowsHitTesting(false)
+            .accessibilityIdentifier("hg.player.boostBadge")
     }
 
     @ViewBuilder private var statusOverlay: some View {

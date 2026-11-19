@@ -150,8 +150,7 @@ struct HGConsolePane: View {
                     guard abs(dy) > 50 else { return }
                     padLockDone = true
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    if dy > 0 { session.lockBoost(); flash("已锁定 2× 倍速") }
-                    else { session.unlockBoost(); flash("已解锁，恢复正常速度") }
+                    if dy > 0 { session.lockBoost() } else { session.unlockBoost() }
                 })
             .onChange(of: padHolding) { _, on in
                 if on {
@@ -212,7 +211,7 @@ struct HGConsolePane: View {
         GeometryReader { g in
             let fixed: CGFloat = 10 + 40 + 46 + 28 + 40
             let avail = max(0, g.size.height - creaseTop - bottomPad - fixed)
-            let middleH = min(104, max(64, avail * 0.42))
+            let middleH = min(110, max(72, avail * 0.42))
             let rest = max(0, avail - middleH)
             VStack(spacing: 0) {
                 Color.clear.frame(height: creaseTop + 10)
@@ -285,43 +284,47 @@ struct HGConsolePane: View {
     }
 
     private func middleRow(height: CGFloat) -> some View {
-        let big = min(height, 78)
-        return HStack(spacing: 0) {
-            stepTile("backward.end.fill", label: "上集", enabled: session.index > 0, id: "hg.console.prev") {
-                session.previous(); poke()
+        // 五个键靠拢放大（2026-11-19 老板要求）：固定小间距居中排；窄屏按可用宽度等比缩小
+        let gap: CGFloat = 10, tileW: CGFloat = 66, tileH: CGFloat = 60, small: CGFloat = 62
+        let big = min(max(height, 64), 84)
+        let natural = tileW * 2 + small * 2 + big + gap * 4
+        return GeometryReader { g in
+            let k = min(1, g.size.width / natural)
+            HStack(spacing: gap) {
+                stepTile("backward.end.fill", label: "上集", enabled: session.index > 0, id: "hg.console.prev", w: tileW, h: tileH) {
+                    session.previous(); poke()
+                }
+                roundButton("gobackward.10", size: small, glyph: 26, id: "hg.console.back10") {
+                    session.seek(to: max(0, session.position - 10)); poke()
+                }
+                roundButton(session.isPlaying ? "pause.fill" : "play.fill", size: big, glyph: big * 0.4, id: "hg.console.play") {
+                    session.togglePlay(); poke()
+                }
+                .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1.5).padding(-4))
+                roundButton("goforward.10", size: small, glyph: 26, id: "hg.console.fwd10") {
+                    session.seek(to: min(session.duration, session.position + 10)); poke()
+                }
+                stepTile("forward.end.fill", label: "下集", enabled: session.hasNext, id: "hg.console.next", w: tileW, h: tileH) {
+                    session.next(); poke()
+                }
             }
-            Spacer(minLength: 4)
-            roundButton("gobackward.10", size: 50, glyph: 21, id: "hg.console.back10") {
-                session.seek(to: max(0, session.position - 10)); poke()
-            }
-            Spacer(minLength: 4)
-            roundButton(session.isPlaying ? "pause.fill" : "play.fill", size: big, glyph: big * 0.4, id: "hg.console.play") {
-                session.togglePlay(); poke()
-            }
-            .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1.5).padding(-4))
-            Spacer(minLength: 4)
-            roundButton("goforward.10", size: 50, glyph: 21, id: "hg.console.fwd10") {
-                session.seek(to: min(session.duration, session.position + 10)); poke()
-            }
-            Spacer(minLength: 4)
-            stepTile("forward.end.fill", label: "下集", enabled: session.hasNext, id: "hg.console.next") {
-                session.next(); poke()
-            }
+            .scaleEffect(k)
+            .frame(width: g.size.width, height: g.size.height)
         }
         .frame(height: height)
     }
 
     /// 上集 / 下集：圆角方块，图标在上、字在下
-    private func stepTile(_ icon: String, label: String, enabled: Bool, id: String, action: @escaping () -> Void) -> some View {
+    private func stepTile(_ icon: String, label: String, enabled: Bool, id: String, w: CGFloat, h: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: 15, weight: .bold))
-                Text(label).font(.system(size: 11, weight: .medium))
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 19, weight: .bold))
+                Text(label).font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
-            .frame(width: 50, height: 46)
+            .frame(width: w, height: h)
             .contentShape(Rectangle())
-            .ddGlassRounded(14)
+            .ddGlassRounded(16)
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
