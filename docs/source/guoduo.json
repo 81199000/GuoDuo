@@ -1,8 +1,8 @@
 {
-  "name": "GuoDuo 官方源",
+  "name": "GuoDuo 官方源（国内）",
   "identifier": "me.rrmm.guoduo.source",
-  "sourceURL": "https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo.json",
-  "sourceicon": "https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/brand/app-icon.png",
+  "sourceURL": "https://gitee.com/remon8/guoduo/raw/main/docs/source/guoduo.json",
+  "sourceicon": "https://gitee.com/remon8/guoduo/raw/main/docs/brand/app-icon.png",
   "message": "GuoDuo 官方软件源。安装包均来自官方仓库发行版（未签名），需要自备证书签名。\n开源免费，非红果官方，仅供个人学习交流。",
   "payURL": "",
   "unlockURL": "",
@@ -17,9 +17,9 @@
       "subtitle": "原生 SwiftUI 红果短剧客户端，适配折叠屏与 iPad",
       "localizedDescription": "GuoDuo：开源免费的红果短剧客户端（非官方），原生 SwiftUI，适配 iPhone Duo 折叠屏、iPad 与普通 iPhone。安装包为未签名 IPA，需要用自己的证书签名。仅供个人学习交流。",
       "lock": "0",
-      "downloadURL": "https://github.com/81199000/GuoDuo/releases/download/v0.6.4/GuoDuo-0.6.4-unsigned.ipa",
+      "downloadURL": "https://gitee.com/remon8/guoduo/releases/download/v0.6.4/GuoDuo-0.6.4-unsigned.ipa",
       "isLanZouCloud": "0",
-      "iconURL": "https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/brand/app-icon.png",
+      "iconURL": "https://gitee.com/remon8/guoduo/raw/main/docs/brand/app-icon.png",
       "tintColor": "EE3B45",
       "size": "4158618"
     }

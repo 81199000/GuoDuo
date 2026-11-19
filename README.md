@@ -91,9 +91,10 @@
 
 全能签 → **资源 → 软件源** → 右上角添加：
 
-```
-https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo.json
-```
+| 软件源 | 地址 |
+| --- | --- |
+| 国内（Gitee） | `https://gitee.com/remon8/guoduo/raw/main/docs/source/guoduo.json` |
+| 海外（GitHub） | `https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo-github.json` |
 
 在源里点 GuoDuo → 下载 → **资源 → App** 里点它 → **签名** → **安装**。以后有新版，在源里下拉刷新再装一次，会覆盖旧版，观看记录和收藏保留。
 

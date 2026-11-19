@@ -30,9 +30,17 @@ fi
 for i in 1 2 3; do gh release upload $TAG "$IPA" --clobber && break; echo "上传重试 $i"; sleep 5; done
 echo "✅ 已发布 https://github.com/81199000/GuoDuo/releases/tag/$TAG"
 
+# Gitee 镜像：代码 + tag + 发行版（没配 gitee 远端就跳过，国内源回落 GitHub）
+if git remote get-url gitee >/dev/null 2>&1; then
+  git push -q gitee HEAD:main "$TAG" 2>&1 | grep -v 'GITEE\|trace' || true
+  [ -f scripts/sync_gitee_release.py ] && python3 scripts/sync_gitee_release.py "$TAG" || true
+fi
+
 # 全能签 / 轻松签软件源（读刚发的 Release 重新生成）
 python3 scripts/build_sign_source.py
 if [ -n "$(git status --porcelain docs/source)" ]; then
   git add docs/source && git commit -q -m "chore(源): 软件源更新到 $TAG" && git push -q origin HEAD
-  echo "✅ 软件源 https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo.json"
+  git remote get-url gitee >/dev/null 2>&1 && { git push -q gitee HEAD:main 2>&1 | grep -v 'GITEE\|trace' || true; }
+  echo "✅ 软件源 国内 https://gitee.com/remon8/guoduo/raw/main/docs/source/guoduo.json"
+  echo "         海外 https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo-github.json"
 fi
