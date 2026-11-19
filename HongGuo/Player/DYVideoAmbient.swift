@@ -129,15 +129,9 @@ final class DYAmbientFrameView: UIView {
             .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.85])
         guard let cg = Self.ci.createCGImage(blurred, from: small.extent) else { return }
         imageView.image = UIImage(cgImage: cg)
-        // 桌面倒影：72 宽 + σ2.4 模糊（只剩色块轮廓）；环境光：16 宽 + σ3 极糊。只有倒影在屏幕上时才取
-        if DYDeskLightHub.wanted {
-            func shrink(_ width: CGFloat, _ sigma: Double) -> CGImage? {
-                let k = width / max(src.extent.width, 1)
-                let m = src.transformed(by: CGAffineTransform(scaleX: k, y: k))
-                let b = m.clampedToExtent().applyingGaussianBlur(sigma: sigma).cropped(to: m.extent)
-                return Self.ci.createCGImage(b, from: m.extent)
-            }
-            if let refl = shrink(72, 2.4) { DYDeskLightHub.publish(refl, glow: shrink(16, 3)) }
+        // 桌面投影（只有投影视图在屏幕上时才算）
+        if DYDeskLightHub.wanted, let proj = DYDeskProjection.render(src, ci: Self.ci) {
+            DYDeskLightHub.publish(proj.image, glow: proj.glow, aspect: src.extent.width / max(src.extent.height, 1))
         }
         if imageView.alpha == 0 {
             UIView.animate(withDuration: 0.25) { self.imageView.alpha = 1; self.dimView.alpha = 1 }
