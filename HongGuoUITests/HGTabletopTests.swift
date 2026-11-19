@@ -109,7 +109,9 @@ final class HGTabletopTests: XCTestCase {
         shot(app, "more")
         app.buttons["hg.more.comments"].tap(); sleep(1)
         XCTAssertFalse(any["hg.comments.title"].firstMatch.exists)
-        app.swipeDown(); sleep(1)
+        // 「更多」变高（倍速 + 弹幕设置）后一次下滑可能只回到默认高度：下滑到面板消失为止
+        let sheet = any["hg.more.sheet"].firstMatch
+        for _ in 0..<3 where sheet.exists { sheet.swipeDown(velocity: .fast); sleep(1) }
         // 返回 → 详情 → 首页
         padEl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.buttons["hg.player.close"].waitForExistence(timeout: 2))

@@ -410,11 +410,9 @@ struct HGConsolePane: View {
                     choice("触控区", on: danmakuInConsole, id: "hg.console.danmaku.console") { danmakuInConsole = true; poke() }
                 }
                 .disabled(!danmakuOn).opacity(danmakuOn ? 1 : 0.4)
-                HGDanmakuStyleControls(compact: true)
-                    .disabled(!danmakuOn).opacity(danmakuOn ? 1 : 0.4)
             }
             .padding(12)
-            .frame(width: 320)
+            .frame(width: 260)
             .ddGlassCard()
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, side)

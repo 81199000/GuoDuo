@@ -205,19 +205,7 @@ extension HGConsoleGestureTests {
         app.buttons["hg.console.danmakuButton"].tap()
         let video = app.buttons["hg.console.danmaku.video"]
         XCTAssertTrue(video.waitForExistence(timeout: 3)); video.tap()
-        // 密集 / 50% / 大字
-        for id in ["hg.danmaku.density.2", "hg.danmaku.opacity.50", "hg.danmaku.font.20"] {
-            let b = app.buttons[id]; XCTAssertTrue(b.waitForExistence(timeout: 3), id); b.tap()
-            XCTAssertEqual(b.value as? String, "on", id)
-        }
-        let p = XCTAttachment(screenshot: app.screenshot()); p.name = "danmaku-popover"; p.lifetime = .keepAlways; add(p)
-        // 弹窗顶部（开关）不能被折痕 / 视频挡住：整块在操作台里
-        let tog = app.switches["hg.console.danmaku.toggle"].exists ? app.switches["hg.console.danmaku.toggle"].frame : any["hg.console.danmaku.toggle"].firstMatch.frame
-        print("HGWD toggle=\(tog) console=\(any["hg.console"].firstMatch.frame)")
-        XCTAssertGreaterThanOrEqual(tog.minY, any["hg.console"].firstMatch.frame.minY + 8, "弹窗顶部被截")
-        // 恢复正常 / 100% / 中，等控制层自动收起
-        for id in ["hg.danmaku.density.1", "hg.danmaku.opacity.100", "hg.danmaku.font.17"] { app.buttons[id].tap() }
-        app.buttons["hg.console.danmakuButton"].tap()
+        pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.97)).tap()
         let layer = any["hg.player.danmaku"].firstMatch
         XCTAssertTrue(layer.waitForExistence(timeout: 20), "影片区没有弹幕层")
         XCTAssertGreaterThan(Int(layer.value as? String ?? "") ?? 0, 0, "没拉到弹幕")
@@ -227,14 +215,43 @@ extension HGConsoleGestureTests {
 }
 
 extension HGConsoleGestureTests {
-    /// 「我的」里有弹幕设置
-    func testMineDanmakuSettings() throws {
-        let app = XCUIApplication()
-        app.launchEnvironment["HG_START_TAB"] = "mine"
-        app.launch()
-        let dense = app.buttons["hg.danmaku.density.2"]
-        for _ in 0..<6 where !dense.isHittable { app.swipeUp(); sleep(1) }
-        XCTAssertTrue(dense.waitForExistence(timeout: 10))
-        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "mine-danmaku"; a.lifetime = .keepAlways; add(a)
+    /// 「更多」里有倍速 + 弹幕（密度 / 透明度 / 字号），标题不压拖动条；竖屏、横屏、半折叠各截一张
+    func testMoreSheetLayout() throws {
+        // Duo 外屏模拟器不跟着转横屏：横屏单独在展开尺寸（iPad 11 寸）模拟器上跑，HG_MORE_ONLY=landscape
+        let only = ProcessInfo.processInfo.environment["HG_MORE_ONLY"]
+        let cases: [(String, Bool, UIDeviceOrientation)] = only == "landscape" ? [("landscape", false, .landscapeLeft), ("unfold-portrait", false, .portrait)]
+            : [("portrait", false, .portrait), ("fold", true, .portrait)]
+        for (name, fold, orient) in cases {
+            let app = XCUIApplication()
+            app.launchEnvironment["HG_START_TAB"] = "discover"
+            app.launchEnvironment["HG_DEMO_SERIES"] = "7697459724635098174"
+            app.launchEnvironment["HG_DEMO_EP"] = "2"
+            if fold { app.launchEnvironment["DOUDUO_FOLD"] = "1" }
+            XCUIDevice.shared.orientation = orient
+            app.launch()
+            let any = app.descendants(matching: .any)
+            if fold {
+                let pad = any["hg.console.pad"].firstMatch
+                XCTAssertTrue(pad.waitForExistence(timeout: 60)); sleep(4)
+                pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                app.buttons["hg.console.more"].tap()
+            } else {
+                let more = app.buttons["hg.rail.more"]
+                XCTAssertTrue(more.waitForExistence(timeout: 60)); sleep(4)
+                more.tap()
+            }
+            let dense = app.buttons["hg.danmaku.density.2"]
+            XCTAssertTrue(dense.waitForExistence(timeout: 5), "\(name): 更多里没有弹幕密度")
+            sleep(1)
+            let sheet = any["hg.more.sheet"].firstMatch
+            print("HGWM \(name) sheet=\(sheet.frame) rate1=\(app.buttons["hg.more.rate.1.0"].frame) dense=\(dense.frame) font=\(app.buttons["hg.danmaku.font.20"].frame)")
+            let a = XCTAttachment(screenshot: app.screenshot()); a.name = "more-\(name)"; a.lifetime = .keepAlways; add(a)
+            if !app.buttons["hg.danmaku.font.20"].isHittable { sheet.swipeUp(); sleep(1) }
+            app.buttons["hg.danmaku.font.20"].tap()
+            XCTAssertEqual(app.buttons["hg.danmaku.font.20"].value as? String, "on", "\(name): 字号没切上")
+            app.buttons["hg.danmaku.font.17"].tap()
+            app.terminate()
+        }
+        XCUIDevice.shared.orientation = .portrait
     }
 }
