@@ -268,7 +268,7 @@ struct HGPlayerScreen: View {
                     .scaleEffect(userScale * pinchScale)
                     .clipped()
                 if danmakuOn && !clean && (!consoleShown || !danmakuInConsole) {
-                    DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop)
+                    DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop, fullPane: consoleShown)
                         .accessibilityElement()
                         .accessibilityIdentifier("hg.player.danmaku")
                         .accessibilityValue("\(session.danmaku.count)")

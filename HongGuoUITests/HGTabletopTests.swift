@@ -54,12 +54,12 @@ final class HGTabletopTests: XCTestCase {
         let back = app.buttons["hg.player.close"]
         print("HGTAB back=\(back.frame) play=\(app.buttons["hg.console.play"].frame) bar=\(any["hg.console.bar"].firstMatch.frame) tiles=\(app.buttons["hg.console.danmakuButton"].frame) more=\(app.buttons["hg.console.more"].frame) title=\(any["hg.console.title"].firstMatch.exists)")
         XCTAssertGreaterThan(back.frame.minY, console.frame.minY, "返回键不在下半屏")
-        // 控制要铺开：顶排在面板 20%~40%，播放键中心在 45%~65%（参考图 30% / 56%）
+        // 大方块铺满排版（2026-11-19）：顶排 ~11%、播放键中心 ~38%
         let rel = { (y: CGFloat) in (y - console.frame.minY) / console.frame.height }
         let playC = app.buttons["hg.console.play"].frame.midY
         print("HGTAB spread top=\(rel(back.frame.midY)) play=\(rel(playC)) bar=\(rel(any["hg.console.bar"].firstMatch.frame.midY))")
         XCTAssertTrue((0.08...0.24).contains(rel(back.frame.midY)), "顶排位置不对")  // 2026-11-19 参考图：顶排紧贴面板上沿（~11%）
-        XCTAssertTrue((0.42...0.66).contains(rel(playC)), "播放键位置不对")
+        XCTAssertTrue((0.28...0.52).contains(rel(playC)), "播放键位置不对")  // 大方块铺满排版：中排在 ~38%
         shot(app, "console-controls")
         // 暂停 / 继续
         app.buttons["hg.console.play"].tap(); sleep(1)
