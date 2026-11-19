@@ -255,3 +255,28 @@ extension HGConsoleGestureTests {
         XCUIDevice.shared.orientation = .portrait
     }
 }
+
+extension HGConsoleGestureTests {
+    /// 普通 iPhone：播放页跟着手机转横屏，回到发现页锁回竖屏
+    func testPhoneRotatesInPlayer() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "discover"
+        app.launchEnvironment["HG_DEMO_SERIES"] = "7697459724635098174"
+        app.launchEnvironment["HG_DEMO_EP"] = "2"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        XCTAssertTrue(app.buttons["hg.player.close"].waitForExistence(timeout: 60)); sleep(3)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(3)
+        let w = app.windows.firstMatch.frame
+        let any = app.descendants(matching: .any)
+        print("HGWO player landscape window=\(w) surface=\(any["hg.player.surface"].firstMatch.frame) close=\(app.buttons["hg.player.close"].frame) more=\(app.buttons["hg.rail.more"].frame) info=\(any["hg.player.info"].firstMatch.frame)")
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "phone-landscape"; a.lifetime = .keepAlways; add(a)
+        XCTAssertGreaterThan(w.width, w.height, "播放页没跟着转横屏")
+        app.buttons["hg.player.close"].tap(); sleep(3)
+        let w2 = app.windows.firstMatch.frame
+        print("HGWO after close window=\(w2)")
+        XCTAssertLessThan(w2.width, w2.height, "离开播放页没回竖屏")
+        XCUIDevice.shared.orientation = .portrait
+    }
+}
