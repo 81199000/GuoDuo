@@ -19,7 +19,7 @@ struct HGUpdateSheet: View {
                     } else {
                         HGMarkdownView(markdown: update.notes)
                     }
-                    Text("下载 GitHub Release 里的 unsigned.ipa，用自己的签名工具重新签名安装即可，观看记录和收藏会保留。")
+                    Text("打开电脑上的一键签就会自动装上新版，观看记录和收藏会保留。")
                         .font(.footnote).foregroundStyle(HGTheme.textTertiary)
                         .padding(.top, 4)
                 }
