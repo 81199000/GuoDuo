@@ -15,7 +15,7 @@ struct HGUpdate: Equatable, Identifiable {
 }
 
 enum HGUpdateChecker {
-    static let repo = "81199000/HongGuo"
+    static let repo = "81199000/GuoDuo"
     /// 上游取源核心（GPL-3.0），「关于」里注明出处
     static let upstreamRepo = "jackotom/hongguo-drama"
     static let dismissedKey = "hg.update.dismissed.v1"

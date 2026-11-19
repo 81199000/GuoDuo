@@ -28,4 +28,4 @@ if ! gh release view $TAG >/dev/null 2>&1; then
   gh release create $TAG --target "$(git rev-parse HEAD)" --title "GuoDuo $VER" --notes-file "$NOTES"
 fi
 for i in 1 2 3; do gh release upload $TAG "$IPA" --clobber && break; echo "上传重试 $i"; sleep 5; done
-echo "✅ 已发布 https://github.com/81199000/HongGuo/releases/tag/$TAG"
+echo "✅ 已发布 https://github.com/81199000/GuoDuo/releases/tag/$TAG"
