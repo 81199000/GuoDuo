@@ -4,7 +4,7 @@ import UIKit
 /// 桌面投光：竖屏半折叠（桌面姿态）时，上半屏视频像一块立着的屏幕，
 /// 把画面的光投到下半屏评论区这张「桌面」上。
 /// - 光源复用环境光取帧（DYAmbientFrameView，48px 宽、已模糊），不另挂播放器输出。
-/// - 画面上下翻转后压扁、左右放宽：靠近折痕的是视频底边，最亮；离折痕越远越淡、越散。
+/// - 2026-11-19 老板要求改成「真影片倒映」：清晰（360 宽、不糊）、整块下半屏铺满、竖向渐隐；靠近折痕的是视频底边，最亮。
 /// - 直接把帧推给投光视图，不经过 SwiftUI 状态（12 帧/秒的值挂到视图树上会让整页反复重算）。
 @MainActor
 enum DYDeskLightHub {
@@ -33,30 +33,28 @@ final class DYDeskLightView: UIView {
         backgroundColor = .clear
         clipsToBounds = true
         alpha = 0
-        imageView.contentMode = .scaleToFill
+        // 真影片倒映：不糊，按下半屏整块铺满（aspectFill），上下翻转——视频底边贴着折痕
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
         imageView.layer.magnificationFilter = .linear
-        // 倒影：视频底边贴着折痕
         imageView.transform = CGAffineTransform(scaleX: 1, y: -1)
         addSubview(imageView)
-        // 椭圆衰减：折痕正中最亮，往两侧和往下逐渐暗下去
-        falloff.type = .radial
+        // 竖向渐隐：折痕处最亮，往下逐渐暗，但整块下半屏都有画面（底部仍留约三成）
         falloff.startPoint = CGPoint(x: 0.5, y: 0)
-        falloff.endPoint = CGPoint(x: 1.15, y: 0.95)
-        falloff.colors = [UIColor(white: 1, alpha: 1).cgColor,
-                          UIColor(white: 1, alpha: 0.55).cgColor,
-                          UIColor(white: 1, alpha: 0.18).cgColor,
-                          UIColor(white: 1, alpha: 0).cgColor]
-        falloff.locations = [0, 0.3, 0.62, 1]
+        falloff.endPoint = CGPoint(x: 0.5, y: 1)
+        falloff.colors = [UIColor(white: 1, alpha: 0.95).cgColor,
+                          UIColor(white: 1, alpha: 0.6).cgColor,
+                          UIColor(white: 1, alpha: 0.28).cgColor]
+        falloff.locations = [0, 0.55, 1]
         layer.mask = falloff
     }
     required init?(coder: NSCoder) { fatalError() }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let w = bounds.width, h = bounds.height
-        // 透视：落在桌面上的光被压扁（约 0.75 高），并向两侧铺开（1.4 宽）
-        imageView.bounds = CGRect(x: 0, y: 0, width: w * 1.4, height: h * 0.75)
-        imageView.center = CGPoint(x: w / 2, y: h * 0.375)
+        imageView.transform = .identity
+        imageView.frame = bounds
+        imageView.transform = CGAffineTransform(scaleX: 1, y: -1)
         falloff.frame = bounds
     }
 
