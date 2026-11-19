@@ -170,3 +170,22 @@ extension HGConsoleGestureTests {
         XCTAssertLessThanOrEqual(pos() - p1, 1, "回来不该自动续播")
     }
 }
+
+extension HGConsoleGestureTests {
+    /// 完整播放页竖屏（非半折叠）：返回键在右侧菜单栏最上面
+    func testFullPlayerBackOnRail() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "discover"
+        app.launchEnvironment["HG_DEMO_SERIES"] = "7697459724635098174"
+        app.launchEnvironment["HG_DEMO_EP"] = "6"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        let back = app.buttons["hg.player.close"]
+        XCTAssertTrue(back.waitForExistence(timeout: 60)); sleep(6)
+        let rail = app.buttons["hg.rail.likes"].exists ? app.buttons["hg.rail.likes"] : app.buttons["hg.rail.more"]
+        print("HGWB back=\(back.frame) rail=\(rail.frame) win=\(app.windows.firstMatch.frame)")
+        XCTAssertEqual(back.frame.midX, rail.frame.midX, accuracy: 4, "返回键没和菜单栏对齐")
+        XCTAssertLessThan(back.frame.maxY, rail.frame.minY, "返回键不在菜单栏上面")
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = "fullplayer"; a.lifetime = .keepAlways; add(a)
+    }
+}
