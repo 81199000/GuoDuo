@@ -1,0 +1,29 @@
+import XCTest
+
+/// 「我的」：收藏 / 继续观看只露一排，点「全部」进完整网格；最底下 logo + 名字 + 仓库链接
+final class HGMineShelfTests: XCTestCase {
+    private func shot(_ app: XCUIApplication, _ n: String) {
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = n; a.lifetime = .keepAlways; add(a)
+    }
+    func testShelvesAndFooter() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HG_START_TAB"] = "mine"
+        app.launchEnvironment["HG_DEMO_LIBRARY"] = "12"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        let shelf = app.descendants(matching: .any)["hg.shelf.history"].firstMatch
+        XCTAssertTrue(shelf.waitForExistence(timeout: 10), "继续观看没有变成横排")
+        shot(app, "mine-top")
+        // 底部
+        for _ in 0..<6 { app.swipeUp() }
+        sleep(1)
+        XCTAssertTrue(app.buttons["hg.footer.repo"].exists, "底部没有仓库链接")
+        XCTAssertTrue(app.staticTexts["GuoDuo"].exists)
+        shot(app, "mine-footer")
+        // 全部
+        for _ in 0..<8 where !app.buttons["hg.shelf.history.all"].isHittable { app.swipeDown() }
+        app.buttons["hg.shelf.history.all"].tap()
+        XCTAssertTrue(app.navigationBars["继续观看"].waitForExistence(timeout: 5))
+        shot(app, "mine-all")
+    }
+}

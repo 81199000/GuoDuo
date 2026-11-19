@@ -190,6 +190,16 @@ struct HGRootView: View {
             if ProcessInfo.processInfo.environment["HG_DEMO_STORAGE"] == "1" {
                 Task { try? await Task.sleep(for: .seconds(25)); tab = .mine; storageDemo = true }
             }
+            // 测试：往观看记录 / 收藏里塞 N 部热播剧（看「我的」页面排版用）
+            if let n = Int(ProcessInfo.processInfo.environment["HG_DEMO_LIBRARY"] ?? "") {
+                Task {
+                    guard let page = try? await HGAPI.browse(.hot, page: 1) else { return }
+                    for s in page.results.prefix(n) {
+                        HGLibrary.shared.record(s, episode: 2, position: 30)
+                        if !HGLibrary.shared.isFavorite(s.id) { HGLibrary.shared.toggleFavorite(s) }
+                    }
+                }
+            }
             if let m = ProcessInfo.processInfo.environment["HG_DEMO_MINIMAL"] { UserDefaults.standard.set(m == "1", forKey: "hg.minimal") }
         }
         // 真机验收用：devicectl 带 HG_DEMO_SERIES 启动直接进播放页（XCUITest 在真机上起不来时的替代）

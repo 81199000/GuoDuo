@@ -13,24 +13,15 @@ struct HGMineView: View {
     var body: some View {
         List {
             accountSection
-            Section("继续观看") {
-                if library.history.isEmpty { Text("还没有观看记录").foregroundStyle(HGTheme.textTertiary) }
-                ForEach(library.history.prefix(20), id: \.series.id) { p in
-                    NavigationLink(value: p.series) {
-                        row(p.series, subtitle: "看到第 \(p.episodeIndex + 1) 集")
-                    }
-                    .swipeActions { Button("删除", role: .destructive) { library.removeHistory(p.series.id) } }
-                }
+            // 外面只放一排前几部（横滑），点「全部」进完整列表
+            HGShelfSection(title: "继续观看", empty: "还没有观看记录", id: "history",
+                           items: library.history.map { ($0.series, "看到第 \($0.episodeIndex + 1) 集") }) {
+                HGSeriesListScreen(title: "继续观看", kind: .history)
             }
-            .listRowBackground(HGTheme.surface)
-            Section("收藏") {
-                if library.favorites.isEmpty { Text("还没有收藏").foregroundStyle(HGTheme.textTertiary) }
-                ForEach(library.favorites) { s in
-                    NavigationLink(value: s) { row(s, subtitle: s.episode_count.map { "共 \($0) 集" }) }
-                        .swipeActions { Button("取消收藏", role: .destructive) { library.toggleFavorite(s) } }
-                }
+            HGShelfSection(title: "收藏", empty: "还没有收藏", id: "favorites",
+                           items: library.favorites.map { ($0, $0.episode_count.map { "共 \($0) 集" }) }) {
+                HGSeriesListScreen(title: "收藏", kind: .favorites)
             }
-            .listRowBackground(HGTheme.surface)
             Section {
                 NavigationLink { HGDownloadsView() } label: {
                     HStack {
@@ -49,10 +40,9 @@ struct HGMineView: View {
             }
             .listRowBackground(HGTheme.surface)
             HGAboutSection()
-            Section {
-                Text("片源来自红果 / 西饭 / 河马公开接口，接口变化时可能失效。仅供个人学习使用。").font(.caption).foregroundStyle(HGTheme.textTertiary)
-            }
-            .listRowBackground(HGTheme.background)
+            Section { HGBrandFooter() }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 24, trailing: 16))
         }
         .scrollContentBackground(.hidden)
         .navigationTitle("我的")
@@ -170,5 +160,118 @@ struct HGLoginSheet: View {
                 if !Task.isCancelled { message = error.localizedDescription }
             }
         }
+    }
+}
+
+
+/// 一排横滑卡片（前 8 部）+ 右上角「全部 N」
+struct HGShelfSection<Destination: View>: View {
+    let title: String
+    let empty: String
+    let id: String
+    let items: [(HGSeries, String?)]
+    @ViewBuilder let all: () -> Destination
+    private static var limit: Int { 8 }
+
+    var body: some View {
+        Section {
+            if items.isEmpty {
+                Text(empty).foregroundStyle(HGTheme.textTertiary)
+            } else {
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 12) {
+                        ForEach(items.prefix(Self.limit), id: \.0.id) { s, sub in
+                            NavigationLink(value: s) { HGSeriesCard(series: s, subtitle: sub).frame(width: 96) }
+                                .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                }
+                .scrollIndicators(.hidden)
+                .listRowInsets(EdgeInsets())
+                .accessibilityIdentifier("hg.shelf.\(id)")
+            }
+        } header: {
+            HStack {
+                Text(title)
+                Spacer()
+                if !items.isEmpty {
+                    NavigationLink { all() } label: {
+                        HStack(spacing: 2) {
+                            Text("全部 \(items.count)")
+                            Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(HGTheme.textSecondary)
+                    }
+                    .accessibilityIdentifier("hg.shelf.\(id).all")
+                }
+            }
+            .textCase(nil)
+        }
+        .listRowBackground(Color.clear)
+    }
+}
+
+/// 「全部」页：完整网格，长按删除 / 取消收藏
+struct HGSeriesListScreen: View {
+    enum Kind { case history, favorites }
+    let title: String
+    let kind: Kind
+    @State private var library = HGLibrary.shared
+    private let columns = [GridItem(.adaptive(minimum: 104, maximum: 180), spacing: 12, alignment: .top)]
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 18) {
+                switch kind {
+                case .history:
+                    ForEach(library.history, id: \.series.id) { p in
+                        NavigationLink(value: p.series) { HGSeriesCard(series: p.series, subtitle: "看到第 \(p.episodeIndex + 1) 集") }
+                            .buttonStyle(.plain)
+                            .contextMenu { Button("删除记录", systemImage: "trash", role: .destructive) { library.removeHistory(p.series.id) } }
+                    }
+                case .favorites:
+                    ForEach(library.favorites) { s in
+                        NavigationLink(value: s) { HGSeriesCard(series: s, subtitle: s.episode_count.map { "共 \($0) 集" }) }
+                            .buttonStyle(.plain)
+                            .contextMenu { Button("取消收藏", systemImage: "heart.slash", role: .destructive) { library.toggleFavorite(s) } }
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(HGTheme.background)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 「我的」最底下：logo、名字、一句介绍、仓库链接
+struct HGBrandFooter: View {
+    @Environment(\.openURL) private var openURL
+    var body: some View {
+        VStack(spacing: 10) {
+            Image("AppLogo").resizable().scaledToFit()
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .accessibilityHidden(true)
+            Text("GuoDuo").font(.headline).foregroundStyle(HGTheme.textPrimary)
+            Text("原生 SwiftUI 的红果短剧客户端，适配 iPhone Duo 折叠屏、iPad 与普通 iPhone。开源免费，非官方。")
+                .font(.caption).foregroundStyle(HGTheme.textSecondary)
+                .multilineTextAlignment(.center)
+            Button { openURL(HGUpdateChecker.repoURL) } label: {
+                Text("github.com/\(HGUpdateChecker.repo)").font(.caption.monospaced())
+            }
+            .tint(HGTheme.accent)
+            .accessibilityIdentifier("hg.footer.repo")
+            Text("片源来自红果 / 西饭 / 河马公开接口，接口变化时可能失效。仅供个人学习使用。")
+                .font(.caption2).foregroundStyle(HGTheme.textTertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("hg.footer")
     }
 }
