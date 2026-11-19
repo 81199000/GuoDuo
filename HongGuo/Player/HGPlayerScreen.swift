@@ -93,7 +93,7 @@ struct HGPlayerScreen: View {
                     // 竖屏半折叠（桌面）：下半屏 = 全黑操作台
                     HGConsolePane(session: session, deskLight: $deskLight, controlsShown: $consoleControls,
                                   danmakuOn: $danmakuOn, danmakuInConsole: $danmakuInConsole,
-                                  creaseTop: layout.creaseInset,
+                                  creaseTop: layout.creaseInset, videoHeight: layout.videoSize.height,
                                   bottomInset: DYDuoMetrics.windowBottomInset,
                                   onBack: { if let feed { feed.back() } else { dismiss() } },
                                   onEpisodes: { if let feed { feed.openSeries(session.position) } else { showEpisodes = true } },
