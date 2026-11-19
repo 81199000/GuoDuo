@@ -209,18 +209,19 @@ struct HGConsolePane: View {
     /// ① 返回 · 剧名第 N 集（点开选集）· 投屏 · 锁定
     /// ② -10 · 播放 / 暂停 · +10 三个大块
     /// ③ 进度条（带弹幕热度点）+ 剩余时间
-    /// ④ 截图 · 倍速 · 亮度 · 音量 · 弹幕 · 环境光 · 下一集 · 更多（亮度 / 音量点开弹滑条）
-    /// 各排高度按参考图比例（52 : 99 : 35 : 36）随面板高度缩放。
+    /// ④ 截图 · 倍速 · 亮度 · 音量 · 弹幕 · 环境光 · 下一集 · 更多（图标 + 文字；亮度 / 音量点开弹滑条）
+    /// 四排高度按 52 : 104 : 36 : 62 铺满整块面板。
     private var controlsLayer: some View {
         GeometryReader { g in
+            // 2026-11-19 真机反馈：上面空太多、底排太小没字 → 四排按比例铺满整块面板（不封顶），底排加高带文字
             let gap: CGFloat = 8
             let avail = max(0, g.size.height - creaseTop - 10 - bottomPad - gap * 3)
-            let k = min(1.25, avail / (52 + 99 + 35 + 36))
+            let k = avail / (52 + 104 + 36 + 62)
             VStack(spacing: gap) {
                 topRow.frame(height: 52 * k)
-                middleRow(height: 99 * k)
-                progressCard.frame(height: 35 * k)
-                bottomRow.frame(height: 36 * k)
+                middleRow(height: 104 * k)
+                progressCard.frame(height: 36 * k)
+                bottomRow.frame(height: 62 * k)
             }
             .padding(.top, creaseTop + 10)
             .padding(.horizontal, 10)
@@ -312,37 +313,45 @@ struct HGConsolePane: View {
     }
 
     private var bottomRow: some View {
-        HStack(spacing: 8) {
-            block(id: "hg.console.shot", label: "截图") { takeShot() } content: { Image(systemName: "camera") }
-            block(id: "hg.console.rate", label: "倍速", on: popover == .rate || session.rate != 1) {
+        HStack(spacing: 6) {
+            labeled(id: "hg.console.shot", icon: "camera", text: "截图") { takeShot() }
+            labeled(id: "hg.console.rate", icon: "gauge.with.dots.needle.33percent",
+                    text: session.rate == 1 ? "倍速" : String(format: "%g×", session.rate),
+                    on: popover == .rate || session.rate != 1) {
                 popover = popover == .rate ? nil : .rate; poke()
-            } content: {
-                if session.rate == 1 { Image(systemName: "gauge.with.dots.needle.33percent") }
-                else { Text(String(format: "%g×", session.rate)).font(.footnote.weight(.semibold)) }
             }
-            block(id: "hg.console.brightness", label: "亮度", on: popover == .brightness) {
+            labeled(id: "hg.console.brightness", icon: "sun.max", text: "亮度", on: popover == .brightness) {
                 popover = popover == .brightness ? nil : .brightness; poke()
-            } content: { Image(systemName: "sun.max") }
-            block(id: "hg.console.volume", label: "音量", on: popover == .volume) {
-                popover = popover == .volume ? nil : .volume; poke()
-            } content: { Image(systemName: volume <= 0.01 ? "speaker.slash" : "speaker.wave.2") }
-            block(id: "hg.console.danmakuButton", label: "弹幕", on: popover == .danmaku) {
-                popover = popover == .danmaku ? nil : .danmaku; poke()
-            } content: {
-                Image(systemName: danmakuOn ? "text.bubble" : "text.bubble.badge.xmark")
-                    .symbolRenderingMode(.hierarchical)
             }
-            block(id: "hg.console.ambient", label: "环境光", on: deskLight) {
+            labeled(id: "hg.console.volume", icon: volume <= 0.01 ? "speaker.slash" : "speaker.wave.2", text: "音量", on: popover == .volume) {
+                popover = popover == .volume ? nil : .volume; poke()
+            }
+            labeled(id: "hg.console.danmakuButton", icon: danmakuOn ? "text.bubble" : "text.bubble.badge.xmark",
+                    text: danmakuOn ? "弹幕" : "弹幕关", on: popover == .danmaku) {
+                popover = popover == .danmaku ? nil : .danmaku; poke()
+            }
+            labeled(id: "hg.console.ambient", icon: deskLight ? "light.max" : "light.min", text: "环境光", on: deskLight) {
                 withAnimation(.easeOut(duration: 0.3)) { deskLight.toggle() }
                 flash(deskLight ? "环境光投影：开" : "环境光投影：关"); poke()
-            } content: { Image(systemName: deskLight ? "light.max" : "light.min") }
+            }
             .accessibilityValue(deskLight ? "on" : "off")
-            block(id: "hg.console.next", label: "下一集", enabled: session.hasNext) {
+            labeled(id: "hg.console.next", icon: "forward.end", text: "下一集", enabled: session.hasNext) {
                 session.next(); poke()
-            } content: { Image(systemName: "forward.end") }
-            block(id: "hg.console.more", label: "更多") { onMore() } content: { Image(systemName: "ellipsis") }
+            }
+            labeled(id: "hg.console.more", icon: "ellipsis", text: "更多") { onMore() }
         }
-        .font(.system(size: 17, weight: .medium))
+    }
+
+    /// 底排小方块：图标在上、文字在下
+    private func labeled(id: String, icon: String, text: String, on: Bool = false, enabled: Bool = true,
+                         action: @escaping () -> Void) -> some View {
+        block(id: id, label: text, on: on, enabled: enabled, action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 18, weight: .medium)).frame(height: 22)
+                Text(text).font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .padding(.horizontal, 2)
+        }
     }
 
     /// 参考图的深灰圆角方块
