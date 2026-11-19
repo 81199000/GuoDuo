@@ -9,8 +9,12 @@ final class HGMineShelfTests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["HG_START_TAB"] = "mine"
         app.launchEnvironment["HG_DEMO_LIBRARY"] = "12"
+        app.launchEnvironment["HG_DEMO_CLOUD"] = "15"
         XCUIDevice.shared.orientation = .portrait
         app.launch()
+        let cloud = app.descendants(matching: .any)["hg.shelf.cloud"].firstMatch
+        XCTAssertTrue(cloud.waitForExistence(timeout: 15), "云端记录没有变成横排")
+        XCTAssertTrue(app.buttons["hg.shelf.cloud.all"].exists)
         let shelf = app.descendants(matching: .any)["hg.shelf.history"].firstMatch
         XCTAssertTrue(shelf.waitForExistence(timeout: 10), "继续观看没有变成横排")
         shot(app, "mine-top")
@@ -20,8 +24,14 @@ final class HGMineShelfTests: XCTestCase {
         XCTAssertTrue(app.buttons["hg.footer.repo"].exists, "底部没有仓库链接")
         XCTAssertTrue(app.staticTexts["GuoDuo"].exists)
         shot(app, "mine-footer")
+        // 云端「全部」
+        for _ in 0..<8 { app.swipeDown() }
+        app.buttons["hg.shelf.cloud.all"].tap()
+        XCTAssertTrue(app.navigationBars["红果 App 观看记录"].waitForExistence(timeout: 5))
+        shot(app, "cloud-all")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5)).press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))); sleep(1)
         // 全部
-        for _ in 0..<8 where !app.buttons["hg.shelf.history.all"].isHittable { app.swipeDown() }
+        for _ in 0..<8 where !app.buttons["hg.shelf.history.all"].isHittable { app.swipeUp() }
         app.buttons["hg.shelf.history.all"].tap()
         XCTAssertTrue(app.navigationBars["继续观看"].waitForExistence(timeout: 5))
         shot(app, "mine-all")

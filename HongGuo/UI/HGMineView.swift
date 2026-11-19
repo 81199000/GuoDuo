@@ -62,11 +62,6 @@ struct HGMineView: View {
                     Button("退出") { Task { try? await HGAPI.logout(); await refreshAccount() } }.font(.footnote)
                 }
                 if let cloudError { Text(cloudError).font(.caption).foregroundStyle(HGTheme.textTertiary) }
-                ForEach(cloud.prefix(10)) { r in
-                    Button { Task { await play(r) } } label: {
-                        row(r.series, subtitle: "红果 App 看到第 \(max(1, r.vid_index)) 集")
-                    }
-                }
             } else {
                 Button { showLogin = true } label: {
                     HStack {
@@ -79,6 +74,14 @@ struct HGMineView: View {
             }
         } header: { Text("红果账号") }
         .listRowBackground(HGTheme.surface)
+        // 红果 App 的云端观看记录：一排横滑，点「全部」看完整网格；点卡片从云端进度续播
+        if account?.signedIn == true && !cloud.isEmpty {
+            HGShelfSection(title: "红果 App 观看记录", empty: "", id: "cloud",
+                           items: cloud.map { ($0.series, "看到第 \(max(1, $0.vid_index)) 集") },
+                           tap: { s in if let r = cloud.first(where: { $0.series_id == s.id }) { Task { await play(r) } } }) {
+                HGCloudHistoryScreen(rows: cloud) { r in Task { await play(r) } }
+            }
+        }
     }
 
     private func row(_ s: HGSeries, subtitle: String?) -> some View {
@@ -92,6 +95,18 @@ struct HGMineView: View {
     }
 
     private func refreshAccount() async {
+        #if DEBUG
+        // 测试：假装已登录、云端有 N 条记录（看排版用，不连红果账号）
+        if let n = Int(ProcessInfo.processInfo.environment["HG_DEMO_CLOUD"] ?? ""),
+           let page = try? await HGAPI.browse(.hot, page: 1) {
+            account = HGAccountStatus(signedIn: true, account: HGAccountProfile(id: "demo", nickname: "用户 演示"))
+            cloud = page.results.prefix(n).enumerated().map { i, s in
+                HGCloudHistoryRow(series_id: s.series_id, series_title: s.series_title, cover: s.cover,
+                                  episode_id: "", vid_index: i % 9 + 1, currentTime: 0, total: s.episode_count)
+            }
+            return
+        }
+        #endif
         account = try? await HGAPI.accountStatus()
         guard account?.signedIn == true else { cloud = []; return }
         do { cloud = try await HGAPI.cloudHistory(refresh: false); cloudError = nil }
@@ -170,6 +185,8 @@ struct HGShelfSection<Destination: View>: View {
     let empty: String
     let id: String
     let items: [(HGSeries, String?)]
+    /// 给了就点卡片回调（如云端记录直接续播），不给就推详情页
+    var tap: ((HGSeries) -> Void)? = nil
     @ViewBuilder let all: () -> Destination
     private static var limit: Int { 8 }
 
@@ -181,8 +198,13 @@ struct HGShelfSection<Destination: View>: View {
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 12) {
                         ForEach(items.prefix(Self.limit), id: \.0.id) { s, sub in
-                            NavigationLink(value: s) { HGSeriesCard(series: s, subtitle: sub).frame(width: 96) }
-                                .buttonStyle(.plain)
+                            if let tap {
+                                Button { tap(s) } label: { HGSeriesCard(series: s, subtitle: sub).frame(width: 96) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                NavigationLink(value: s) { HGSeriesCard(series: s, subtitle: sub).frame(width: 96) }
+                                    .buttonStyle(.plain)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -273,5 +295,27 @@ struct HGBrandFooter: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("hg.footer")
+    }
+}
+
+
+/// 红果 App 云端观看记录「全部」页：网格，点了从云端进度续播
+struct HGCloudHistoryScreen: View {
+    let rows: [HGCloudHistoryRow]
+    let play: (HGCloudHistoryRow) -> Void
+    private let columns = [GridItem(.adaptive(minimum: 104, maximum: 180), spacing: 12, alignment: .top)]
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 18) {
+                ForEach(rows) { r in
+                    Button { play(r) } label: { HGSeriesCard(series: r.series, subtitle: "看到第 \(max(1, r.vid_index)) 集") }
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(16)
+        }
+        .background(HGTheme.background)
+        .navigationTitle("红果 App 观看记录")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
