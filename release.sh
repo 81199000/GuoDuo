@@ -29,3 +29,10 @@ if ! gh release view $TAG >/dev/null 2>&1; then
 fi
 for i in 1 2 3; do gh release upload $TAG "$IPA" --clobber && break; echo "上传重试 $i"; sleep 5; done
 echo "✅ 已发布 https://github.com/81199000/GuoDuo/releases/tag/$TAG"
+
+# 全能签 / 轻松签软件源（读刚发的 Release 重新生成）
+python3 scripts/build_sign_source.py
+if [ -n "$(git status --porcelain docs/source)" ]; then
+  git add docs/source && git commit -q -m "chore(源): 软件源更新到 $TAG" && git push -q origin HEAD
+  echo "✅ 软件源 https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo.json"
+fi
