@@ -47,7 +47,6 @@ actor HGMediaCache {
     }
 
     func file(for vid: String, source: HGSource? = nil, progress: (@Sendable (Phase) -> Void)? = nil) async throws -> URL {
-        if let offline = await HGDownloads.shared.localFile(vid) { return offline } // 已离线下载：直接播
         let target = dir.appendingPathComponent("\(vid).mp4")
         if FileManager.default.fileExists(atPath: target.path) { touch(vid); return target }
         if let task = inflight[vid] { return try await task.value }
@@ -86,10 +85,6 @@ actor HGMediaCache {
     }
 
     /// 离线下载复用同一条「取源 → 下载 → 解密」流水线，写到指定位置。
-    nonisolated func fetch(vid: String, to target: URL, progress: (@Sendable (Phase) -> Void)?) async throws {
-        _ = try await prepare(vid: vid, target: target, progress: progress)
-    }
-
     /// 已经下好解密的本地文件（不触发下载）
     func cachedFile(_ vid: String) -> URL? {
         let u = dir.appendingPathComponent("\(vid).mp4")

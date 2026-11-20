@@ -26,9 +26,7 @@
 		64E467E5DCBC4B78E2361A43 /* HGTabletopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */; };
 		67BA49D1C11F6D3651BC89FE /* HGModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCB4AE89C633049C3792826 /* HGModels.swift */; };
 		6916EAB6CA0E9D217FE479D7 /* HGFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4678CF6F59364B77B55B578 /* HGFeedView.swift */; };
-		6D813D79404D333367CA45DF /* HGDownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */; };
 		760087ABF7564DB45D82D71F /* DYDuoLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713E6EDFF2D60896235A2A32 /* DYDuoLayout.swift */; };
-		7E02BE75A1C0B70A44D0D53E /* HGDownloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */; };
 		828EF0ACED39D4092D79971F /* HongGuoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 788133021D40CA13E6BF8B34 /* HongGuoApp.swift */; };
 		850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */; };
 		8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */; };
@@ -103,11 +101,9 @@
 		CBB9B393254B6C5DB1888B84 /* DDMediaRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DDMediaRail.swift; sourceTree = "<group>"; };
 		CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDanmakuEngine.swift; sourceTree = "<group>"; };
 		D308219684BFBD084EDD00CB /* HGUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGUpdateTests.swift; sourceTree = "<group>"; };
-		D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDownloadsView.swift; sourceTree = "<group>"; };
 		D705E7BBE3F47172EC57C783 /* HGStorageRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGStorageRing.swift; sourceTree = "<group>"; };
 		D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDiscoverView.swift; sourceTree = "<group>"; };
 		DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYVideoFit.swift; sourceTree = "<group>"; };
-		DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDownloads.swift; sourceTree = "<group>"; };
 		DD247DF97A9973934B2B0BFF /* HGUpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGUpdateChecker.swift; sourceTree = "<group>"; };
 		E1A08138DB57EA101DA32C4E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E5077CA7284996E39E525152 /* HGFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFlowTests.swift; sourceTree = "<group>"; };
@@ -183,7 +179,6 @@
 			children = (
 				A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */,
 				7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */,
-				DBE833536FBD10E2AF3BE98D /* HGDownloads.swift */,
 				8F6C93B035ABEAD2EB863C24 /* HGKeychain.swift */,
 				B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */,
 				0090B4685D32319D9E2379CC /* HGMediaCache.swift */,
@@ -199,7 +194,6 @@
 			children = (
 				7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */,
 				D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */,
-				D5BD9D6975C617A65AAF43C5 /* HGDownloadsView.swift */,
 				A4678CF6F59364B77B55B578 /* HGFeedView.swift */,
 				B7EA34D56203BB82C3E2F95C /* HGMineView.swift */,
 				20261A567433EA51E32A4681 /* HGTabletop.swift */,
@@ -389,8 +383,6 @@
 				127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */,
 				E0D0C9987C1F9875D390EEC1 /* HGDetailView.swift in Sources */,
 				07BDF6E2CDD207FB701FF6D5 /* HGDiscoverView.swift in Sources */,
-				7E02BE75A1C0B70A44D0D53E /* HGDownloads.swift in Sources */,
-				6D813D79404D333367CA45DF /* HGDownloadsView.swift in Sources */,
 				B9F9F7759CAF97B09EF948EB /* HGEpisodePlayer.swift in Sources */,
 				6916EAB6CA0E9D217FE479D7 /* HGFeedView.swift in Sources */,
 				492C9A670DB13F9C06B7F011 /* HGKeychain.swift in Sources */,
@@ -452,7 +444,6 @@
 				INFOPLIST_FILE = HongGuo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GuoDuo;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把下载好的剧集存到相册";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -478,7 +469,6 @@
 				INFOPLIST_FILE = HongGuo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GuoDuo;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把下载好的剧集存到相册";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -527,7 +517,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -547,7 +537,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 0.6.4;
+				MARKETING_VERSION = 0.6.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -610,7 +600,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 24;
+				CURRENT_PROJECT_VERSION = 25;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -624,7 +614,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 0.6.4;
+				MARKETING_VERSION = 0.6.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

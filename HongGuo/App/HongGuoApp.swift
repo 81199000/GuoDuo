@@ -17,6 +17,8 @@ struct HongGuoApp: App {
         _ = HGCore.shared // 提前加载 JS 核心，首屏请求不再等启动
         // DouDuo 同款：启动后台清掉系统留下的半截下载（滑走时被取消的 CFNetworkDownload_*.tmp）
         DYStorageFiles.cleanLeftoversAtLaunch()
+        // 离线下载功能已下线：清掉老版本留下的离线视频和下载记录
+        DYStorageFiles.removeRetiredOfflineDownloads()
         // 封面 / 头像的图片缓存上限：内存 32MB、磁盘 200MB（系统默认磁盘只有 ~20MB，翻多了会反复重下）
         URLCache.shared = URLCache(memoryCapacity: 32 << 20, diskCapacity: 200 << 20)
     }

@@ -102,24 +102,17 @@ final class HGFlowTests: XCTestCase {
         app.buttons["hg.rail.favorite"].tap()
         XCTAssertEqual(app.otherElements["hg.rail"].value as? String, before, "收藏状态未切回")
 
-        // 退出，下载第 1 集
+        // 退出：离线下载已下线，详情页不应再有「下载」，「我的」里也没有「离线下载」
         app.buttons["hg.player.close"].tap()
-        let dl = app.buttons["hg.detail.download"]
-        XCTAssertTrue(dl.waitForExistence(timeout: 5))
-        dl.tap()
-        app.buttons["hg.episode.1"].tap()
-        app.buttons["hg.detail.download.confirm"].tap()
+        XCTAssertTrue(app.buttons["hg.episode.1"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["hg.detail.download"].exists, "详情页不应再有下载按钮")
+        attach(app, "detail-no-download")
         back(app)
         (app.tabBars.buttons["我的"].exists ? app.tabBars.buttons["我的"] : app.buttons["我的"].firstMatch).tap()
-        let entry = app.buttons["hg.mine.downloads"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 5))
-        entry.tap()
-        let done = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '1/1 集'")).firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 90), "离线下载未完成")
-        attach(app, "downloads")
+        XCTAssertTrue(app.buttons["hg.mine.login"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["hg.mine.downloads"].exists, "「我的」里不应再有离线下载")
 
         // 红果扫码登录：二维码出现即可（确认需要真人手机扫码）
-        back(app)
         app.buttons["hg.mine.login"].tap()
         XCTAssertTrue(app.staticTexts["等待扫码…"].waitForExistence(timeout: 15), "二维码未加载")
         attach(app, "login-qr")
