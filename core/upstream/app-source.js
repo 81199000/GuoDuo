@@ -442,8 +442,9 @@ async function fetchAppPlayUrlFresh(vid, options) {
         let response;
         for (let attempt = 0; attempt < 2; attempt++) {
             throwIfAborted(signal);
-            // Prefer the current API; only an empty response enables one legacy attempt.
-            const signed = playbackRequest(payload, identity, attempt ? '' : vid);
+            // GuoDuo：旧版 multi_video_model/v1 接口已固定回 HTTP 200 空包（2026-11-20 实测 6/6 次全空），
+            // 再走它必然报「空响应」；第二次改用当前接口 + 新注册的匿名设备重试。
+            const signed = playbackRequest(payload, identity, vid);
             if (attempt) signed.headers.Connection = 'close';
             try {
                 try {
@@ -461,7 +462,7 @@ async function fetchAppPlayUrlFresh(vid, options) {
                 throwIfAborted(signal);
                 if (error.code === 'ERR_CANCELED') throw error;
                 if (attempt || error.code !== 'EMPTY_RESPONSE' || deadline - Date.now() < 1000) throw error;
-                // Keep the legacy attempt even when a fresh registration fails.
+                // Keep the second attempt even when a fresh registration fails.
                 if (deadline - Date.now() >= 8000) {
                     try { identity = await registerPlaybackDevice(requestJson, { signal }); }
                     catch (registrationError) {
