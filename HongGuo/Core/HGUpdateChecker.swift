@@ -1,8 +1,8 @@
-// 检查 GitHub 有没有新版本（DouDuo 同款思路），并拉取更新说明。
-// 版本号：读 releases/latest 的 302 跳转（不走 api.github.com，匿名 60 次/小时容易 403），
-//         最终 URL 是 .../releases/tag/vX.Y.Z。
-// 更新说明：优先读仓库里该 tag 下的 docs/releases/vX.Y.Z.md（raw 域名无频率限制，内容随版本走），
-//         读不到再退回 api.github.com 的 release 正文。
+// 检查有没有新版本，并拉取更新说明。
+// 2026-11-20：GitHub 旧号 81199000 被封、Gitee 镜像不对外，更新统一指向自家 oneduo.app：
+// 版本号：读 dl.oneduo.app/guoduo/guoduo.json（Cloudflare R2 上的软件源，发版时同步）的 apps[0].version。
+// 更新说明：读 dl.oneduo.app/guoduo/notes/vX.Y.Z.md，读不到退回软件源里的 versionDescription。
+// 「去更新」打开 oneduo.app。
 import Foundation
 import UIKit
 
@@ -11,17 +11,20 @@ struct HGUpdate: Equatable, Identifiable {
     let tag: String            // v1.0.0
     var notes: String          // Markdown 更新说明，可能为空
     var id: String { tag }
-    var pageURL: URL { URL(string: "https://github.com/\(HGUpdateChecker.repo)/releases/tag/\(tag)")! }
+    var pageURL: URL { HGUpdateChecker.updatePage }
 }
 
 enum HGUpdateChecker {
-    static let repo = "81199000/GuoDuo"
+    static let repo = "WuWeiDuo/GuoDuo"
+    /// 自家分发（Cloudflare R2 + 一键签官网）
+    static let distBase = "https://dl.oneduo.app/guoduo"
+    static let updatePage = URL(string: "https://oneduo.app/")!
     /// 上游取源核心（GPL-3.0），「关于」里注明出处
     static let upstreamRepo = "jackotom/hongguo-drama"
     static let dismissedKey = "hg.update.dismissed.v1"
 
     static var repoURL: URL { URL(string: "https://github.com/\(repo)")! }
-    static var releasesURL: URL { URL(string: "https://github.com/\(repo)/releases")! }
+    static var releasesURL: URL { updatePage }
     static var upstreamURL: URL { URL(string: "https://github.com/\(upstreamRepo)")! }
 
     static var currentVersion: String {
@@ -41,7 +44,7 @@ enum HGUpdateChecker {
         case network, noRelease
         var errorDescription: String? {
             switch self {
-            case .network: "连不上 GitHub，请检查网络后重试"
+            case .network: "连不上更新服务器，请检查网络后重试"
             case .noRelease: "仓库还没有发布过版本"
             }
         }
@@ -78,38 +81,30 @@ enum HGUpdateChecker {
             """)
         }
         #endif
-        guard let url = URL(string: "https://github.com/\(repo)/releases/latest") else { throw Failure.network }
-        let resp: URLResponse
-        do { (_, resp) = try await session.data(for: request(url)) } catch { throw Failure.network }
-        guard let final = (resp as? HTTPURLResponse)?.url else { throw Failure.network }
-        // 没发过 release 会停在 /releases 或 404（私有仓也是 404）
-        let comps = final.pathComponents
-        guard let idx = comps.firstIndex(of: "tag"), idx + 1 < comps.count else { throw Failure.noRelease }
-        let tag = comps[idx + 1]
-        let ver = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-        guard !ver.isEmpty else { throw Failure.noRelease }
-        return HGUpdate(version: ver, tag: tag, notes: await notes(for: tag))
+        guard let url = URL(string: "\(distBase)/guoduo.json") else { throw Failure.network }
+        let data: Data
+        do {
+            let (d, resp) = try await session.data(for: request(url))
+            guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw Failure.network }
+            data = d
+        } catch { throw Failure.network }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let app = (obj["apps"] as? [[String: Any]])?.first,
+              let ver = app["version"] as? String, ver.first?.isNumber == true else { throw Failure.noRelease }
+        let tag = "v" + ver
+        let fallback = app["versionDescription"] as? String ?? ""
+        return HGUpdate(version: ver, tag: tag, notes: await notes(for: tag, fallback: fallback))
     }
 
-    /// 更新说明：仓库 docs/releases/<tag>.md → 退回 Release 正文 → 空
-    static func notes(for tag: String) async -> String {
-        if let url = URL(string: "https://raw.githubusercontent.com/\(repo)/\(tag)/docs/releases/\(tag).md"),
+    /// 更新说明：dl.oneduo.app 上的 docs/releases/<tag>.md → 软件源里的纯文本说明
+    static func notes(for tag: String, fallback: String = "") async -> String {
+        if let url = URL(string: "\(distBase)/notes/\(tag).md"),
            let (data, resp) = try? await session.data(for: request(url)),
            (resp as? HTTPURLResponse)?.statusCode == 200,
-           let s = String(data: data, encoding: .utf8), !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+           let s = String(data: data, encoding: .utf8), s.hasPrefix("#") {
             return s
         }
-        if let url = URL(string: "https://api.github.com/repos/\(repo)/releases/tags/\(tag)") {
-            var req = request(url)
-            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-            if let (data, resp) = try? await session.data(for: req),
-               (resp as? HTTPURLResponse)?.statusCode == 200,
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let body = obj["body"] as? String {
-                return body
-            }
-        }
-        return ""
+        return fallback
     }
 
     /// 远端版本比本机新？

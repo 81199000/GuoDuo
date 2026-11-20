@@ -51,7 +51,7 @@ struct HGUpdateSheet: View {
             Button {
                 onClose(); dismiss(); openURL(update.pageURL)
             } label: {
-                Text("去 GitHub 下载").fontWeight(.semibold).frame(maxWidth: .infinity).padding(.vertical, 6)
+                Text("去 oneduo.app 更新").fontWeight(.semibold).frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent).tint(HGTheme.accent)
             .accessibilityIdentifier("hg.update.open")
