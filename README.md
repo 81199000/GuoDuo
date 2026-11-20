@@ -130,15 +130,16 @@ xcodebuild -project HongGuo.xcodeproj -scheme HongGuo -destination 'generic/plat
 
 ## 同步上游
 
-上游更新不会自动进 GuoDuo，需要手动同步、重新发版：
+上游 jackotom/hongguo-drama 更新由脚本自动同步：
 
 ```sh
-U=/path/to/hongguo-drama
-for f in app-source hongguo-app-catalog hongguo-app-search playback-device playback-signature playback-v5 sm3 request-signal download-quality; do cp $U/src/native/$f.js core/upstream/; done
-cd core && npm install && node build.cjs
+python3 scripts/upstream_sync.py --check   # 只看上游有没有更新、改了哪些我们用的文件
+python3 scripts/upstream_sync.py           # 同步 → 打本地补丁 → 构建核心 → 实测取源 → 本地提交
 ```
 
-同步后更新 `core/UPSTREAM_COMMIT`。注意 `core/upstream/app-source.js` 有一处本地改动（`auto` 画质也带回宽高，搜 `GuoDuo：` 注释），覆盖后要补回。
+- 用到的上游文件和本地改动都登记在脚本里的 `FILES` / `PATCHES`。改了上游文件的本地写法，**必须同步登记到 `PATCHES`**，否则下次同步会被上游原文覆盖。
+- 补丁打不上（上游改到同一处）或实测取源成功率低于 80%，脚本自动还原、不提交，交给人看。
+- `scripts/upstream_watch.sh` 由 launchd 每小时跑一次：有更新就同步 + 实测 + 提交，结果通知维护者；加 `--release` 则实测通过后直接发版。
 
 ## 发版（维护者）
 
