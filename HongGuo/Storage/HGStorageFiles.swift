@@ -10,6 +10,23 @@ actor DYStorageFiles {
         .appendingPathComponent("hg-video-work", isDirectory: true)
 
     static let offlineDirectoryName = "Downloads"
+    /// 离线下载功能已下线（0.6.5）：后台删掉老版本存的整部剧明文 MP4 和下载索引，只跑一次
+    static func removeRetiredOfflineDownloads() {
+        let key = "hg.offlineRetired.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        Task.detached(priority: .utility) {
+            let fm = FileManager.default
+            let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            try? fm.removeItem(at: base.appendingPathComponent(offlineDirectoryName, isDirectory: true))
+            try? fm.removeItem(at: base.appendingPathComponent("downloads.json"))
+            let tmp = fm.temporaryDirectory
+            try? fm.removeItem(at: tmp.appendingPathComponent(offlineWorkDirectoryName, isDirectory: true))
+            for f in (try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)) ?? [] where f.pathExtension == "mp4" {
+                try? fm.removeItem(at: f)   // 以前「合并」导出的整部剧
+            }
+        }
+    }
     static let offlineWorkDirectoryName = "hg-offline-work"
     static let videoCacheDirectoryName = "episodes"
 

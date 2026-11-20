@@ -4,7 +4,6 @@ import SwiftUI
 /// 清理范围：在线播放的整集缓存、半截下载、封面图片缓存；保留离线下载的视频。
 
 struct DYStorageScreen: View {
-    @State private var downloads = HGDownloads.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var usage: DYStorageFiles.Usage?
@@ -73,9 +72,6 @@ struct DYStorageScreen: View {
                 await clear()
             }
             #endif
-        }
-        .onChange(of: downloads.storageRevision) { _, _ in
-            Task { await refresh() }
         }
         .refreshable { await refresh() }
         .alert("清理缓存？", isPresented: $confirming) {
@@ -187,17 +183,13 @@ struct DYStorageScreen: View {
     }
 
     private func updateUsage() async {
-        while !Task.isCancelled {
-            let revision = downloads.storageRevision
-            do {
-                usage = try await DYStorageFiles.shared.scan()
-                scanFailed = false
-            } catch is CancellationError {
-                return
-            } catch {
-                scanFailed = true
-            }
-            if revision == downloads.storageRevision { return }
+        do {
+            usage = try await DYStorageFiles.shared.scan()
+            scanFailed = false
+        } catch is CancellationError {
+            return
+        } catch {
+            scanFailed = true
         }
     }
 

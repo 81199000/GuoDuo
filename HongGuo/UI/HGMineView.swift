@@ -2,7 +2,6 @@ import SwiftUI
 
 struct HGMineView: View {
     @State private var library = HGLibrary.shared
-    @State private var downloads = HGDownloads.shared
     @State private var account: HGAccountStatus?
     @State private var cloud: [HGCloudHistoryRow] = []
     @State private var cloudError: String?
@@ -23,15 +22,6 @@ struct HGMineView: View {
                 HGSeriesListScreen(title: "收藏", kind: .favorites)
             }
             Section {
-                NavigationLink { HGDownloadsView() } label: {
-                    HStack {
-                        Label("离线下载", systemImage: "arrow.down.circle")
-                        Spacer()
-                        let n = downloads.all.reduce(0) { $0 + $1.doneCount }
-                        if n > 0 { Text("\(n) 集").foregroundStyle(HGTheme.textSecondary) }
-                    }
-                }
-                .accessibilityIdentifier("hg.mine.downloads")
                 NavigationLink { DYStorageScreen() } label: {
                     Label("储存空间", systemImage: "internaldrive")
                 }

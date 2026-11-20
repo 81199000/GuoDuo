@@ -17,6 +17,8 @@ final class HGMineShelfTests: XCTestCase {
         XCTAssertTrue(app.buttons["hg.shelf.cloud.all"].exists)
         let shelf = app.descendants(matching: .any)["hg.shelf.history"].firstMatch
         XCTAssertTrue(shelf.waitForExistence(timeout: 10), "继续观看没有变成横排")
+        XCTAssertFalse(app.buttons["hg.mine.downloads"].exists, "「我的」里不应再有离线下载")
+        XCTAssertFalse(app.staticTexts["离线下载"].exists, "「我的」里不应再有离线下载")
         shot(app, "mine-top")
         // 底部
         for _ in 0..<6 { app.swipeUp() }
