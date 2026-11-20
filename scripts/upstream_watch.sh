@@ -26,8 +26,11 @@ case $RC in
       NEW=$(echo $OLD | awk -F. '{printf "%d.%d.%d", $1, $2, $3+1}')
       BUILD=$(grep -E '^ +CURRENT_PROJECT_VERSION:' project.yml | head -1 | grep -oE '[0-9]+')
       sed -i '' -E "s/^( +)MARKETING_VERSION: $OLD\$/\1MARKETING_VERSION: $NEW/; s/^( +)CURRENT_PROJECT_VERSION: \"$BUILD\"\$/\1CURRENT_PROJECT_VERSION: \"$((BUILD+1))\"/" project.yml
-      UP=$(git log -1 --format=%s | sed -E 's/^fix\(取源\): //')
-      printf "# GuoDuo %s\n\n## 修复\n- 同步上游取源核心：%s\n" "$NEW" "$UP" > docs/releases/v$NEW.md
+      # 给用户看的更新说明（一键签「更新内容」会显示）：不贴上游英文提交，写人话
+      UPC=$(awk '{print $2}' core/UPSTREAM_COMMIT)
+      UPV=$(git -C "${HG_UPSTREAM_DIR:-$HOME/.cache/guoduo/hongguo-drama}" log --format=%s -30 "$UPC" 2>/dev/null | grep -m1 -oE '^release: [0-9]+\.[0-9]+(\.[0-9]+)?' | awk '{print $2}')
+      printf "# GuoDuo %s\n\n## 修复\n- 红果接口有变动，同步了上游取源核心%s的修复，解决部分剧集取不到片源、播放失败的问题。\n" \
+        "$NEW" "${UPV:+（hongguo-drama $UPV）}" > docs/releases/v$NEW.md
       xcodegen generate >/dev/null
       git add project.yml HongGuo.xcodeproj docs/releases/v$NEW.md && git commit -qm "release: GuoDuo $NEW（自动同步上游）" && git push -q origin main
       if ./release.sh >> "$LOG" 2>&1; then
