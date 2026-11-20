@@ -20,7 +20,7 @@ import subprocess
 import sys
 import urllib.request
 
-GH_REPO = "81199000/GuoDuo"
+GH_REPO = "WuWeiDuo/GuoDuo"
 GITEE_REPO = "remon8/guoduo"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / "docs/source"
