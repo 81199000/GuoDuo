@@ -6,7 +6,9 @@
 
 <p align="center">原生 SwiftUI 的红果短剧客户端，适配 iPhone Duo 折叠屏、iPad 与普通 iPhone。开源免费，非官方。</p>
 
-红果短剧官方 App 在折叠屏内屏、iPad 上不适配，所以有了它。界面和播放全部原生（SwiftUI + AVPlayer），取源核心用 JavaScriptCore 运行上游 [jackotom/hongguo-drama](https://github.com/jackotom/hongguo-drama)（GPL-3.0）。播放器手势、弹幕、折叠屏布局沿用姊妹项目 [DouDuo](https://github.com/81199000/DouDuo)。
+红果短剧官方 App 在折叠屏内屏、iPad 上不适配，所以有了它。界面和播放全部原生（SwiftUI + AVPlayer），取源核心用 JavaScriptCore 运行上游 [jackotom/hongguo-drama](https://github.com/jackotom/hongguo-drama)（GPL-3.0）。播放器手势、弹幕、折叠屏布局沿用姊妹项目 [DouDuo](https://github.com/WuWeiDuo/DouDuo)。
+
+> ⭐ **点个 Star，再关注 [@WuWeiDuo](https://github.com/WuWeiDuo)，避免走失。** 原 GitHub 账号 81199000 已停用，项目搬到了这里：<https://github.com/WuWeiDuo/GuoDuo>。官网 **[oneduo.app](https://oneduo.app)** 是长期固定入口，以后仓库再搬家也能从官网找到。
 
 ## 功能
 
@@ -31,9 +33,9 @@
 **我的**
 - 继续观看、收藏：外面一排，点「全部」看完整列表
 - 扫码登录红果账号同步云端观看记录、储存空间管理
-- 检查更新：启动时自动检查 GitHub 新版本并显示更新内容
+- 检查更新：启动时自动检查新版本（oneduo.app）并显示更新内容
 
-每个版本的改动见 [更新说明](docs/releases/) 或 [GitHub Releases](https://github.com/81199000/GuoDuo/releases)。
+每个版本的改动见 [更新说明](docs/releases/) 或 [GitHub Releases](https://github.com/WuWeiDuo/GuoDuo/releases)。
 
 ## 下载安装
 
@@ -48,11 +50,11 @@
 
 ### 方式一：一键签（免费，自动续签）
 
-1. 下载 [一键签](https://github.com/81199000/OneDuo/releases/latest)（Windows / Mac）
+1. 到官网 **[oneduo.app](https://oneduo.app)** 下载 [一键签](https://oneduo.app/#download)（Windows / Mac）
 2. 数据线连手机，在一键签里选 **GuoDuo**，点 **一键安装**
 3. 手机上 **设置 → 通用 → VPN 与设备管理** 信任你的 Apple ID
 
-详细步骤见 [一键签使用教程](https://github.com/81199000/OneDuo#使用教程)。
+详细步骤见 [一键签使用教程](https://github.com/WuWeiDuo/OneDuo#使用教程)。
 
 > 更新也在一键签里完成：有新版会自动装上，观看记录和收藏会保留。
 
@@ -93,8 +95,8 @@
 
 | 软件源 | 地址 |
 | --- | --- |
-| 国内（Gitee） | `https://gitee.com/remon8/guoduo/raw/main/docs/source/guoduo.json` |
-| 海外（GitHub） | `https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo-github.json` |
+| 官方源（推荐，国内可用） | `https://dl.oneduo.app/guoduo/guoduo.json` |
+| GitHub | `https://raw.githubusercontent.com/WuWeiDuo/GuoDuo/main/docs/source/guoduo-github.json` |
 
 在源里点 GuoDuo → 下载 → **资源 → App** 里点它 → **签名** → **安装**。以后有新版，在源里下拉刷新再装一次，会覆盖旧版，观看记录和收藏保留。
 
@@ -112,7 +114,7 @@
 需要 Xcode 26 以上、Node.js 和 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。
 
 ```sh
-git clone https://github.com/81199000/GuoDuo.git && cd GuoDuo
+git clone https://github.com/WuWeiDuo/GuoDuo.git && cd GuoDuo
 brew install xcodegen
 cd core && npm ci && node build.cjs && cd ..
 xcodegen generate
@@ -126,7 +128,7 @@ xcodebuild -project HongGuo.xcodeproj -scheme HongGuo -destination 'generic/plat
 - `core/entry.js`：导出 `HG.browse / search / episodes / source` 给 Swift
 - `HongGuo/Core/HGCore.swift`：JSContext 宿主 + Native.*（网络、AES、摘要、gzip、计时器）
 - `HongGuo/Core/HGCencDecryptor.swift`：CENC AES-CTR MP4 解密，对照上游 `decryptMp4Buffer` 逐字节一致
-- `HongGuo/Player`、`HongGuo/Storage`：播放器手势、弹幕、环境光、储存管理，改自 [DouDuo](https://github.com/81199000/DouDuo)（MIT）
+- `HongGuo/Player`、`HongGuo/Storage`：播放器手势、弹幕、环境光、储存管理，改自 [DouDuo](https://github.com/WuWeiDuo/DouDuo)（MIT）
 
 ## 同步上游
 
@@ -145,12 +147,12 @@ python3 scripts/upstream_sync.py           # 同步 → 打本地补丁 → 构�
 
 1. 升 `project.yml` 的 `MARKETING_VERSION`
 2. 写 `docs/releases/v<版本>.md`（App 内更新弹窗直接显示它的内容）
-3. 提交并推送后运行 `./release.sh`：编译未签名 IPA，发布 GitHub Release
+3. 提交并推送后运行 `./release.sh`：编译未签名 IPA，发布 GitHub Release，并同步 oneduo.app 软件源
 
 ## 致谢与许可
 
 - 取源核心：[jackotom/hongguo-drama](https://github.com/jackotom/hongguo-drama)（GPL-3.0）及其上游 woshishiq1/drpys、N3urda/hongguoTV、tsukiyo-zero/hongguoTV、charlie901208/HGTV 等贡献者，详见 [NOTICE](NOTICE) 与各文件头部
-- 播放器与折叠屏布局：[DouDuo](https://github.com/81199000/DouDuo)（MIT）
+- 播放器与折叠屏布局：[DouDuo](https://github.com/WuWeiDuo/DouDuo)（MIT）
 - 本项目以 [GPL-3.0](LICENSE) 协议开源；你可以自由使用、修改和再分发，但衍生作品同样须以 GPL-3.0 开源
 
 ## 免责声明
@@ -159,4 +161,4 @@ python3 scripts/upstream_sync.py           # 同步 → 打本地补丁 → 构�
 
 GuoDuo 是非官方客户端，与红果短剧 / 字节跳动、西饭、河马及任何内容方**没有任何隶属、合作或授权关系**，不存储、不提供任何视频内容，片源均来自各平台接口。接口未公开，随时可能失效；不支持 ByteVC2 编码的集数。仅供个人学习研究使用，请勿用于商业用途或传播，所有商标归各自权利人所有。
 
-仓库和软件源只提供**未签名 IPA**，由使用者用 [一键签](https://github.com/81199000/OneDuo)（自己的 Apple ID）或自备证书签名安装。本项目**不出售、不提供任何证书**，与全能签及各证书卖家无合作关系；证书来源、掉签等风险由使用者自行判断。请勿分发已签名安装包。
+仓库和软件源只提供**未签名 IPA**，由使用者用 [一键签](https://oneduo.app)（自己的 Apple ID）或自备证书签名安装。本项目**不出售、不提供任何证书**，与全能签及各证书卖家无合作关系；证书来源、掉签等风险由使用者自行判断。请勿分发已签名安装包。
