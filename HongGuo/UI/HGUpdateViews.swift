@@ -14,12 +14,12 @@ struct HGUpdateSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     if update.notes.isEmpty {
-                        Text("这个版本没有写更新说明，可以去 GitHub 发布页查看。")
+                        Text("这个版本没有写更新说明。")
                             .font(.subheadline).foregroundStyle(HGTheme.textSecondary)
                     } else {
                         HGMarkdownView(markdown: update.notes)
                     }
-                    Text("打开电脑上的一键签就会自动装上新版，观看记录和收藏会保留。")
+                    Text("打开电脑上的一键签就会自动装上新版，观看记录和收藏会保留。还没装一键签的点下面按钮去 oneduo.app 下载。")
                         .font(.footnote).foregroundStyle(HGTheme.textTertiary)
                         .padding(.top, 4)
                 }
@@ -51,7 +51,7 @@ struct HGUpdateSheet: View {
             Button {
                 onClose(); dismiss(); openURL(update.pageURL)
             } label: {
-                Text("去 oneduo.app 更新").fontWeight(.semibold).frame(maxWidth: .infinity).padding(.vertical, 6)
+                Text("去一键签更新").fontWeight(.semibold).frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent).tint(HGTheme.accent)
             .accessibilityIdentifier("hg.update.open")
