@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """把 GuoDuo 的软件源 / 安装包 / 更新说明同步到 Cloudflare R2（dl.oneduo.app），App 内检查更新读这里。
 
-2026-11-20 起 GuoDuo 的更新统一指向自家 oneduo.app（GitHub 旧号被封、Gitee 镜像不对外）。
+2026-11-20 起 GuoDuo 的更新统一指向自家 oneduo.app（Gitee 镜像不对外）。
   python3 scripts/sync_r2.py            # 发版后跑：读 docs/source/guoduo.json，上传 build/ 里有的 IPA，
                                         # 生成下载地址指向 R2 的源副本，并上传 docs/releases/*.md
 R2 布局（与一键签 py/packaging/r2_sync.py 一致）：

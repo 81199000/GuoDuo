@@ -28,7 +28,7 @@ if ! gh release view $TAG >/dev/null 2>&1; then
   gh release create $TAG --target "$(git rev-parse HEAD)" --title "GuoDuo $VER" --notes-file "$NOTES"
 fi
 for i in 1 2 3; do gh release upload $TAG "$IPA" --clobber && break; echo "上传重试 $i"; sleep 5; done
-echo "✅ 已发布 https://github.com/WuWeiDuo/GuoDuo/releases/tag/$TAG（私有）"
+echo "✅ 已发布 https://github.com/81199000/GuoDuo/releases/tag/$TAG（私有）"
 
 # Gitee 镜像：代码 + tag + 发行版（没配 gitee 远端就跳过，国内源回落 GitHub）
 if git remote get-url gitee >/dev/null 2>&1; then
@@ -45,7 +45,7 @@ if [ -n "$(git status --porcelain docs/source)" ]; then
   git add docs/source && git commit -q -m "chore(源): 软件源更新到 $TAG" && git push -q origin HEAD
   git remote get-url gitee >/dev/null 2>&1 && { git push -q gitee HEAD:main 2>&1 | grep -v 'GITEE\|trace' || true; }
   echo "✅ 软件源 国内 https://gitee.com/remon8/guoduo/raw/main/docs/source/guoduo.json"
-  echo "         海外 https://raw.githubusercontent.com/WuWeiDuo/GuoDuo/main/docs/source/guoduo-github.json"
+  echo "         海外 https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/source/guoduo-github.json"
 fi
 # 验收：App 内更新检查读这里
 LATEST=$(curl -s -H 'Cache-Control: no-cache' "https://dl.oneduo.app/guoduo/guoduo.json?t=$(date +%s)" | python3 -c "import sys,json;print(json.load(sys.stdin)['apps'][0]['version'])")

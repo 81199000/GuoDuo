@@ -1,5 +1,5 @@
 // 检查有没有新版本，并拉取更新说明。
-// 2026-11-20：GitHub 旧号 81199000 被封（新号 WuWeiDuo/GuoDuo 已公开）、Gitee 镜像不对外，更新统一指向自家 oneduo.app：
+// GitHub 仓库 81199000/GuoDuo（公开）；Gitee 镜像不对外，更新统一指向自家 oneduo.app：
 // 版本号：读 dl.oneduo.app/guoduo/guoduo.json（Cloudflare R2 上的软件源，发版时同步）的 apps[0].version。
 // 更新说明：读 dl.oneduo.app/guoduo/notes/vX.Y.Z.md，读不到退回软件源里的 versionDescription。
 // 更新方式：打开电脑上的一键签（GuoDuo 在一键签应用列表里，开着一键签会自动装新版）；
@@ -16,7 +16,7 @@ struct HGUpdate: Equatable, Identifiable {
 }
 
 enum HGUpdateChecker {
-    static let repo = "WuWeiDuo/GuoDuo"
+    static let repo = "81199000/GuoDuo"
     /// 自家分发（Cloudflare R2 + 一键签官网）
     static let distBase = "https://dl.oneduo.app/guoduo"
     static let updatePage = URL(string: "https://oneduo.app/")!

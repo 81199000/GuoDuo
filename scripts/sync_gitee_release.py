@@ -8,7 +8,7 @@
 """
 import json, pathlib, subprocess, sys, tempfile, urllib.error, urllib.request, uuid
 
-GH = "WuWeiDuo/GuoDuo"
+GH = "81199000/GuoDuo"
 API = "https://gitee.com/api/v5/repos/remon8/guoduo"
 TOK = json.loads((pathlib.Path.home() / ".config/gitee_token.json").read_text())["access_token"]
 
