@@ -476,14 +476,15 @@ struct HGPlayerScreen: View {
         cells += [50, 36]
         var natural = cells.reduce(0, +) + CGFloat(max(0, cells.count - 1)) * DDMedia.actionItemSpacing + 16
         natural += DDMedia.actionGroupSpacing + 50
-        if backOnRail { natural += 50 + DDMedia.actionGroupSpacing }
+        if backOnRail { natural += railCapsuleWidth + DDMedia.actionGroupSpacing }
         // 栏下面固定要留的：进度条那 36 + 底部安全区；
         // 栏上面要躲开右上角的信号 / 时间圈：顶部安全区再加 16pt 间隙（外屏的信号圈比安全区还往下伸）
         let below = max(safeBottom, 18) + 36
         let above = max(safeTop, 12) + statusClearance
         let room = window.height - below - above
-        guard window.height > 0 else { return (56, 1) }
-        if room >= natural + 56 { return (56, 1) }
+        // 栏底空白 36（原 DouDuo 56；老板 2026-11-25：整列再往下一点，别贴着信号圈）
+        guard window.height > 0 else { return (36, 1) }
+        if room >= natural + 36 { return (36, 1) }
         let bottom = max(8, room - natural)
         let scale = min(1, max(0.6, (room - bottom) / natural))
         return (bottom, scale)
@@ -495,6 +496,9 @@ struct HGPlayerScreen: View {
             .filter { $0.activationState == .foregroundActive }
             .flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.right ?? 0
     }
+
+    /// 胶囊宽度（DDActionRail：外屏 50 / 展开 54）
+    private var railCapsuleWidth: CGFloat { hSize == .compact ? DDMedia.railWidthCompact : DDMedia.railWidthRegular }
 
     private var outerPortrait: Bool {
         guard DYDuoMetrics.isDuoHardware,
@@ -511,9 +515,9 @@ struct HGPlayerScreen: View {
         if minimal { ringBackButton } else {
             Button { goBack() } label: {
                 Image(systemName: "chevron.backward")
-                    .font(.title2.weight(.medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
+                    .frame(width: railCapsuleWidth, height: railCapsuleWidth)
                     .contentShape(Circle())
                     .ddMediaGlassCircle()
             }
@@ -527,14 +531,15 @@ struct HGPlayerScreen: View {
     /// 极简返回键：DouDuo 极简入口同款——外圈是视频进度（环 50pt、线宽 3.2、底轨 22%，12 点顺时针，拖进度变粗）；
     /// 单击返回，按住显示标题、松手消失
     private var ringBackButton: some View {
-        let d: CGFloat = 50, lw: CGFloat = 3.2
+        // 外径跟下面胶囊同宽（老板 2026-11-25：返回键进度条宽度跟胶囊一致）
+        let d: CGFloat = railCapsuleWidth, lw: CGFloat = 3
         let pos = seeking ? seekPreview : session.position
         let frac = session.duration > 0 ? min(1, max(0, pos / session.duration)) : 0
         return ZStack {
             Image(systemName: "chevron.backward")
-                .font(.system(size: 20, weight: .medium))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.white)
-                .frame(width: d - 8, height: d - 8)
+                .frame(width: d - lw * 2, height: d - lw * 2)
                 .ddMediaGlassCircle()
             Circle().stroke(.white.opacity(0.22), lineWidth: lw).padding(lw / 2)
             Circle()
