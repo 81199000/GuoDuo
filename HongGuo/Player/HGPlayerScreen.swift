@@ -464,7 +464,8 @@ struct HGPlayerScreen: View {
         guard DYDuoMetrics.isDuoHardware,
               let w = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size,
               w.width < 600 else { return 16 }
-        return w.width < w.height ? 156 : 16
+        // 老板 11-25 截图：信号圈下缘 ≈159pt，栏顶 168 只空 9pt 太挤 → 栏顶压到 192（空 ~33pt）
+        return w.width < w.height ? 180 : 16
     }
 
     /// 菜单栏整列的自然高度（DDActionRail 的数值：每格有字 50 / 无字 36，格距 9，胶囊上下 8，胶囊到「更多」12，「更多」50）

@@ -13,6 +13,7 @@
 		115DE648C4BA61CAE4FB65FE /* HGPlayerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */; };
 		127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */; };
 		142E749D3D81D1304CC2CD02 /* HGUpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD247DF97A9973934B2B0BFF /* HGUpdateChecker.swift */; };
+		19FC9B42D5463244E12BAF0A /* HGRailMeasure.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */; };
 		1DE989258E72ED5BFD0C9F78 /* hgcore.js in Resources */ = {isa = PBXBuildFile; fileRef = 536D20075F82248682811BB9 /* hgcore.js */; };
 		213C1C18EB8F4FFB719BFE8A /* HGPlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */; };
 		2C7AF9B5F466D880B5605510 /* HGUpdateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D308219684BFBD084EDD00CB /* HGUpdateTests.swift */; };
@@ -106,6 +107,7 @@
 		98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTabletopTests.swift; sourceTree = "<group>"; };
 		A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCencDecryptor.swift; sourceTree = "<group>"; };
 		A4678CF6F59364B77B55B578 /* HGFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFeedView.swift; sourceTree = "<group>"; };
+		AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGRailMeasure.swift; sourceTree = "<group>"; };
 		B7EA34D56203BB82C3E2F95C /* HGMineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMineView.swift; sourceTree = "<group>"; };
 		B8A47294DDC1661DBE333D4F /* HongGuoUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HongGuoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8A74B9EC6CD10FCA8D71AD1 /* HongGuo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HongGuo.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -183,6 +185,7 @@
 				5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */,
 				94E0D00CA110AAFF7DF6B466 /* HGMineShelfTests.swift */,
 				734656AB064DDD880E3510F9 /* HGPostureTests.swift */,
+				AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */,
 				2DC3F9242FACD60B82125A86 /* HGSwipeTiming.swift */,
 				8A8E37298163958332DBE2E7 /* HGTabletopSwipeTests.swift */,
 				98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */,
@@ -380,6 +383,7 @@
 				E47899B4BDDC29D228EE4842 /* HGLandscapeShot.swift in Sources */,
 				B561F5F63197372870E0DA18 /* HGMineShelfTests.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,
+				19FC9B42D5463244E12BAF0A /* HGRailMeasure.swift in Sources */,
 				7DBC9E95A4F4B7FD4D9EFE2D /* HGSwipeTiming.swift in Sources */,
 				FF4A8D0069FB91E8A6E12AAF /* HGTabletopSwipeTests.swift in Sources */,
 				64E467E5DCBC4B78E2361A43 /* HGTabletopTests.swift in Sources */,
