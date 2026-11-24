@@ -426,7 +426,8 @@ struct HGPlayerScreen: View {
                     rail
                 }
                 // DouDuo 默认模式同款：先按系统右侧栏（横屏状态栏列）让位，再按遮挡区（外屏摄像头）微调
-                .offset(x: DYDuoMetrics.actionRailHorizontalOffset(
+                // Duo：外屏 / 展开一律按外屏的位置——栏中线离屏幕物理右缘 48.2pt，对齐右上信号圈（老板 2026-11-25：展开要跟外屏一样）
+                .offset(x: DYDuoMetrics.isDuoHardware ? 0 : DYDuoMetrics.actionRailHorizontalOffset(
                     isRegular: hSize == .regular, trailingInset: systemColumnInset,
                     columnWidth: DDMedia.actionColumnWidth, outerPadding: DDMedia.chromeSidePadding))
                 .scaleEffect(fit.scale, anchor: .bottomTrailing)
@@ -437,7 +438,10 @@ struct HGPlayerScreen: View {
                         if abs(raw - railTopY) > 1 { railTopY = raw }
                     }
                 })
-                .offset(x: hSize == .compact ? -9 : 0, y: push)
+                .offset(x: DYDuoMetrics.isDuoHardware ? -(HGSideTabRail.centerFromEdge - DDMedia.chromeSidePadding - DDMedia.actionColumnWidth / 2)
+                           : (hSize == .compact ? -9 : 0), y: push)
+                // Duo 展开也用外屏的栏宽 / 图标大小（高度、宽度跟外屏一致）
+                .environment(\.horizontalSizeClass, DYDuoMetrics.isDuoHardware ? .compact : hSize)
                 .onChange(of: push, initial: true) { _, p in railPush = p }
                 .padding(.bottom, fit.bottom)
             }
