@@ -20,7 +20,16 @@ final class HGFeedModel {
     }
 
     /// 当前这部后面始终备好几部（本地文件）。没有数量门槛、不分横竖，推荐键一直能点
-    static let ahead = 5
+    /// （真机：5 部 + 一部一部串行下，一秒一划十几部就追上、卡住等下载；改 8 部 + 3 路并行）
+    static let ahead = 8
+    /// 同时备几部（取详情 → 取源 → 下载解密）
+    static let parallel = 4
+    /// 单部下载超过这么久就先跳过换下一部（真机/模拟器实测：多数 0.4~2 秒，个别 CDN 节点 20~40 秒，会把补货堵死）
+    static let slowLimit: Duration = .seconds(8)
+    /// 正在备的剧（并行时别重复备同一部）
+    private var preparing = Set<String>()
+    /// 下载慢被跳过的：过一会儿再排回剧池（多半已在后台下完，秒进）
+    private var slowSkipped: [HGSeries] = []
     /// 推荐列表：下好的都在这里（看过的也留着，划回去还能看）
     private(set) var items: [Item] = []
     private(set) var wantLandscape = false
@@ -108,38 +117,71 @@ final class HGFeedModel {
         // 登录 / 退出了：推荐流从头来（换成新账号的推荐）
         let nowSignedIn = (try? await HGAPI.accountStatus())?.signedIn == true
         if nowSignedIn != signedIn || !checkedAccount {
-            let justSignedIn = checkedAccount && nowSignedIn && !signedIn
             checkedAccount = true
             signedIn = nowSignedIn
+            // 已备好的存货不丢（丢了就得现下、划几部就卡住）；账号推荐接在后面
             forYouPool = []; forYouOffset = 0; forYouSession = ""; forYouFails = 0; forYouDown = false
-            // 用着用着刚登录：后面还没划到的存货是片库随机的，丢掉换成账号推荐（当前这部和已预热的下一部留着）
-            if justSignedIn && items.count > consumed + 2 {
-                items = Array(items.prefix(consumed + 2))
-                persist()
-            }
         }
-        while stockAhead < Self.ahead {
-            guard let s = await nextCandidate() else {
-                if round == 0 { round = 1; poolSeen = []; pool = []; nextPage = [:]; exhausted = []; continue }
-                break
+        // 最多 parallel 部同时备；哪部先下完先进列表
+        await withTaskGroup(of: (String, Item?).self) { group in
+            var running = 0
+            var drained = false
+            while true {
+                while !drained && running < Self.parallel && stockAhead + running < Self.ahead {
+                    guard let s = await nextCandidate() else {
+                        if running == 0 {
+                            if round == 0 { round = 1; poolSeen = []; pool = []; nextPage = [:]; exhausted = []; continue }
+                            drained = true
+                        }
+                        break
+                    }
+                    if inStock(s.series_id) || preparing.contains(s.series_id) { continue }
+                    preparing.insert(s.series_id)
+                    let r = round
+                    group.addTask { @MainActor in (s.series_id, await self.prepare(s, round: r)) }
+                    running += 1
+                }
+                guard running > 0, let (id, item) = await group.next() else { break }
+                running -= 1
+                preparing.remove(id)
+                if let item, !inStock(item.id) {
+                    insert(item)
+                    error = nil
+                    persist()
+                }
             }
-            if inStock(s.series_id) { continue }
-            guard let d = try? await HGAPI.detail(s.series_id) else { continue }
-            let idx = round == 0 ? d.episodes.firstIndex { $0.locked != true }
-                                 : d.episodes.indices.dropFirst().first { d.episodes[$0].locked != true }
-            guard let idx, !watched.contains(key(s.series_id, idx)) else { continue }
-            guard let src = try? await HGAPI.source(d.episodes[idx].vid) else { continue }
-            guard (try? await HGMediaCache.shared.file(for: d.episodes[idx].vid, source: src)) != nil else { continue }
-            var series = s
-            series.episode_count = d.episodes.count
-            if (series.description ?? "").isEmpty { series.description = d.description }
-            let item = Item(series: series, detail: d, index: idx, landscape: src.isLandscape ?? false)
-            guard !inStock(item.id) else { continue }
-            insert(item)
-            error = nil
-            persist()
         }
         if items.isEmpty { error = "推荐加载失败" }
+    }
+
+    /// 备一部：取集列表 → 取源 → 下载解密；失败 / 这集看过了回 nil
+    private func prepare(_ s: HGSeries, round: Int) async -> Item? {
+        let t0 = CACurrentMediaTime()
+        guard let d = try? await HGAPI.detail(s.series_id) else { HGTrace.log("fill 详情失败 \(s.series_title)"); return nil }
+        let t1 = CACurrentMediaTime()
+        let idx = round == 0 ? d.episodes.firstIndex { $0.locked != true }
+                             : d.episodes.indices.dropFirst().first { d.episodes[$0].locked != true }
+        guard let idx, !watched.contains(key(s.series_id, idx)) else { return nil }
+        guard let src = try? await HGAPI.source(d.episodes[idx].vid) else { HGTrace.log("fill 取源失败 \(s.series_title)"); return nil }
+        let t2 = CACurrentMediaTime()
+        let vid = d.episodes[idx].vid
+        // 超时不取消：后台接着下完留在缓存里，下次轮到这部直接用；推荐先拿别的快的
+        let download = Task { try await HGMediaCache.shared.file(for: vid, source: src) }
+        let ok = await withTaskGroup(of: Bool?.self) { g in
+            g.addTask { (try? await download.value) != nil }
+            g.addTask { try? await Task.sleep(for: Self.slowLimit); return nil }
+            let first = await g.next() ?? nil
+            g.cancelAll()
+            return first
+        }
+        guard let ok else { HGTrace.log("fill 下载慢跳过 \(s.series_title)"); slowSkipped.append(s); return nil }
+        guard ok else { HGTrace.log("fill 下载失败 \(s.series_title)"); return nil }
+        HGTrace.log(String(format: "fill 详情%.0fms 取源%.0fms 下载%.0fms 余%d %@", (t1 - t0) * 1000, (t2 - t1) * 1000,
+                           (CACurrentMediaTime() - t2) * 1000, stockAhead, s.series_title))
+        var series = s
+        series.episode_count = d.episodes.count
+        if (series.description ?? "").isEmpty { series.description = d.description }
+        return Item(series: series, detail: d, index: idx, landscape: src.isLandscape ?? false)
     }
 
     /// 只往列表末尾追加：在中间插会让分页滚动位置跳（真机：补货插进来，推荐页一路滚回第 1 部）
@@ -178,6 +220,12 @@ final class HGFeedModel {
 
     /// 剧池里下一部（没看过的、红果来源）；不够就翻下一页。登录了先从账号推荐流里拿
     private func nextCandidate() async -> HGSeries? {
+        // 跳过的慢片：后台大概率下完了，先把它们排回来
+        if slowSkipped.count >= 2 || (!slowSkipped.isEmpty && Int.random(in: 0..<3) == 0) {
+            let s = slowSkipped.removeFirst()
+            poolSeen.insert(s.series_id)
+            return s
+        }
         if let s = await nextForYou() { return s }
         for _ in 0..<6 {
             if let i = pool.firstIndex(where: { _ in true }) { return pool.remove(at: i) }
@@ -217,6 +265,7 @@ final class HGFeedModel {
 
     /// 推荐页划到第 idx 部：后面不够就补
     func advanced(to idx: Int) {
+        if idx != consumed { HGTrace.log("feed 划到 \(idx + 1)/\(items.count) 余\(items.count - idx - 1) 补货中=\(working)") }
         consumed = idx
         pinStock()
         start()

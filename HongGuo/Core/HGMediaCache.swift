@@ -11,9 +11,9 @@ actor HGMediaCache {
     private var inflight: [String: Task<URL, Error>] = [:]
     private var order: [String] = []
     /// 推荐缓存 10 部（横竖各 5）+ 正在看的剧前后几集
-    private let keep = 20
-    /// 推荐存货占的名额（10 部）；其余 10 个名额给正在看的剧
-    private static let pinBudget = 10
+    private let keep = 24
+    /// 推荐存货占的名额（备 8 部 + 慢片后台下的几部）；其余 10 个名额给正在看的剧
+    private static let pinBudget = 14
     private let session: URLSession = {
         let c = URLSessionConfiguration.default
         c.timeoutIntervalForRequest = 30
