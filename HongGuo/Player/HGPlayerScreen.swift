@@ -438,7 +438,7 @@ struct HGPlayerScreen: View {
                         if abs(raw - railTopY) > 1 { railTopY = raw }
                     }
                 })
-                .offset(x: DYDuoMetrics.isDuoHardware ? -(HGSideTabRail.centerFromEdge - DDMedia.chromeSidePadding - DDMedia.actionColumnWidth / 2)
+                .offset(x: DYDuoMetrics.isDuoHardware ? -(duoSignalCenter - DDMedia.chromeSidePadding - DDMedia.actionColumnWidth / 2)
                            : (hSize == .compact ? -9 : 0), y: push)
                 // Duo 展开也用外屏的栏宽 / 图标大小（高度、宽度跟外屏一致）
                 .environment(\.horizontalSizeClass, DYDuoMetrics.isDuoHardware ? .compact : hSize)
@@ -490,6 +490,12 @@ struct HGPlayerScreen: View {
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .filter { $0.activationState == .foregroundActive }
             .flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.right ?? 0
+    }
+
+    /// Duo 右上信号圈中线离屏幕物理右缘多远：展开横屏信号在右侧状态栏列里（列宽一半），外屏 / 展开竖屏 48.2pt（实测）
+    private var duoSignalCenter: CGFloat {
+        let inset = systemColumnInset
+        return inset > 40 ? inset / 2 : HGSideTabRail.centerFromEdge
     }
 
     private var isLandscapeWindow: Bool {
