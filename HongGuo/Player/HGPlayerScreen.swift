@@ -483,8 +483,10 @@ struct HGPlayerScreen: View {
         let above = max(safeTop, 12) + statusClearance
         let room = window.height - below - above
         // 栏底空白 36（原 DouDuo 56；老板 2026-11-25：整列再往下一点，别贴着信号圈）
-        guard window.height > 0 else { return (36, 1) }
-        if room >= natural + 36 { return (36, 1) }
+        // 展开（regular）再低 28pt：横屏信号圈竖在右上，栏顶要离它远一点
+        let gap: CGFloat = hSize == .regular ? 8 : 36
+        guard window.height > 0 else { return (gap, 1) }
+        if room >= natural + gap { return (gap, 1) }
         let bottom = max(8, room - natural)
         let scale = min(1, max(0.6, (room - bottom) / natural))
         return (bottom, scale)
