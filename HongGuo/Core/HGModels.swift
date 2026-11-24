@@ -120,6 +120,7 @@ struct HGSeriesStats: Codable { let follows: Int?; let plays: Int?; let episodes
 struct HGAccountProfile: Codable, Hashable { let id: String; let nickname: String }
 struct HGAccountStatus: Codable { let signedIn: Bool; let account: HGAccountProfile? }
 struct HGQRLogin: Codable { let loginId: String; let image: String; let expiresIn: Int }
+struct HGPhoneStep: Codable { let state: String; var number: String? = nil; var content: String? = nil }
 struct HGQRPoll: Codable { let status: String?; let signedIn: Bool?; let error: String? }
 
 struct HGCloudHistoryRow: Codable, Hashable, Identifiable {
@@ -300,6 +301,12 @@ enum HGAPI {
     static func startLogin() async throws -> HGQRLogin { try core.decode(HGQRLogin.self, try await core.call("accountStartLogin", [])) }
     static func pollLogin(_ id: String) async throws -> HGQRPoll { try core.decode(HGQRPoll.self, try await core.call("accountPollLogin", [id])) }
     static func cancelLogin(_ id: String) async { _ = try? await core.call("accountCancelLogin", [id]) }
+    /// 手机号登录：发验证码
+    static func phoneSend(_ phone: String) async throws { _ = try await core.call("accountPhoneSend", [phone]) }
+    /// 手机号登录：验证码登录 / 上行短信验证后确认（state: ok / mfa / pending / cancelled）
+    static func phoneLogin(_ code: String) async throws -> HGPhoneStep { try core.decode(HGPhoneStep.self, try await core.call("accountPhoneLogin", [code])) }
+    static func phoneVerify() async throws -> HGPhoneStep { try core.decode(HGPhoneStep.self, try await core.call("accountPhoneVerify", [])) }
+    static func phoneCancel() async { _ = try? await core.call("accountPhoneCancel", []) }
     static func logout() async throws { _ = try await core.call("accountLogout", []) }
     static func cloudHistory(refresh: Bool) async throws -> [HGCloudHistoryRow] {
         try core.decode(HGCloudHistory.self, try await core.call("accountHistory", [refresh])).results ?? []

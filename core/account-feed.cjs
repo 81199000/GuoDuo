@@ -1,6 +1,6 @@
 // GuoDuo 自有（不是上游拷贝，同步上游不会覆盖）：登录红果账号后的「为你推荐」流、完整观看记录、云端收藏。
 // 参考绿果TV 2.0.8（Amor5207/lvguo-tv，GPL-3.0）src/ink/pengfei/lvguo/net/Browse.java forYou / Account.java history、favorites。
-// 登录态 cookie 来自上游 account-session.js 扫码登录（存在钥匙串 hg.account.session）。
+// 登录态 cookie 来自上游 account-session.js 扫码登录 / phone-login.cjs 手机号登录（存在钥匙串 hg.account.session）。
 const { signedMetadataRequest, signedAccountRequest, requestJson } = require('./upstream/app-source.js');
 const { getPlaybackDevice } = require('./upstream/playback-device.js');
 const { catalogCover } = require('./upstream/hongguo-app-catalog.js');
@@ -21,7 +21,7 @@ function checkAccount(payload, what) {
   if (!payload || typeof payload !== 'object') throw fail(`${what}返回格式异常`, 'BAD_RESPONSE');
   const code = Number(payload.code ?? payload.Code ?? 0), msg = String(payload.message || '');
   const name = String(payload.data?.name || payload.data?.error_name || '');
-  if (code === 100004 || /session_expired/i.test(msg) || /session_expired/i.test(name)) throw fail('登录已失效，请重新扫码登录', 'SESSION_EXPIRED');
+  if (code === 100004 || /session_expired/i.test(msg) || /session_expired/i.test(name)) throw fail('登录已失效，请重新登录', 'SESSION_EXPIRED');
   if (code !== 0) throw fail(`${what}未完成（${code}）`, 'APP_BUSINESS');
   return payload.data || {};
 }
@@ -97,8 +97,12 @@ async function forYou({ cookie = '', channel = '16', offset = 0, session = '', s
     hasMore: j.data.has_more === true && next > (Number(offset) || 0) };
 }
 
+/** 手机号登录：会话绑在登录那台设备上，账号接口要用它；扫码登录（官网会话）用匿名设备 */
+let loginIdentity = null;
+function useIdentity(identity) { loginIdentity = identity || null; }
+
 async function accountGet(cookie, apiPath, values, signal) {
-  const identity = await getPlaybackDevice(requestJson, { signal });
+  const identity = loginIdentity || await getPlaybackDevice(requestJson, { signal });
   const s = signedAccountRequest(apiPath, values, identity);
   return requestJson(s.url, { method: 'GET', headers: { ...s.headers, Cookie: cookie }, preserveLargeIntegerFields: IDS },
     Date.now() + 12000, signal);
@@ -160,7 +164,7 @@ async function profile({ cookie, signal } = {}) {
   if (!cookie) throw fail('未登录', 'NOT_SIGNED_IN');
   const d = checkAccount(await accountGet(cookie, '/reading/user/info/v1/', {}, signal), '读取账号资料');
   const uid = String(d.biz_user_id || d.user_id || '').trim();
-  if (!uid) throw fail('登录已失效，请重新扫码登录', 'SESSION_EXPIRED');
+  if (!uid) throw fail('登录已失效，请重新登录', 'SESSION_EXPIRED');
   const vip = d.vip_info || {};
   const num = v => Math.max(0, Number(v) || 0);
   return { uid, name: cleanTitle(d.user_name) || '红果用户', avatar: String(d.expand_avatar_url || d.avatar_url || ''),
@@ -214,4 +218,4 @@ async function keepAlive({ cookie } = {}) {
   return { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') };
 }
 
-module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations };
+module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity };

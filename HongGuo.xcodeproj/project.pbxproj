@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		035240DB9995537147AA27BA /* HGStorageFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94452E689CF3FB17F727363E /* HGStorageFiles.swift */; };
+		04798BABCF852E798B5619A9 /* HGLoginSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3580BD644DA26273751BCE /* HGLoginSheetTests.swift */; };
 		07BDF6E2CDD207FB701FF6D5 /* HGDiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */; };
 		103F2DD6912F16EF4D488E1E /* HGFeedChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 384B996C591FDC9541415513 /* HGFeedChromeTests.swift */; };
 		115DE648C4BA61CAE4FB65FE /* HGPlayerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */; };
@@ -85,6 +86,7 @@
 		3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGEpisodePlayer.swift; sourceTree = "<group>"; };
 		384B996C591FDC9541415513 /* HGFeedChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFeedChromeTests.swift; sourceTree = "<group>"; };
 		40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerScreen.swift; sourceTree = "<group>"; };
+		4E3580BD644DA26273751BCE /* HGLoginSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGLoginSheetTests.swift; sourceTree = "<group>"; };
 		4F5E7CA87A880A2C1D3EFEDF /* PlayerGestureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerGestureView.swift; sourceTree = "<group>"; };
 		4FB216E63F437213FB239626 /* HGNativeCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGNativeCrypto.swift; sourceTree = "<group>"; };
 		52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDanmakuSupport.swift; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 				384B996C591FDC9541415513 /* HGFeedChromeTests.swift */,
 				E5077CA7284996E39E525152 /* HGFlowTests.swift */,
 				5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */,
+				4E3580BD644DA26273751BCE /* HGLoginSheetTests.swift */,
 				DA47B9473DF2D45CB2A814B9 /* HGMineSettingsTests.swift */,
 				94E0D00CA110AAFF7DF6B466 /* HGMineShelfTests.swift */,
 				734656AB064DDD880E3510F9 /* HGPostureTests.swift */,
@@ -384,6 +387,7 @@
 				103F2DD6912F16EF4D488E1E /* HGFeedChromeTests.swift in Sources */,
 				4333D747EADBFAA931839304 /* HGFlowTests.swift in Sources */,
 				E47899B4BDDC29D228EE4842 /* HGLandscapeShot.swift in Sources */,
+				04798BABCF852E798B5619A9 /* HGLoginSheetTests.swift in Sources */,
 				DCF13E9AB7B7A185875FFEBC /* HGMineSettingsTests.swift in Sources */,
 				B561F5F63197372870E0DA18 /* HGMineShelfTests.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,

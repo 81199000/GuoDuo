@@ -45,7 +45,7 @@ struct HGMineView: View {
         .navigationTitle("我的")
         .task { await refreshAccount() }
         .sheet(isPresented: $showLogin, onDismiss: { Task { await refreshAccount() } }) {
-            HGLoginSheet { showLogin = false }.presentationDetents([.medium])
+            HGLoginSheet { showLogin = false }.presentationDetents([.large])
         }
         .sheet(isPresented: $showSettings) { NavigationStack { HGMineSettings(signedIn: signedIn, onLogout: {
             Task { await logout() }
@@ -81,7 +81,7 @@ struct HGMineView: View {
                             Text("登录红果账号").font(.headline).foregroundStyle(HGTheme.textPrimary)
                         }
                         .accessibilityIdentifier("hg.mine.login")
-                        Text("扫码登录后同步推荐、观看记录、收藏、预约").font(.caption).foregroundStyle(HGTheme.textTertiary)
+                        Text("手机号登录后同步推荐、观看记录、收藏、预约").font(.caption).foregroundStyle(HGTheme.textTertiary)
                     }
                 }
                 Spacer(minLength: 0)
@@ -365,8 +365,154 @@ struct HGMineView: View {
     }
 }
 
-/// 红果 App 扫码登录（官网二维码，手机红果 App 扫码并确认）。
+/// 登录红果账号：手机号 + 验证码（默认，照绿果TV）/ 另一台手机扫码。
+/// 红果 App「扫一扫」只认相机实时扫，不认相册截图 → 扫码只适合拿另一台手机对着屏幕扫。
 struct HGLoginSheet: View {
+    enum Mode: String, CaseIterable { case phone = "手机号登录", qr = "扫码登录" }
+    let done: () -> Void
+    @State private var mode: Mode = .phone
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Picker("登录方式", selection: $mode) {
+                ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("hg.login.mode")
+            switch mode {
+            case .phone: HGPhoneLogin(done: done)
+            case .qr: HGQRLoginPane(done: done)
+            }
+            Spacer(minLength: 0)
+            Text("登录后推荐按你的红果账号来，并同步观看记录、收藏、预约（只读，不会改动账号）。")
+                .font(.caption2).foregroundStyle(HGTheme.textTertiary).multilineTextAlignment(.center)
+        }
+        .padding(20)
+    }
+}
+
+/// 手机号 + 验证码；红果风控时要求「用这个手机号发一条短信」做二次验证
+struct HGPhoneLogin: View {
+    let done: () -> Void
+    @State private var phone = ""
+    @State private var code = ""
+    @State private var sentAt: Date?
+    @State private var busy = false
+    @State private var message: String?
+    @State private var mfa: HGPhoneStep?
+    @State private var polling: Task<Void, Never>?
+    @State private var now = Date()
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @Environment(\.openURL) private var openURL
+
+    private var digits: String { phone.filter(\.isNumber) }
+    private var cooldown: Int { sentAt.map { max(0, 60 - Int(now.timeIntervalSince($0))) } ?? 0 }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if let mfa, let number = mfa.number, let content = mfa.content {
+                mfaPane(number: number, content: content)
+            } else {
+                HStack(spacing: 8) {
+                    Text("+86").foregroundStyle(HGTheme.textSecondary)
+                    TextField("手机号", text: $phone)
+                        .keyboardType(.numberPad).textContentType(.telephoneNumber)
+                        .accessibilityIdentifier("hg.login.phone")
+                }
+                .padding(.horizontal, 14).frame(height: 46)
+                .background(HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+                HStack(spacing: 8) {
+                    TextField("验证码", text: $code)
+                        .keyboardType(.numberPad).textContentType(.oneTimeCode)
+                        .accessibilityIdentifier("hg.login.code")
+                    Button(cooldown > 0 ? "\(cooldown) 秒后重发" : (sentAt == nil ? "获取验证码" : "重新获取")) { Task { await send() } }
+                        .font(.subheadline).disabled(busy || cooldown > 0 || digits.count != 11)
+                        .accessibilityIdentifier("hg.login.send")
+                }
+                .padding(.horizontal, 14).frame(height: 46)
+                .background(HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+                Button { Task { await login() } } label: {
+                    Group { if busy { ProgressView() } else { Text("登录") } }
+                        .font(.headline).frame(maxWidth: .infinity).frame(height: 46)
+                }
+                .buttonStyle(.borderedProminent).tint(HGTheme.accent)
+                .disabled(busy || sentAt == nil || code.count < 4)
+                .accessibilityIdentifier("hg.login.submit")
+                Text("验证码由红果发到你的手机，GuoDuo 只转交给红果登录，不保存手机号。")
+                    .font(.caption2).foregroundStyle(HGTheme.textTertiary).multilineTextAlignment(.center)
+            }
+            if let message { Text(message).font(.footnote).foregroundStyle(HGTheme.textSecondary).multilineTextAlignment(.center) }
+        }
+        .onReceive(tick) { now = $0 }
+        .onDisappear { polling?.cancel(); Task { await HGAPI.phoneCancel() } }
+    }
+
+    private func mfaPane(number: String, content: String) -> some View {
+        VStack(spacing: 10) {
+            Text("红果要求短信验证").font(.headline)
+            Text("用 +86 \(digits.suffix(4).isEmpty ? "" : "尾号 \(digits.suffix(4)) ")的手机，发送下面这条短信。发出后这里会自动登录。")
+                .font(.footnote).foregroundStyle(HGTheme.textSecondary).multilineTextAlignment(.center)
+            VStack(spacing: 4) {
+                Text("发送到").font(.caption).foregroundStyle(HGTheme.textTertiary)
+                Text(number).font(.title3.monospacedDigit().weight(.semibold)).textSelection(.enabled)
+                Text("短信内容").font(.caption).foregroundStyle(HGTheme.textTertiary).padding(.top, 4)
+                Text(content).font(.title3.monospacedDigit().weight(.semibold)).textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity).padding(12)
+            .background(HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+            Button {
+                let body = content.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? content
+                if let url = URL(string: "sms:\(number.replacingOccurrences(of: " ", with: ""))&body=\(body)") { openURL(url) }
+            } label: { Text("去发短信").font(.headline).frame(maxWidth: .infinity).frame(height: 46) }
+                .buttonStyle(.borderedProminent).tint(HGTheme.accent)
+                .accessibilityIdentifier("hg.login.sms")
+            Button("已发送，立即验证") { Task { await verifyOnce() } }.font(.subheadline)
+            Button("换个号码 / 重新获取验证码") { polling?.cancel(); mfa = nil; code = ""; sentAt = nil; message = nil }
+                .font(.footnote).foregroundStyle(HGTheme.textSecondary)
+        }
+    }
+
+    private func send() async {
+        busy = true; message = nil
+        defer { busy = false }
+        do { try await HGAPI.phoneSend(digits); sentAt = Date(); now = Date(); message = "验证码已发送" }
+        catch { message = error.localizedDescription }
+    }
+
+    private func login() async {
+        busy = true; message = nil
+        defer { busy = false }
+        do { handle(try await HGAPI.phoneLogin(code.filter(\.isNumber))) }
+        catch { message = error.localizedDescription }
+    }
+
+    private func handle(_ step: HGPhoneStep) {
+        switch step.state {
+        case "ok": message = "登录成功"; done()
+        case "mfa":
+            mfa = step; message = nil
+            polling?.cancel()
+            // 发完短信服务端要几秒才收到：每 4 秒问一次，最多 3 分钟
+            polling = Task {
+                for _ in 0..<45 {
+                    try? await Task.sleep(for: .seconds(4))
+                    if Task.isCancelled { return }
+                    guard let s = try? await HGAPI.phoneVerify() else { continue }
+                    if s.state != "pending" { handle(s); return }
+                }
+            }
+        case "pending": message = "还没收到你发的短信，发出后稍等几秒"
+        default: message = "登录已取消，请重试"
+        }
+    }
+
+    private func verifyOnce() async {
+        do { handle(try await HGAPI.phoneVerify()) } catch { message = error.localizedDescription }
+    }
+}
+
+/// 扫码：红果「扫一扫」只认相机实时扫，截图/相册里的码扫不了 → 用另一台手机对着本屏扫
+struct HGQRLoginPane: View {
     let done: () -> Void
     @State private var qr: HGQRLogin?
     @State private var image: UIImage?
@@ -374,19 +520,17 @@ struct HGLoginSheet: View {
     @State private var task: Task<Void, Never>?
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("用红果 App 扫码登录").font(.headline)
+        VStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: HGTheme.radius).fill(.white).frame(width: 200, height: 200)
                 if let image { Image(uiImage: image).interpolation(.none).resizable().scaledToFit().frame(width: 184, height: 184) }
                 else { ProgressView().tint(.black) }
             }
             Text(message).font(.footnote).foregroundStyle(HGTheme.textSecondary).multilineTextAlignment(.center)
-            Text("可截图后在另一台手机的红果 App「我的 → 扫一扫」打开。登录后推荐按你的红果账号来，并同步红果 App 的观看记录和收藏（只读，不会改动账号）。")
-                .font(.caption2).foregroundStyle(HGTheme.textTertiary).multilineTextAlignment(.center).padding(.horizontal)
+            Text("用另一台已登录红果的手机，打开红果 App「我的 → 右上角扫一扫」，对准这个二维码扫描并确认。\n红果不支持识别截图或相册里的二维码；只有这一台手机时请用「手机号登录」。")
+                .font(.caption2).foregroundStyle(HGTheme.textTertiary).multilineTextAlignment(.center)
             Button("刷新二维码") { start() }.font(.footnote)
         }
-        .padding(24)
         .onAppear { start() }
         .onDisappear { task?.cancel(); if let id = qr?.loginId { Task { await HGAPI.cancelLogin(id) } } }
     }
@@ -399,7 +543,7 @@ struct HGLoginSheet: View {
                 let q = try await HGAPI.startLogin()
                 qr = q
                 if let b64 = q.image.split(separator: ",").last, let data = Data(base64Encoded: String(b64)) { image = UIImage(data: data) }
-                message = "等待扫码…"
+                message = "等待另一台手机扫码…"
                 let deadline = Date().addingTimeInterval(TimeInterval(max(30, q.expiresIn)))
                 while !Task.isCancelled, Date() < deadline {
                     try await Task.sleep(for: .seconds(2))

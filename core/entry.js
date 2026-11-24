@@ -20,10 +20,12 @@ let appPlayDownUntil = 0;
 
 const plain = e => ({ message: String(e?.message || e), code: e?.code || '' });
 // 每个调用返回 Promise，结果统一回到原生 Native.done(callId, json)。
+// 上游提示都按「扫码登录」写的；GuoDuo 默认手机号登录，统一说「重新登录」
+const relogin = m => typeof m === 'string' ? m.replace(/请重新扫码登录|请重新扫码/g, '请重新登录') : m;
 function wrap(callId, task) {
   Promise.resolve().then(task).then(
-    value => Native.done(callId, JSON.stringify({ ok: true, value: value ?? null })),
-    error => Native.done(callId, JSON.stringify({ ok: false, error: plain(error) })));
+    value => Native.done(callId, JSON.stringify({ ok: true, value: value && typeof value === 'object' && typeof value.error === 'string' ? { ...value, error: relogin(value.error) } : value ?? null })),
+    error => { const e = plain(error); if (e && typeof e === 'object') e.message = relogin(e.message); Native.done(callId, JSON.stringify({ ok: false, error: e })); });
 }
 const unwrap = r => { if (r && r.success === false) throw Object.assign(new Error(r.error || '加载失败'), { code: r.code || '' }); return r; };
 const controllers = new Map();
@@ -77,8 +79,17 @@ const account = createAccountService({ filePath: 'hg.account.session', safeStora
 // 已登录时的红果 cookie（上游登录态原样存钥匙串 hg.account.session，透传加密 = 明文 JSON）
 async function accountCookie() {
   const st = await account.status().catch(() => null);
-  if (!st?.signedIn) return '';
-  try { return String(JSON.parse(Native.kvGet('hg.account.session') || 'null')?.cookie || ''); } catch (_) { return ''; }
+  if (!st?.signedIn) { accountFeed.useIdentity(null); return ''; }
+  let saved; try { saved = JSON.parse(Native.kvGet('hg.account.session') || 'null'); } catch (_) { saved = null; }
+  accountFeed.useIdentity(saved?.deviceId ? { device_id: saved.deviceId, iid: saved.installId, cdid: saved.cdid } : null);
+  return String(saved?.cookie || '');
+}
+const phoneLogin = require('./phone-login.cjs');
+async function phoneDone(r) {
+  if (r.mfa) return { state: 'mfa', number: r.mfa.number, content: r.mfa.content };
+  if (r.pending) return { state: 'pending' };
+  const done = await account.completeWebLogin(r.cookie, { deviceId: r.device.device_id, installId: r.device.iid, cdid: r.device.cdid });
+  return { state: done?.signedIn ? 'ok' : 'cancelled' };
 }
 
 const normEpisodes = d => ({ series_id: String(d.series_id), series_title: String(d.series_title || '未命名短剧'),
@@ -216,7 +227,12 @@ globalThis.HG = {
   accountStartLogin(callId) { wrap(callId, () => account.startLogin()); },
   accountPollLogin(callId, id) { wrap(callId, () => account.pollLogin(id)); },
   accountCancelLogin(callId, id) { wrap(callId, () => account.cancelLogin?.(id)); },
-  accountLogout(callId) { wrap(callId, () => account.logout()); },
+  accountLogout(callId) { wrap(callId, () => { phoneLogin.cancel(); accountFeed.useIdentity(null); return account.logout(); }); },
+  // 手机号 + 验证码登录（照绿果TV）：发码 → 登录 →（风控时）上行短信验证
+  accountPhoneSend(callId, phone) { wrap(callId, () => phoneLogin.sendCode(phone)); },
+  accountPhoneLogin(callId, code) { wrap(callId, async () => phoneDone(await phoneLogin.login(code))); },
+  accountPhoneVerify(callId) { wrap(callId, async () => phoneDone(await phoneLogin.verifyMFA())); },
+  accountPhoneCancel(callId) { wrap(callId, () => phoneLogin.cancel()); },
   accountHistory(callId, refresh) { wrap(callId, () => account.history({ refresh: !!refresh })); },
   // 官方榜单全集（分区 × 榜：推荐 / 热播 / 新剧 / 热搜 / 必看 / 收藏…）；第 1 页带回榜单目录
   rank(callId, zone, board, offset, session) { wrap(callId, () => catalogMore.rank({ zone, board, offset, session })); },
@@ -232,6 +248,11 @@ globalThis.HG = {
     if (!st?.signedIn) return { signedIn: false };
     let saved; try { saved = JSON.parse(Native.kvGet('hg.account.session') || 'null'); } catch (_) { saved = null; }
     if (!saved?.cookie) return { signedIn: false };
+    if (saved.deviceId) {
+      accountFeed.useIdentity({ device_id: saved.deviceId, iid: saved.installId, cdid: saved.cdid });
+      try { await accountFeed.profile({ cookie: saved.cookie }); return { signedIn: true }; }
+      catch (e) { if (e.code === 'SESSION_EXPIRED') { await account.logout().catch(() => {}); return { signedIn: false, expired: true }; } return { signedIn: true }; }
+    }
     const r = await accountFeed.keepAlive({ cookie: saved.cookie });
     if (r.expired) { await account.logout().catch(() => {}); return { signedIn: false, expired: true }; }
     if (r.cookie && r.cookie !== saved.cookie) Native.kvSet('hg.account.session', JSON.stringify({ ...saved, cookie: r.cookie }));

@@ -229,6 +229,19 @@ function createAccountService({
   }
 
   async function verify(targetCredentials) {
+    // GuoDuo：手机号登录拿到的是 App 会话（绑登录那台设备），用 App 账号接口验；扫码登录仍走官网
+    if (targetCredentials.deviceId && targetCredentials.installId && targetCredentials.cdid) {
+      const identity = { device_id: targetCredentials.deviceId, iid: targetCredentials.installId, cdid: targetCredentials.cdid };
+      const signed = signedAccountRequest('/reading/user/info/v1/', {}, identity);
+      const payload = await accountRequest(signed.url, { method: 'GET', headers: { ...signed.headers, Cookie: targetCredentials.cookie } },
+        Date.now() + 12000, AbortSignal.timeout(12000));
+      const code = Number(payload?.code ?? 0);
+      if (code === 100004 || /session_expired/i.test(String(payload?.message || ''))) throw new Error('会话过期，请重新登录');
+      if (code !== 0) throw new Error(`账号资料读取失败（${code}）`);
+      const id = String(payload?.data?.biz_user_id || payload?.data?.user_id || '').trim();
+      if (!/^\d{1,30}$/.test(id) || !/[1-9]/.test(id)) throw new Error('登录态未通过红果账号验证，请重新登录');
+      return { id, nickname: cleanText(payload.data.user_name) || '红果用户' };
+    }
     return parsePassportProfile(await webJson('/passport/account/info/v2/', {}, new CookieJar(targetCredentials.cookie)));
   }
 
@@ -313,13 +326,13 @@ function createAccountService({
       return restored.signedIn ? publicAccount() : restored;
     },
 
-    async completeWebLogin(cookie) {
+    async completeWebLogin(cookie, extra = {}) {
       const attempt = ++loginGeneration;
       login = null;
       const token = generation;
-      const nextProfile = await withTimeout(verify({ cookie }), 15000, '账号资料验证超时，请重试');
+      const nextProfile = await withTimeout(verify({ cookie, ...extra }), 15000, '账号资料验证超时，请重试');
       if (attempt !== loginGeneration || token !== generation) return { success: true, status: 'cancelled' };
-      const nextCredentials = { cookie };
+      const nextCredentials = { cookie, ...extra };
       let storageWarning = '';
       try { sessionStore.save({ ...nextCredentials, profile: nextProfile }); } catch (error) { storageWarning = safeMessage(error); }
       credentials = nextCredentials; profile = nextProfile; history = []; historyLoaded = false;
