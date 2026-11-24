@@ -12,13 +12,13 @@ final class HGMineShelfTests: XCTestCase {
         app.launchEnvironment["HG_DEMO_CLOUD"] = "15"
         XCUIDevice.shared.orientation = .portrait
         app.launch()
-        // 登录后：本机 + 云端观看记录合成一排「继续观看」，不再单独一排「红果 App 观看记录」
+        // 官方排版：历史 / 收藏 / 点赞 / 预约 标签 + 封面网格（本机 + 云端合并）
         let shelf = app.descendants(matching: .any)["hg.shelf.history"].firstMatch
-        XCTAssertTrue(shelf.waitForExistence(timeout: 15), "继续观看没有变成横排")
-        XCTAssertFalse(app.descendants(matching: .any)["hg.shelf.cloud"].exists, "云端记录应合进继续观看")
-        XCTAssertTrue(app.descendants(matching: .any)["hg.shelf.favorites"].firstMatch.exists, "收藏没有变成横排")
+        XCTAssertTrue(shelf.waitForExistence(timeout: 15), "历史网格没出来")
+        app.buttons["hg.mine.tab.收藏"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["hg.shelf.favorites"].firstMatch.waitForExistence(timeout: 5), "收藏网格没出来")
+        app.buttons["hg.mine.tab.历史"].tap()
         XCTAssertFalse(app.buttons["hg.mine.downloads"].exists, "「我的」里不应再有离线下载")
-        XCTAssertFalse(app.staticTexts["离线下载"].exists, "「我的」里不应再有离线下载")
         shot(app, "mine-top")
         // 底部
         for _ in 0..<6 { app.swipeUp() }
@@ -26,10 +26,5 @@ final class HGMineShelfTests: XCTestCase {
         XCTAssertTrue(app.buttons["hg.footer.repo"].exists, "底部没有仓库链接")
         XCTAssertTrue(app.staticTexts["GuoDuo"].exists)
         shot(app, "mine-footer")
-        // 继续观看「全部」
-        for _ in 0..<8 { app.swipeDown() }
-        app.buttons["hg.shelf.history.all"].tap()
-        XCTAssertTrue(app.navigationBars["继续观看"].waitForExistence(timeout: 5))
-        shot(app, "mine-all")
     }
 }

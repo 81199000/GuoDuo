@@ -48,7 +48,7 @@ struct HGMineView: View {
             HGLoginSheet { showLogin = false }.presentationDetents([.medium])
         }
         .sheet(isPresented: $showSettings) { NavigationStack { HGMineSettings(signedIn: signedIn, onLogout: {
-            Task { try? await HGAPI.logout(); showSettings = false; await refreshAccount() }
+            Task { await logout() }
         }) }.presentationDetents([.medium, .large]) }
         .fullScreenCover(item: $resume) { HGPlayerScreen(request: $0) }
         .navigationDestination(item: $openDetail) { HGDetailView(series: $0) }
@@ -58,15 +58,8 @@ struct HGMineView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Spacer()
-                Button { showSettings = true } label: {
-                    Image(systemName: "line.3.horizontal").font(.body).foregroundStyle(HGTheme.textPrimary).frame(width: 40, height: 40)
-                }
-                .accessibilityIdentifier("hg.mine.settings")
-            }
             HStack(spacing: 14) {
-                AsyncImage(url: info?.avatar.flatMap(URL.init(string:))) { phase in
+                AsyncImage(url: signedIn ? info?.avatar.flatMap(URL.init(string:)) : nil) { phase in
                     if case .success(let img) = phase { img.resizable().scaledToFill() }
                     else { Circle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "person.fill").font(.title).foregroundStyle(HGTheme.textTertiary)) }
                 }
@@ -123,6 +116,7 @@ struct HGMineView: View {
                 NavigationLink { DYStorageScreen() } label: { quickLabel("储存", sub: "清理缓存") }.buttonStyle(.plain)
                     .accessibilityIdentifier("hg.mine.storage")
                 quick("设置", sub: "听书 / 更新") { showSettings = true }
+                    .accessibilityIdentifier("hg.mine.settings")
             }
             .padding(.horizontal, 16)
         }
@@ -303,7 +297,20 @@ struct HGMineView: View {
         }
     }
 
+    @State private var refreshGen = 0
+
+    private func logout() async {
+        refreshGen += 1
+        account = HGAccountStatus(signedIn: false, account: nil)
+        info = nil; cloud = []; cloudFavorites = []; reserved = []; cloudError = nil
+        showSettings = false
+        do { try await HGAPI.logout() } catch { cloudError = "退出失败：\(error.localizedDescription)" }
+        await refreshAccount()
+    }
+
     private func refreshAccount() async {
+        refreshGen += 1
+        let g = refreshGen
         #if DEBUG
         // 测试：假装已登录、云端有 N 条记录（看排版用，不连红果账号）
         if let n = Int(ProcessInfo.processInfo.environment["HG_DEMO_CLOUD"] ?? ""),
@@ -319,20 +326,25 @@ struct HGMineView: View {
             return
         }
         #endif
-        account = try? await HGAPI.accountStatus()
+        let st = try? await HGAPI.accountStatus()
+        guard g == refreshGen else { return }
+        account = st
         guard account?.signedIn == true else { cloud = []; cloudFavorites = []; reserved = []; info = nil; return }
         async let h = Result { try await HGAPI.cloudHistoryAll() }
         async let f = Result { try await HGAPI.cloudFavorites() }
         async let i = try? HGAPI.accountInfo()
         async let r = try? HGAPI.reservations()
-        info = await i
-        reserved = await r ?? []
+        let (iv, rv, hv, fv) = (await i, await r, await h, await f)
+        // 中途退出 / 又刷了一次：这批结果作废
+        guard g == refreshGen, account?.signedIn == true else { return }
+        info = iv
+        reserved = rv ?? []
         var errors: [String] = []
-        switch await h {
+        switch hv {
         case .success(let rows): cloud = rows
         case .failure(let e): errors.append("观看记录读取失败：\(e.localizedDescription)")
         }
-        switch await f {
+        switch fv {
         case .success(let rows): cloudFavorites = rows
         case .failure(let e): errors.append("收藏读取失败：\(e.localizedDescription)")
         }
