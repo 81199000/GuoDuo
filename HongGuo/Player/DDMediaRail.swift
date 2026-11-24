@@ -85,6 +85,8 @@ struct DDActionRail: View {
         let text: String
         var tint: Color = .white
         var fitInward = false
+        /// 数字位（点赞 / 评论 / 收藏）：数字还没读到时也占住文字那一行，栏不缩短再拉长
+        var reservesText = false
         let action: () -> Void
     }
     let items: [Item]
@@ -132,13 +134,13 @@ struct DDActionRail: View {
                     }
                 }
                 .frame(width: 34, height: 34)
-                if !item.text.isEmpty {
-                    Text(item.text).font(.caption2.weight(.medium)).monospacedDigit()
+                if !item.text.isEmpty || item.reservesText {
+                    Text(item.text.isEmpty ? " " : item.text).font(.caption2.weight(.medium)).monospacedDigit()
                         .foregroundStyle(DDMedia.onMediaSecondary)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
             }
-            .frame(width: railWidth, height: item.text.isEmpty ? 36 : 50, alignment: .top)
+            .frame(width: railWidth, height: item.text.isEmpty && !item.reservesText ? 36 : 50, alignment: .top)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -15,6 +15,15 @@ struct HGFeedHooks {
     var previous: () -> Void = {}
 }
 
+/// 右侧栏数字的上一次值：划到下一部、新数字还没读到时先显示上一部的，读到了再换（老板 2026-11-25：别缩短再拉长）
+enum HGRailMemo {
+    nonisolated(unsafe) private static var last: [String: String] = [:]
+    static func text(_ key: String, _ value: String?) -> String {
+        if let value, !value.isEmpty { last[key] = value; return value }
+        return last[key] ?? ""
+    }
+}
+
 /// 推荐页当前视频的菜单栏（右侧按钮栏 / 标题 / 返回键）：由当前这部交出来，推荐页画在滚动视图上面，滑动时不动
 struct HGFeedChrome { let id: String; let size: CGSize; let view: AnyView }
 struct HGFeedChromeKey: PreferenceKey {
@@ -638,18 +647,18 @@ struct HGPlayerScreen: View {
         }
         if session.series.source == .hongguo {
             items.append(.init(id: "hg.rail.likes", icon: liked ? "heart.fill" : "heart",
-                               text: stat?.likes.map { DDMedia.count($0 + (liked ? 1 : 0)) } ?? "",
-                               tint: liked ? DDMedia.danger : .white) { toggleLike() })
+                               text: HGRailMemo.text("likes", stat?.likes.map { DDMedia.count($0 + (liked ? 1 : 0)) }),
+                               tint: liked ? DDMedia.danger : .white, reservesText: true) { toggleLike() })
             let locked = session.episode.number > HGCommentPolicy.publicEpisodes
             items.append(.init(id: "hg.rail.comments", icon: "ellipsis.bubble",
-                               text: stat?.comments.map(DDMedia.count) ?? "",
-                               tint: locked ? .white.opacity(0.45) : .white) {
+                               text: HGRailMemo.text("comments", stat?.comments.map(DDMedia.count)),
+                               tint: locked ? .white.opacity(0.45) : .white, reservesText: true) {
                 if locked { showCommentTip() } else { showComments = true }
             })
         }
         items.append(.init(id: "hg.rail.favorite", icon: fav ? "star.fill" : "star",
-                           text: session.stats?.follows.map { DDMedia.count($0 + (fav ? 1 : 0)) } ?? "",
-                           tint: fav ? DDMedia.warning : .white) { library.toggleFavorite(session.series) })
+                           text: HGRailMemo.text("favorite", session.stats?.follows.map { DDMedia.count($0 + (fav ? 1 : 0)) }),
+                           tint: fav ? DDMedia.warning : .white, reservesText: true) { library.toggleFavorite(session.series) })
         items.append(.init(id: "hg.rail.fill", icon: "fit", text: "", fitInward: !fillWidth) {
             fillWidth.toggle(); userScale = 1
             flash(fillWidth ? "铺满：开" : "完整画面")
