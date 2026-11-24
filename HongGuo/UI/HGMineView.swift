@@ -61,7 +61,7 @@ struct HGMineView: View {
             HStack {
                 Spacer()
                 Button { showSettings = true } label: {
-                    Image(systemName: "line.3.horizontal").font(.title3).foregroundStyle(HGTheme.textPrimary).frame(width: 40, height: 40)
+                    Image(systemName: "line.3.horizontal").font(.body).foregroundStyle(HGTheme.textPrimary).frame(width: 40, height: 40)
                 }
                 .accessibilityIdentifier("hg.mine.settings")
             }
@@ -70,14 +70,14 @@ struct HGMineView: View {
                     if case .success(let img) = phase { img.resizable().scaledToFill() }
                     else { Circle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "person.fill").font(.title).foregroundStyle(HGTheme.textTertiary)) }
                 }
-                .frame(width: 72, height: 72).clipShape(Circle())
+                .frame(width: 60, height: 60).clipShape(Circle())
                 VStack(alignment: .leading, spacing: 6) {
                     if signedIn {
-                        Text(info?.name ?? account?.account?.nickname ?? "红果用户").font(.title2.weight(.semibold)).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                        Text(info?.name ?? account?.account?.nickname ?? "红果用户").font(.headline).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
                         if let uid = info?.uid ?? account?.account?.id {
                             Button { UIPasteboard.general.string = uid } label: {
                                 HStack(spacing: 4) {
-                                    Text("红果号：\(uid)").font(.footnote).foregroundStyle(HGTheme.textTertiary)
+                                    Text("红果号：\(uid)").font(.caption).foregroundStyle(HGTheme.textTertiary)
                                     Image(systemName: "doc.on.doc").font(.caption2).foregroundStyle(HGTheme.textTertiary)
                                 }
                             }
@@ -85,16 +85,16 @@ struct HGMineView: View {
                         }
                     } else {
                         Button { showLogin = true } label: {
-                            Text("登录红果账号").font(.title3.weight(.semibold)).foregroundStyle(HGTheme.textPrimary)
+                            Text("登录红果账号").font(.headline).foregroundStyle(HGTheme.textPrimary)
                         }
                         .accessibilityIdentifier("hg.mine.login")
-                        Text("扫码登录后同步推荐、观看记录、收藏、预约").font(.footnote).foregroundStyle(HGTheme.textTertiary)
+                        Text("扫码登录后同步推荐、观看记录、收藏、预约").font(.caption).foregroundStyle(HGTheme.textTertiary)
                     }
                 }
                 Spacer(minLength: 0)
             }
             if signedIn {
-                HStack(alignment: .bottom, spacing: 26) {
+                HStack(alignment: .bottom, spacing: 22) {
                     stat(info?.follows ?? 0, "关注"); stat(info?.fans ?? 0, "粉丝"); stat(info?.likes ?? 0, "获赞")
                     Spacer()
                     if let m = info?.watchMinutes, m > 0 {
@@ -108,8 +108,8 @@ struct HGMineView: View {
 
     private func stat(_ n: Int, _ title: String) -> some View {
         VStack(spacing: 2) {
-            Text(n >= 10_000 ? String(format: "%.1fw", Double(n) / 1e4) : "\(n)").font(.headline.monospacedDigit()).foregroundStyle(HGTheme.textPrimary)
-            Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary)
+            Text(n >= 10_000 ? String(format: "%.1fw", Double(n) / 1e4) : "\(n)").font(.subheadline.weight(.semibold).monospacedDigit()).foregroundStyle(HGTheme.textPrimary)
+            Text(title).font(.caption2).foregroundStyle(HGTheme.textSecondary)
         }
     }
 
@@ -127,6 +127,9 @@ struct HGMineView: View {
             .padding(.horizontal, 16)
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        // 横向滚动视图默认把内容画进安全区（右侧主菜单下面）：裁在自己的宽度里
+        .frame(maxWidth: .infinity)
+        .clipped()
     }
 
     private func quick(_ t: String, sub: String, action: @escaping () -> Void) -> some View {
@@ -134,21 +137,21 @@ struct HGMineView: View {
     }
 
     private func quickLabel(_ t: String, sub: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(t).font(.headline).foregroundStyle(HGTheme.textPrimary)
-            Text(sub).font(.caption).foregroundStyle(HGTheme.textSecondary).lineLimit(1)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(t).font(.subheadline.weight(.semibold)).foregroundStyle(HGTheme.textPrimary)
+            Text(sub).font(.caption2).foregroundStyle(HGTheme.textSecondary).lineLimit(1)
         }
-        .frame(width: 104, height: 62, alignment: .leading).padding(.leading, 14)
+        .frame(width: 86, height: 50, alignment: .leading).padding(.leading, 12)
         .background(HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radius + 2, style: .continuous))
     }
 
     // MARK: 历史 / 收藏 / 点赞 / 预约
 
     private var shelfTabs: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 26) {
+        HStack(alignment: .firstTextBaseline, spacing: 22) {
             ForEach(Shelf.allCases, id: \.self) { t in
                 Button { shelf = t; managing = false } label: {
-                    Text(t.rawValue).font(t == shelf ? .title3.weight(.bold) : .title3)
+                    Text(t.rawValue).font(t == shelf ? .headline : .subheadline)
                         .foregroundStyle(t == shelf ? HGTheme.textPrimary : HGTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
@@ -164,14 +167,14 @@ struct HGMineView: View {
             ForEach(Filter.allCases, id: \.self) { f in
                 let on = f == filter
                 Button { filter = f } label: {
-                    Text(f.rawValue).font(.subheadline).padding(.horizontal, 14).frame(height: 32)
+                    Text(f.rawValue).font(.caption).padding(.horizontal, 12).frame(height: 28)
                         .background(on ? HGTheme.accent.opacity(0.2) : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
                         .foregroundStyle(on ? HGTheme.accent : HGTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
             }
             Spacer()
-            Button(managing ? "完成" : "管理") { managing.toggle() }.font(.subheadline).foregroundStyle(HGTheme.textPrimary)
+            Button(managing ? "完成" : "管理") { managing.toggle() }.font(.caption).foregroundStyle(HGTheme.textPrimary)
                 .accessibilityIdentifier("hg.mine.manage")
         }
         .padding(.horizontal, 16)
@@ -226,8 +229,8 @@ struct HGMineView: View {
                                     if managing { Image(systemName: "minus.circle.fill").font(.title3).foregroundStyle(.white, HGTheme.accent).padding(4) }
                                 }
                                 .clipShape(RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
-                            Text(c.series.series_title).font(.subheadline).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
-                            if let sub = c.sub { Text(sub).font(.caption).foregroundStyle(HGTheme.textTertiary).lineLimit(1) }
+                            Text(c.series.series_title).font(.footnote).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                            if let sub = c.sub { Text(sub).font(.caption2).foregroundStyle(HGTheme.textTertiary).lineLimit(1) }
                         }
                     }
                     .buttonStyle(.plain)
