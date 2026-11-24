@@ -50,7 +50,7 @@ function collectDramas(value, out, seen, depth = 0, outer = null) {
 
 // 红果 7.1.9 起才下发频道（漫剧 / 真人剧）：推荐流按这个版本号发（同绿果TV feedQuery）
 const FEED_VERSION = { version_code: '71932', version_name: '7.1.9.32', manifest_version_code: '71932', update_version_code: '71932', pv_player: '71932' };
-const CHANNELS = ['16', '36', '39'];
+const CHANNELS = ['16', '36', '39', '45'];
 // 频道的栏目 / 方案 ID（推荐是固定的；漫剧 / 真人剧从 bookmall/tab 首屏拿）
 const channelCells = new Map([['16', [FEED_CELL, FEED_PLAN]]]);
 

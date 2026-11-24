@@ -57,17 +57,23 @@ final class HGFeedModel {
     private var forYouDown = false
     /// 当前推荐是不是来自账号推荐流（调试 / 界面提示用）
     private(set) var personal = false
-    /// 推荐频道：16 推荐 / 39 真人剧 / 36 漫剧（同红果首页顶部）
+    /// 推荐频道（同红果首页顶部，服务端下发 45 关注 / 36 漫剧 / 39 真人剧 / 16 推荐）+ 合集（系列剧推荐榜）
     private(set) var channel = UserDefaults.standard.string(forKey: "hg.feed.channel") ?? "16"
-    static let channels: [(String, String)] = [("16", "推荐"), ("39", "真人剧"), ("36", "漫剧")]
+    static let channels: [(String, String)] = [("45", "关注"), ("album", "合集"), ("36", "漫剧"), ("39", "真人剧"), ("16", "推荐")]
+    /// 换频道 / 刷新的代次：旧的补货回来直接丢
+    private var gen = 0
+    private var loopGen = -1
 
-    /// 换频道：当前这部和已预热的下一部留着，后面没划到的存货换成新频道的
+    /// 换频道：整列换成新频道的（以前只换后面没划到的存货，前面还是旧频道的剧 → 看着像没切）
     func setChannel(_ c: String) {
         guard c != channel else { return }
         channel = c
         UserDefaults.standard.set(c, forKey: "hg.feed.channel")
+        gen += 1
         forYouPool = []; forYouOffset = 0; forYouSession = ""; forYouFails = 0; forYouDown = false
-        if items.count > consumed + 2 { items = Array(items.prefix(consumed + 2)); persist() }
+        pool = []; poolSeen = []; nextPage = [:]; exhausted = []; round = 0; slowSkipped = []
+        items = []; consumed = 0; error = nil
+        persist()
         start()
     }
 
@@ -116,9 +122,14 @@ final class HGFeedModel {
 
     /// App 启动调一次；之后每放掉一部就自动补
     func start() {
-        guard !working else { return }
+        // 频道 / 代次变了：旧补货循环自己会退出，这里直接起新的
+        guard !working || loopGen != gen else { return }
+        // 频道推荐流翻完 / 失败过：再给一次机会（关注、合集这类没片库兜底）
+        if channel != "16" && forYouDown && stockAhead < 2 { forYouDown = false; forYouFails = 0 }
         working = true
-        Task { await fillLoop(); working = false }
+        let g = gen
+        loopGen = g
+        Task { await fillLoop(g); if loopGen == g { working = false } }
     }
 
     /// 推荐页当前划到第几部
@@ -126,7 +137,7 @@ final class HGFeedModel {
     private var stockAhead: Int { items.count - consumed - 1 }
 
     /// 一部一部来：取集列表 → 取源 → 下载解密 → 进列表。拿到什么放什么，不按横竖挑
-    private func fillLoop() async {
+    private func fillLoop(_ g: Int) async {
         // 登录 / 退出了：推荐流从头来（换成新账号的推荐）
         let nowSignedIn = (try? await HGAPI.accountStatus())?.signedIn == true
         if nowSignedIn != signedIn || !checkedAccount {
@@ -140,10 +151,11 @@ final class HGFeedModel {
             var running = 0
             var drained = false
             while true {
-                while !drained && running < Self.parallel && stockAhead + running < Self.ahead {
+                while !drained && running < Self.parallel && stockAhead + running < Self.ahead && g == gen {
                     guard let s = await nextCandidate() else {
                         if running == 0 {
-                            if round == 0 { round = 1; poolSeen = []; pool = []; nextPage = [:]; exhausted = []; continue }
+                            // 只有「推荐」用片库兜底 / 第二轮；其它频道翻完就停
+                            if round == 0 && channel == "16" { round = 1; poolSeen = []; pool = []; nextPage = [:]; exhausted = []; continue }
                             drained = true
                         }
                         break
@@ -157,6 +169,7 @@ final class HGFeedModel {
                 guard running > 0, let (id, item) = await group.next() else { break }
                 running -= 1
                 preparing.remove(id)
+                if g != gen { continue }   // 换频道前开始备的，丢掉
                 if let item, !inStock(item.id) {
                     insert(item)
                     error = nil
@@ -164,7 +177,7 @@ final class HGFeedModel {
                 }
             }
         }
-        if items.isEmpty { error = "推荐加载失败" }
+        if items.isEmpty && g == gen { error = channel == "45" ? "关注的剧还没有更新，或需要先在「我的」登录红果账号" : "推荐加载失败" }
     }
 
     /// 备一部：取集列表 → 取源 → 下载解密；失败 / 这集看过了回 nil
@@ -214,7 +227,15 @@ final class HGFeedModel {
                 let s = forYouPool.removeFirst()
                 if !watched.contains(key(s.series_id, 0)) && !inStock(s.series_id) { return s }
             }
-            guard let page = try? await HGAPI.forYou(offset: forYouOffset, session: forYouSession, channel: channel) else {
+            let page: HGForYouPage?
+            if channel == "album" {
+                // 合集：系列剧推荐榜（一部剧多季的那类）
+                page = (try? await HGAPI.rank(zone: "series_album", board: "series_album_hot_sc", offset: forYouOffset, session: forYouSession))
+                    .map { HGForYouPage(results: $0.results, next: $0.next, session: $0.session, hasMore: $0.hasMore, personal: nil) }
+            } else {
+                page = try? await HGAPI.forYou(offset: forYouOffset, session: forYouSession, channel: channel)
+            }
+            guard let page else {
                 forYouFails += 1
                 if forYouFails >= 3 { forYouDown = true }
                 return nil
@@ -240,6 +261,7 @@ final class HGFeedModel {
             return s
         }
         if let s = await nextForYou() { return s }
+        guard channel == "16" else { return nil }
         for _ in 0..<6 {
             if let i = pool.firstIndex(where: { _ in true }) { return pool.remove(at: i) }
             var fresh: [HGSeries] = []
@@ -379,7 +401,13 @@ struct HGFeedView: View {
                 HStack(spacing: 18) {
                     ForEach(HGFeedModel.channels, id: \.0) { id, name in
                         let on = id == model.channel
-                        Button { model.setChannel(id) } label: {
+                        Button {
+                            guard id != model.channel else { return }
+                            session?.stop(); session = nil; sessionID = nil
+                            warm?.stop(); warm = nil; warmID = nil
+                            current = nil
+                            model.setChannel(id)
+                        } label: {
                             Text(name).font(on ? .headline : .subheadline)
                                 .foregroundStyle(.white.opacity(on ? 1 : 0.6))
                                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
