@@ -222,6 +222,21 @@ globalThis.HG = {
   rank(callId, zone, board, offset, session) { wrap(callId, () => catalogMore.rank({ zone, board, offset, session })); },
   // 找剧：类型 / 排序（最新上架）/ 上新时间 / 题材 / 人设 / 背景 / 男女频；select 是 JSON 字符串
   find(callId, select, offset, session) { wrap(callId, () => catalogMore.find({ select: JSON.parse(select || '{}'), offset, session })); },
+  suggest(callId, query) { wrap(callId, () => catalogMore.suggest({ query })); },
+  seriesInfo(callId, sid) { wrap(callId, () => catalogMore.info({ sid })); },
+  seasons(callId, sid, album) { wrap(callId, () => catalogMore.seasons({ sid, album })); },
+  reviews(callId, sid, offset) { wrap(callId, () => catalogMore.reviews({ sid, offset })); },
+  // 登录保活：每天碰一次官网账号接口，服务端续期的 Set-Cookie 写回钥匙串（同绿果TV 心跳，网页登录态走网页接口）
+  accountKeepAlive(callId) { wrap(callId, async () => {
+    const st = await account.status().catch(() => null);
+    if (!st?.signedIn) return { signedIn: false };
+    let saved; try { saved = JSON.parse(Native.kvGet('hg.account.session') || 'null'); } catch (_) { saved = null; }
+    if (!saved?.cookie) return { signedIn: false };
+    const r = await accountFeed.keepAlive({ cookie: saved.cookie });
+    if (r.expired) { await account.logout().catch(() => {}); return { signedIn: false, expired: true }; }
+    if (r.cookie && r.cookie !== saved.cookie) Native.kvSet('hg.account.session', JSON.stringify({ ...saved, cookie: r.cookie }));
+    return { signedIn: true, renewed: !!(r.cookie && r.cookie !== saved.cookie) };
+  }); },
   // 红果首页「推荐」流：登录了带 cookie = 账号个性化推荐；没登录也能拿到通用推荐。
   forYou(callId, offset, session, channel) { wrap(callId, async () => {
     const cookie = await accountCookie();

@@ -155,4 +155,26 @@ async function favorites({ cookie, signal } = {}) {
   return out.sort((a, b) => b.collectedAt - a.collectedAt);
 }
 
-module.exports = { forYou, historyAll, favorites, collectDramas };
+/** 登录保活：官网账号接口，服务端在需要时回写新的 sessionid / sid_guard；回合并后的 cookie。登录失效回 expired */
+async function keepAlive({ cookie } = {}) {
+  if (!cookie) return { expired: true };
+  const axios = require('axios');
+  const r = await axios({ url: 'https://hongguoduanju.com/passport/account/info/v2/?aid=513755&account_sdk_source=web', method: 'GET',
+    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+      Referer: 'https://hongguoduanju.com/', Origin: 'https://hongguoduanju.com', Accept: 'application/json', Cookie: cookie },
+    timeout: 10000, maxRedirects: 0, responseType: 'json', validateStatus: () => true });
+  const body = r?.data || {};
+  // 会话过期：HTTP 200 + data.error_code 13「会话过期，请重新登录」；只有明确过期才登出，网络抖动不动
+  const d = body.data || {};
+  if (r.status === 401 || r.status === 403 || Number(d.error_code) === 13 || /会话过期|session_expired/i.test(String(d.description || '') + String(body.message || ''))) return { expired: true };
+  if (!String(d.user_id_str || d.user_id || '').match(/[1-9]/)) return { cookie };
+  const jar = new Map(String(cookie).split(';').map(p => p.trim()).filter(p => p.includes('=')).map(p => [p.slice(0, p.indexOf('=')), p.slice(p.indexOf('=') + 1)]));
+  const set = r?.headers?.['set-cookie'];
+  for (const line of Array.isArray(set) ? set : set ? [set] : []) {
+    const pair = String(line).split(';', 1)[0], at = pair.indexOf('=');
+    if (at > 0) jar.set(pair.slice(0, at).trim(), pair.slice(at + 1).trim());
+  }
+  return { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') };
+}
+
+module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive };

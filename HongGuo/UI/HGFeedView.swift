@@ -57,6 +57,19 @@ final class HGFeedModel {
     private var forYouDown = false
     /// 当前推荐是不是来自账号推荐流（调试 / 界面提示用）
     private(set) var personal = false
+    /// 推荐频道：16 推荐 / 39 真人剧 / 36 漫剧（同红果首页顶部）
+    private(set) var channel = UserDefaults.standard.string(forKey: "hg.feed.channel") ?? "16"
+    static let channels: [(String, String)] = [("16", "推荐"), ("39", "真人剧"), ("36", "漫剧")]
+
+    /// 换频道：当前这部和已预热的下一部留着，后面没划到的存货换成新频道的
+    func setChannel(_ c: String) {
+        guard c != channel else { return }
+        channel = c
+        UserDefaults.standard.set(c, forKey: "hg.feed.channel")
+        forYouPool = []; forYouOffset = 0; forYouSession = ""; forYouFails = 0; forYouDown = false
+        if items.count > consumed + 2 { items = Array(items.prefix(consumed + 2)); persist() }
+        start()
+    }
 
     // MARK: 看过的（跨次启动记住，下次不再推荐同一部的同一集）
 
@@ -195,13 +208,13 @@ final class HGFeedModel {
 
     /// 账号推荐流里下一部（第一轮才用：推荐流每部都从第 1 集放，看过第 1 集的跳过）
     private func nextForYou() async -> HGSeries? {
-        guard signedIn, round == 0, !forYouDown else { return nil }
+        guard round == 0, !forYouDown else { return nil }
         for _ in 0..<6 {
             while !forYouPool.isEmpty {
                 let s = forYouPool.removeFirst()
                 if !watched.contains(key(s.series_id, 0)) && !inStock(s.series_id) { return s }
             }
-            guard let page = try? await HGAPI.forYou(offset: forYouOffset, session: forYouSession) else {
+            guard let page = try? await HGAPI.forYou(offset: forYouOffset, session: forYouSession, channel: channel) else {
                 forYouFails += 1
                 if forYouFails >= 3 { forYouDown = true }
                 return nil
@@ -356,6 +369,23 @@ struct HGFeedView: View {
             }
             .frame(width: geo.width, height: geo.height)
             .clipped()
+            // 顶部频道：推荐 / 真人剧 / 漫剧（红果首页同款；登录了按账号推荐）
+            .overlay(alignment: .top) {
+                HStack(spacing: 18) {
+                    ForEach(HGFeedModel.channels, id: \.0) { id, name in
+                        let on = id == model.channel
+                        Button { model.setChannel(id) } label: {
+                            Text(name).font(on ? .headline : .subheadline)
+                                .foregroundStyle(.white.opacity(on ? 1 : 0.6))
+                                .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("hg.feed.channel.\(name)")
+                    }
+                }
+                .padding(.top, max(outer.safeAreaInsets.top, 12) + 4)
+            }
             if sideRail { Color.black.frame(width: railReserve) }
           }
           .ignoresSafeArea()

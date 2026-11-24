@@ -136,4 +136,90 @@ async function find({ select = {}, offset = 0, session = '', signal } = {}) {
     filters: first ? parseFilters(data.selector_rows) : [] };
 }
 
-module.exports = { rank, find, parseBoards, parseFilters, meta };
+// ---------------------------------------------------------------- 搜索联想 / 剧集补充信息 / 选季 / 剧评
+
+const V722 = { version_code: '72232', version_name: '7.2.2.32', manifest_version_code: '72232', update_version_code: '72232', pv_player: '72232' };
+
+/** 搜索联想：输入「重生」→ 剧名候选（同官方搜索框下拉） */
+async function suggest({ query = '', signal } = {}) {
+  query = String(query || '').trim().slice(0, 40);
+  if (!query) return { results: [] };
+  const j = await call('/reading/bookapi/search/suggest/v1/', { ...V722, query, q: query, count: '0', tab_type: '11',
+    bookshelf_search_plan: '4', search_source: '0', bookstore_tab: '0', user_is_login: '0' }, null, signal);
+  if (Number(j?.code) !== 0) throw fail('联想暂时不可用', 'APP_BUSINESS');
+  const out = [], seen = new Set();
+  (function walk(v, d) {
+    if (d > 8 || !v || typeof v !== 'object' || out.length >= 10) return;
+    if (Array.isArray(v)) { v.forEach(x => walk(x, d + 1)); return; }
+    const text = cleanTitle(v.title || v.text || v.query || v.word);
+    if (text && text.length <= 40 && !seen.has(text) && (v.title || v.text)) { seen.add(text); out.push(text); }
+    for (const k of Object.keys(v)) if (v[k] && typeof v[k] === 'object') walk(v[k], d + 1);
+  })(j.data?.suggest_result || j.data, 0);
+  return { results: out };
+}
+
+const DETAIL_API = '/novel/player/video_detail/v1/';
+async function detailRaw(sid, signal) {
+  const id = idOf(sid);
+  if (!id) throw fail('剧集编号无效', 'APP_INPUT');
+  const j = await call(DETAIL_API, {}, { biz_param: { source: 5, video_id_type: 1 }, series_id: id, video_id: id }, signal);
+  if (Number(j?.code) !== 0 || !j?.data?.video_data) throw fail(Number(j?.code) === 101001 ? '该剧已下架' : '详情暂时打不开', 'APP_BUSINESS');
+  return j.data.video_data;
+}
+
+/** 详情补充：播放 / 在追 / 热度、新剧·爆剧角标、题材、演员、第几季、完结状态 */
+async function info({ sid, signal } = {}) {
+  const v = await detailRaw(sid, signal);
+  const sec = Array.isArray(v.secondary_infos) ? v.secondary_infos : [];
+  const tags = [...new Set(sec.filter(t => Number(t?.data_type) === 3).map(t => cleanTitle(t.content))
+    .concat((jsonOf(v.category_schema) || []).map(c => cleanTitle(c?.name))).filter(Boolean))].slice(0, 6);
+  const actors = cleanTitle(sec.find(t => Number(t?.data_type) === 33)?.content || '').replace(/^演员·/, '');
+  return { series_id: idOf(v.series_id_str || v.series_id), plays: Number(v.series_play_cnt) || 0, followers: Number(v.followed_cnt) || 0,
+    heat: Number(v.hot_score) || 0, badge: cleanTitle(v.video_tag_info?.text) || undefined, tags, actors: actors || undefined,
+    season: Number(v.season_index) || 0, episodes: Number(v.episode_cnt) || 0, status: cleanTitle(v.episode_right_text) || undefined,
+    album: idOf(v.related_album_id) || undefined };
+}
+
+/** 系列剧选季：同一系列的各季（去掉已下架的）；不是系列剧回空 */
+async function seasons({ sid, album = '', signal } = {}) {
+  let albumId = idOf(album);
+  if (!albumId) albumId = idOf((await detailRaw(sid, signal)).related_album_id);
+  if (!albumId) return { results: [] };
+  const j = await call('/api/novel/origin/album/get_video_list/v1/', { album_id: albumId, offset: '0', limit: '50' }, null, signal);
+  const list = Array.isArray(j?.data?.video_data_list) ? j.data.video_data_list : [];
+  const ids = [...new Set(list.map(x => idOf(x?.video_id)).filter(Boolean))];
+  // 列表里混着已下架的旧版本：逐个查详情，能打开的才算一季（同一季多条只留播放多的）
+  const rows = (await Promise.all(ids.map(id => detailRaw(id, signal).then(v => v, () => null)))).filter(Boolean);
+  const bySeason = new Map();
+  for (const v of rows) {
+    const n = Number(v.season_index) || 1;
+    const prev = bySeason.get(n);
+    if (!prev || (Number(v.series_play_cnt) || 0) > (Number(prev.series_play_cnt) || 0)) bySeason.set(n, v);
+  }
+  const results = [...bySeason.entries()].sort((a, b) => a[0] - b[0]).map(([n, v]) => ({
+    season: n, series_id: idOf(v.series_id_str || v.series_id), series_title: cleanTitle(v.series_title),
+    cover: catalogCover(v.series_cover || ''), episode_count: Number(v.episode_cnt) || 0 }));
+  return { results: results.length > 1 ? results : [], album: cleanTitle(j?.data?.album_data?.album_name) || undefined };
+}
+
+/** 整部剧的评论（剧评），带评分；offset 续页 */
+async function reviews({ sid, offset = 0, signal } = {}) {
+  const id = idOf(sid);
+  if (!id) throw fail('剧集编号无效', 'APP_INPUT');
+  offset = Math.max(0, Number(offset) || 0);
+  const j = await call('/reading/ugc/novel_comment/book/v1/', { book_id: id, offset: String(offset), count: '20', sort: '0', source_type: '32' }, null, signal);
+  const d = j?.data;
+  if (Number(j?.code) !== 0 || !d) throw fail('剧评暂时打不开', 'APP_BUSINESS');
+  const items = (Array.isArray(d.comment) ? d.comment : []).flatMap(c => {
+    const text = cleanTitle(c?.text);
+    if (!text) return [];
+    const ts = Number(c.create_timestamp) || 0;
+    return [{ id: String(c.comment_id || `${ts}-${text.slice(0, 8)}`), author: cleanTitle(c.user_info?.user_name) || '红果用户',
+      avatar: catalogCover(c.user_info?.user_avatar || '') || undefined, content: text, created_at: ts, likes: Number(c.digg_count) || 0,
+      score: Number(c.score) || 0 }];
+  });
+  const next = Number(d.next_offset) || 0;
+  return { items, total: Number(d.comment_cnt) || 0, next, hasMore: d.has_more === true && next > offset };
+}
+
+module.exports = { rank, find, parseBoards, parseFilters, meta, suggest, info, seasons, reviews };

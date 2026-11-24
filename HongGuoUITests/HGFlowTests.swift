@@ -6,7 +6,8 @@ final class HGFlowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["HG_START_TAB"] = "discover"
         app.launch()
-        let card = app.buttons.matching(NSPredicate(format: "label CONTAINS '集'")).element(boundBy: 0)
+        // 发现页是官方剧场大卡（不显示集数）：按卡片标识找
+        let card = app.descendants(matching: .any).matching(identifier: "hg.card").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20), "发现页没有剧集")
         card.tap()
         let ep2 = app.buttons["hg.episode.2"]

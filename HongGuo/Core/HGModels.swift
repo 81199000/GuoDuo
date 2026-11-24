@@ -174,6 +174,41 @@ struct HGFindPage: Codable {
     let filters: [HGFindFilter]?
 }
 
+/// 详情补充：播放 / 在追 / 热度、角标、题材、演员、第几季、完结状态、系列编号
+struct HGSeriesInfo: Codable, Hashable {
+    let plays: Int?
+    let followers: Int?
+    let heat: Int?
+    let badge: String?
+    let tags: [String]?
+    let actors: String?
+    let season: Int?
+    let status: String?
+    let album: String?
+}
+/// 系列剧的一季
+struct HGSeason: Codable, Hashable, Identifiable {
+    let season: Int
+    let series_id: String
+    let series_title: String
+    let cover: String?
+    let episode_count: Int?
+    var id: String { series_id }
+    var series: HGSeries { HGSeries(series_id: series_id, series_title: series_title, cover: cover, episode_count: episode_count) }
+}
+struct HGSeasons: Codable { let results: [HGSeason]; let album: String? }
+/// 剧评（整部剧）
+struct HGSeriesReview: Codable, Hashable, Identifiable {
+    let id: String
+    let author: String
+    let avatar: String?
+    let content: String
+    let created_at: Double?
+    let likes: Int?
+    let score: Int?
+}
+struct HGSeriesReviews: Codable { let items: [HGSeriesReview]; let total: Int; let next: Int; let hasMore: Bool }
+
 /// 红果 App 云端收藏（追剧书架）
 struct HGCloudFavorite: Codable, Hashable {
     let series_id: String
@@ -268,6 +303,22 @@ enum HGAPI {
         return try core.decode(HGFindPage.self, try await core.call("find", [json, offset, session]))
     }
     /// 红果首页推荐流；登录了带账号 cookie
+    static func suggest(_ q: String) async throws -> [String] {
+        struct R: Codable { let results: [String] }
+        return try core.decode(R.self, try await core.call("suggest", [q])).results
+    }
+    static func seriesInfo(_ sid: String) async throws -> HGSeriesInfo { try core.decode(HGSeriesInfo.self, try await core.call("seriesInfo", [sid])) }
+    static func seasons(_ sid: String, album: String?) async throws -> HGSeasons {
+        try core.decode(HGSeasons.self, try await core.call("seasons", [sid, album ?? ""]))
+    }
+    static func reviews(_ sid: String, offset: Int) async throws -> HGSeriesReviews {
+        try core.decode(HGSeriesReviews.self, try await core.call("reviews", [sid, offset]))
+    }
+    /// 登录保活；回 true = 仍登录
+    @discardableResult static func keepAlive() async -> Bool {
+        struct R: Codable { let signedIn: Bool }
+        return (try? core.decode(R.self, try await core.call("accountKeepAlive", [])))?.signedIn ?? false
+    }
     /// channel：16 推荐 / 39 真人剧 / 36 漫剧
     static func forYou(offset: Int, session: String, channel: String = "16") async throws -> HGForYouPage {
         try core.decode(HGForYouPage.self, try await core.call("forYou", [offset, session, channel]))

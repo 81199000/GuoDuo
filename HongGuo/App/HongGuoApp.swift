@@ -65,7 +65,7 @@ struct HGSideTabRail: View {
                 let locked = false
                 Button { if !locked { selection = t } } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: on && t != .search ? t.icon + ".fill" : t.icon)
+                        Image(systemName: on ? t.icon + ".fill" : t.icon)
                             .font(.system(size: 21, weight: .medium))
                             .frame(height: 24)
                         Text(t.rawValue).font(.system(size: 11, weight: on ? .semibold : .medium))
@@ -107,12 +107,12 @@ extension EnvironmentValues {
 }
 
 enum HGRootTab: String, CaseIterable, Hashable {
-    case feed = "推荐", discover = "发现", search = "搜索", mine = "我的"
+    // 搜索并进发现页顶部的搜索框（2026-11-24 老板：菜单栏的搜索去掉）
+    case feed = "推荐", discover = "发现", mine = "我的"
     var icon: String {
         switch self {
         case .feed: "play.rectangle"
         case .discover: "square.grid.2x2"
-        case .search: "magnifyingglass"
         case .mine: "person"
         }
     }
@@ -165,6 +165,15 @@ struct HGRootView: View {
                 // 停在发现页时后台先备几部推荐（等首屏封面先出来，2 秒后再开始）
                 try? await Task.sleep(for: .seconds(2))
                 HGFeedModel.shared.start()
+            }
+            .task {
+                // 登录保活：一天碰一次官网账号接口，续期的 cookie 写回钥匙串（会话过期才登出）
+                try? await Task.sleep(for: .seconds(5))
+                let last = UserDefaults.standard.double(forKey: "hg.account.beat")
+                if Date().timeIntervalSince1970 - last > 20 * 3600 {
+                    await HGAPI.keepAlive()
+                    UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "hg.account.beat")
+                }
             }
             .task {
                 // 等首屏稳定再查，不跟推荐流抢网络
@@ -224,7 +233,6 @@ struct HGRootView: View {
         switch t {
         case .feed: HGFeedView()
         case .discover: HGDiscoverView()
-        case .search: HGSearchView()
         case .mine: HGMineView()
         }
     }
@@ -234,6 +242,7 @@ struct HGRootView: View {
             content()
                 .background(HGTheme.background)
                 .navigationDestination(for: HGSeries.self) { HGDetailView(series: $0) }
+                .navigationDestination(for: HGReviewsRoute.self) { HGReviewsScreen(seriesID: $0.seriesID, title: $0.title) }
         }
     }
 }

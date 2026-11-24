@@ -23,6 +23,7 @@ final class HGDiscoverBoardsTests: XCTestCase {
         app.launch()
         tap(app, "hg.channel.找剧", "没有「找剧」频道")
         XCTAssertTrue(app.buttons["hg.discover.search"].exists, "没有顶部搜索框")
+        XCTAssertFalse(app.buttons["hg.tab.搜索"].exists, "菜单栏不该再有搜索")
         for e in ["filter", "rank", "new", "upcoming"] { XCTAssertTrue(app.buttons["hg.entry.\(e)"].exists, "没有入口 \(e)") }
         XCTAssertTrue(app.descendants(matching: .any)["hg.card"].firstMatch.waitForExistence(timeout: 25), "找剧没有出卡片")
         sleep(3); shot(app, "1-theater")
