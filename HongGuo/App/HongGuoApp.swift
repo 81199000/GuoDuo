@@ -132,7 +132,8 @@ struct HGRootView: View {
             let full = CGSize(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
                               height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
             // 横屏大屏：系统标签栏换成右侧液态玻璃竖栏（图标 + 文字，宽度对齐右上信号栏），内容让出位置不被遮
-            let sideRail = full.width > full.height && full.width >= 700
+            // Duo（外屏 / 内屏）也用：系统竖向标签栏只显示图标，老板要图标下面带文字（2026-11-25）
+            let sideRail = DYDuoMetrics.isDuoHardware || (full.width > full.height && full.width >= 700)
             let reserve = HGSideTabRail.reserve(trailingSafeArea: geo.safeAreaInsets.trailing)
             TabView(selection: $tab) {
                 ForEach(HGRootTab.allCases, id: \.self) { t in
@@ -145,7 +146,8 @@ struct HGRootView: View {
                             .toolbarColorScheme(t == .feed ? .dark : nil, for: .tabBar)
                             // 推荐页横竖屏都不显示主菜单；靠视频上的返回键回发现
                             .toolbarVisibility(sideRail || t == .feed ? .hidden : .automatic, for: .tabBar)
-                            .contentMargins(.trailing, sideRail && t != .feed ? reserve : 0, for: .scrollContent)
+                            // 胶囊让出位置：用安全区（各页按可见宽度排版，列数自适应）
+                            .safeAreaPadding(.trailing, sideRail && t != .feed ? reserve : 0)
                     }
                 }
             }

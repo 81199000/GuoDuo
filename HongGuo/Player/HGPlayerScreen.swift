@@ -15,6 +15,13 @@ struct HGFeedHooks {
     var previous: () -> Void = {}
 }
 
+/// 推荐页当前视频的菜单栏（右侧按钮栏 / 标题 / 返回键）：由当前这部交出来，推荐页画在滚动视图上面，滑动时不动
+struct HGFeedChrome { let id: String; let size: CGSize; let view: AnyView }
+struct HGFeedChromeKey: PreferenceKey {
+    static var defaultValue: HGFeedChrome? { nil }
+    static func reduce(value: inout HGFeedChrome?, nextValue: () -> HGFeedChrome?) { if let n = nextValue() { value = n } }
+}
+
 struct HGPlayerScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -349,14 +356,9 @@ struct HGPlayerScreen: View {
             }
         }
         .clipped()
-        // 推荐页：菜单栏不跟视频一起滑——渲染时按本页在推荐滚动视图里的位置反向平移，同一帧算，不滞后
-        .overlay {
-            if feed != nil && i == session.index {
-                chromeLayer(ep).visualEffect { content, proxy in
-                    content.offset(y: -proxy.frame(in: .scrollView).minY)
-                }
-            }
-        }
+        // 推荐页：菜单栏不画在这一页里（页会跟着手指滑）——交给推荐页，画在滚动视图外面的固定层（DouDuo DYActiveVideoActionsKey 同款）
+        .preference(key: HGFeedChromeKey.self,
+                    value: feed != nil && i == session.index ? HGFeedChrome(id: ep.vid, size: size, view: AnyView(chromeLayer(ep))) : nil)
     }
 
     @ViewBuilder private func chromeLayer(_ ep: HGEpisode) -> some View {

@@ -350,8 +350,6 @@ struct HGFeedView: View {
                             ForEach(model.items) { item in
                                 page(item, size: geo)
                                     .frame(width: geo.width, height: geo.height)
-                                    // 正在放的这部压在最上面：滑动时钉住的菜单栏不被下一部的画面盖住
-                                    .zIndex(item.id == sessionID ? 1 : 0)
                                     .id(item.id)
                             }
                         }
@@ -371,6 +369,10 @@ struct HGFeedView: View {
                 }
             }
             .frame(width: geo.width, height: geo.height)
+            // 当前视频的菜单栏：固定层，不在滚动内容里（滑视频时不跟着跑、不跳）
+            .overlayPreferenceValue(HGFeedChromeKey.self, alignment: .topLeading) { c in
+                if let c { c.view.frame(width: c.size.width, height: c.size.height).id(c.id) }
+            }
             .clipped()
             // 顶部频道：推荐 / 真人剧 / 漫剧（红果首页同款；登录了按账号推荐）
             .overlay(alignment: .top) {

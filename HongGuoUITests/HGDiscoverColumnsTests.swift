@@ -17,6 +17,10 @@ final class HGDiscoverColumnsTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app.launch()
         XCTAssertFalse(app.buttons["hg.tab.搜索"].exists, "菜单栏不该再有搜索")
+        // 右侧主菜单：图标 + 文字（自己的玻璃胶囊），内容不被它盖住
+        let rail = app.descendants(matching: .any)["hg.tab.rail"]
+        XCTAssertTrue(rail.waitForExistence(timeout: 10), "右侧主菜单不是带文字的胶囊")
+        XCTAssertTrue(app.staticTexts["发现"].exists, "主菜单没有文字")
         let ch = app.buttons["hg.channel.找剧"]
         XCTAssertTrue(ch.waitForExistence(timeout: 15)); ch.tap()
         let card = app.descendants(matching: .any)["hg.card"].firstMatch
@@ -25,7 +29,10 @@ final class HGDiscoverColumnsTests: XCTestCase {
         // 外屏不溢出：所有卡片、入口都在窗口里
         let win = app.windows.firstMatch.frame
         let cards = app.descendants(matching: .any).matching(identifier: "hg.card").allElementsBoundByIndex.prefix(8)
-        for c in cards where c.frame.width > 0 { XCTAssertLessThanOrEqual(c.frame.maxX, win.maxX + 1, "卡片出屏：\(c.frame)") }
+        for c in cards where c.frame.width > 0 {
+            XCTAssertLessThanOrEqual(c.frame.maxX, win.maxX + 1, "卡片出屏：\(c.frame)")
+            XCTAssertLessThanOrEqual(c.frame.maxX, rail.frame.minX + 1, "卡片被右侧主菜单盖住：\(c.frame)")
+        }
         // 入口一行、官方尺寸（高 36）；外屏放不下左右滑
         let f0 = app.buttons["hg.entry.filter"].frame, f3 = app.buttons["hg.entry.upcoming"].frame
         XCTAssertEqual(f0.minY, f3.minY, accuracy: 1, "四个入口应在一行")
@@ -69,8 +76,11 @@ final class HGDiscoverColumnsTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["hg.card"].firstMatch.waitForExistence(timeout: 20), "搜索没有结果")
         sleep(2); shot(app, "3-search-result")
         back(app)
-        // 系列剧 → 详情：补充信息 / 选季 / 剧评
-        app.buttons["hg.channel.系列剧"].tap()
+        // 系列剧详情：补充信息 / 选季 / 剧评（系列剧榜第一部不一定挂了系列编号——红果自己也没选季——用搜索直达一部固定的多季剧）
+        app.buttons["hg.discover.search"].tap()
+        let f2 = app.textFields["hg.search.field"]
+        XCTAssertTrue(f2.waitForExistence(timeout: 10))
+        f2.typeText("持械入宋\n")
         XCTAssertTrue(card.waitForExistence(timeout: 20)); sleep(2)
         app.descendants(matching: .any).matching(identifier: "hg.card").firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["hg.detail.info"].waitForExistence(timeout: 20), "详情没有补充信息")
