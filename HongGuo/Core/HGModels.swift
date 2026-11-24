@@ -7,6 +7,10 @@ struct HGSeries: Codable, Identifiable, Hashable {
     var episode_count: Int?
     var description: String?
     var tags: [String]?
+    /// 榜单名次（只有榜单里有）
+    var rank: Int? = nil
+    /// 播放量（榜单 / 找剧带回）
+    var plays: Int? = nil
     var id: String { series_id }
     var coverURL: URL? { cover.flatMap { $0.isEmpty ? nil : URL(string: $0) } }
     /// 红果之外的来源（西饭 / 河马）编号带前缀；弹幕和热评只有红果有。
@@ -137,6 +141,33 @@ struct HGForYouPage: Codable {
     let personal: Bool?
 }
 
+/// 官方榜单目录：分区（全部 / 真人剧 / 漫剧 / AI 剧 / 系列剧）→ 各自的榜
+struct HGRankBoard: Codable, Hashable, Identifiable { let id: String; let name: String }
+struct HGRankZone: Codable, Hashable, Identifiable { let id: String; let name: String; let boards: [HGRankBoard] }
+struct HGRankPage: Codable {
+    let results: [HGSeries]
+    let next: Int
+    let session: String
+    let hasMore: Bool
+    let zones: [HGRankZone]?
+}
+
+/// 找剧筛选：一组（类型 / 排序 / 上新 / 题材 / 人设 / 背景 / 频道）
+struct HGFindOption: Codable, Hashable, Identifiable { let id: String; let name: String }
+struct HGFindFilter: Codable, Hashable, Identifiable {
+    let type: String
+    let name: String
+    let items: [HGFindOption]
+    var id: String { type }
+}
+struct HGFindPage: Codable {
+    let results: [HGSeries]
+    let next: Int
+    let session: String
+    let hasMore: Bool
+    let filters: [HGFindFilter]?
+}
+
 /// 红果 App 云端收藏（追剧书架）
 struct HGCloudFavorite: Codable, Hashable {
     let series_id: String
@@ -222,6 +253,13 @@ enum HGAPI {
     }
     static func cloudFavorites() async throws -> [HGCloudFavorite] {
         try core.decode(HGCloudFavorites.self, try await core.call("accountFavorites", [])).results ?? []
+    }
+    static func rank(zone: String, board: String, offset: Int, session: String) async throws -> HGRankPage {
+        try core.decode(HGRankPage.self, try await core.call("rank", [zone, board, offset, session]))
+    }
+    static func find(_ select: [String: String], offset: Int, session: String) async throws -> HGFindPage {
+        let json = (try? String(decoding: JSONEncoder().encode(select), as: UTF8.self)) ?? "{}"
+        return try core.decode(HGFindPage.self, try await core.call("find", [json, offset, session]))
     }
     /// 红果首页推荐流；登录了带账号 cookie
     static func forYou(offset: Int, session: String) async throws -> HGForYouPage {

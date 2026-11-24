@@ -12,6 +12,7 @@ import * as xifan from './upstream/xifan.js';
 import * as hema from './upstream/hema.js';
 import { fetchPublicFallback } from './web-fallback.cjs';
 import * as accountFeed from './account-feed.cjs';
+import * as catalogMore from './catalog-more.cjs';
 
 const PLAYABLE = ['h264', 'avc', 'avc1', 'hevc', 'h265', 'hvc1', 'hev1', 'bytevc1'];
 const APP_EMPTY_CODES = ['EMPTY_RESPONSE', 'ETIMEDOUT', 'ECONNABORTED', 'ERR_NETWORK'];
@@ -217,6 +218,10 @@ globalThis.HG = {
   accountCancelLogin(callId, id) { wrap(callId, () => account.cancelLogin?.(id)); },
   accountLogout(callId) { wrap(callId, () => account.logout()); },
   accountHistory(callId, refresh) { wrap(callId, () => account.history({ refresh: !!refresh })); },
+  // 官方榜单全集（分区 × 榜：推荐 / 热播 / 新剧 / 热搜 / 必看 / 收藏…）；第 1 页带回榜单目录
+  rank(callId, zone, board, offset, session) { wrap(callId, () => catalogMore.rank({ zone, board, offset, session })); },
+  // 找剧：类型 / 排序（最新上架）/ 上新时间 / 题材 / 人设 / 背景 / 男女频；select 是 JSON 字符串
+  find(callId, select, offset, session) { wrap(callId, () => catalogMore.find({ select: JSON.parse(select || '{}'), offset, session })); },
   // 红果首页「推荐」流：登录了带 cookie = 账号个性化推荐；没登录也能拿到通用推荐。
   forYou(callId, offset, session) { wrap(callId, async () => {
     const cookie = await accountCookie();
