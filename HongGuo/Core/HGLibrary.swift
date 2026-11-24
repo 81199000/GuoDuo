@@ -53,9 +53,24 @@ final class HGLibrary {
     }
 
     func isLiked(_ vid: String) -> Bool { liked.contains(vid) }
-    func toggleLike(_ vid: String) {
-        if liked.contains(vid) { liked.remove(vid) } else { liked.insert(vid) }
+    func toggleLike(_ vid: String, series: HGSeries? = nil) {
+        if liked.contains(vid) {
+            liked.remove(vid)
+        } else {
+            liked.insert(vid)
+            // 「我的 → 点赞」按剧列：点过赞的剧放最前
+            if let series { likedSeries.removeAll { $0.id == series.id }; likedSeries.insert(series, at: 0); saveLikedSeries() }
+        }
         UserDefaults.standard.set(Array(liked.suffix(5000)), forKey: "hg.liked")
+    }
+    /// 点过赞的剧（新→旧）
+    private(set) var likedSeries: [HGSeries] = {
+        guard let d = UserDefaults.standard.data(forKey: "hg.likedSeries"), let v = try? JSONDecoder().decode([HGSeries].self, from: d) else { return [] }
+        return v
+    }()
+    private func saveLikedSeries() {
+        if likedSeries.count > 300 { likedSeries.removeLast(likedSeries.count - 300) }
+        if let d = try? JSONEncoder().encode(likedSeries) { UserDefaults.standard.set(d, forKey: "hg.likedSeries") }
     }
 
     private func save() {

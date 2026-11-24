@@ -155,6 +155,43 @@ async function favorites({ cookie, signal } = {}) {
   return out.sort((a, b) => b.collectedAt - a.collectedAt);
 }
 
+/** 账号资料（官方「我的」顶部）：头像、昵称、红果号、签名、会员、累计观看时长、活跃天数 */
+async function profile({ cookie, signal } = {}) {
+  if (!cookie) throw fail('未登录', 'NOT_SIGNED_IN');
+  const d = checkAccount(await accountGet(cookie, '/reading/user/info/v1/', {}, signal), '读取账号资料');
+  const uid = String(d.biz_user_id || d.user_id || '').trim();
+  if (!uid) throw fail('登录已失效，请重新扫码登录', 'SESSION_EXPIRED');
+  const vip = d.vip_info || {};
+  const num = v => Math.max(0, Number(v) || 0);
+  return { uid, name: cleanTitle(d.user_name) || '红果用户', avatar: String(d.expand_avatar_url || d.avatar_url || ''),
+    cover: String(d.profile_cover_url || ''), signature: cleanTitle(d.description), vip: String(vip.is_vip) === '1',
+    watchMinutes: Math.round(num(d.video_consume_duration) / 60000), activeDays: num(d.active_day),
+    follows: num(d.follow_count ?? d.following_count), fans: num(d.fans_count ?? d.follower_count), likes: num(d.digg_count ?? d.total_favorited) };
+}
+
+/** 预约（已上线 + 待上线） */
+async function reservations({ cookie, signal } = {}) {
+  if (!cookie) throw fail('未登录', 'NOT_SIGNED_IN');
+  const out = [];
+  for (const online of [true, false]) {
+    const j = await accountGet(cookie, '/reading/user/subscribe/list/v1/', { offset: '0', limit: '50', is_online: String(online), tab_type: '13',
+      session_id: '', subscribe_order_type: '0', swipe_type: '0', need_calendar_schema: 'false', subscribe_offset: '0' }, signal).catch(() => null);
+    if (!j || Number(j.code) !== 0) continue;
+    for (const row of j.data?.subscribe_items || []) {
+      const sd = row?.subscribe_data || {};
+      const on = typeof row?.is_online === 'boolean' ? row.is_online : online;
+      const id = idOf(on ? (sd.series_id || row.item_id) : (row.item_id || sd.series_id));
+      if (!id) continue;
+      let t = Number(row.expected_publish_time || row.schedule_publish_time) || 0;
+      if (t > 0 && t < 1e10) t *= 1000;
+      out.push({ series_id: id, series_title: cleanTitle(sd.title || row.name || row.title) || `剧集 ${id}`,
+        cover: catalogCover(sd.cover || row.cover || ''), episode_count: Number(sd.episode_cnt) || 0, upcoming: !on,
+        heat: on ? undefined : (t ? `${new Date(t + 8 * 3600e3).getUTCMonth() + 1}月${new Date(t + 8 * 3600e3).getUTCDate()}日上线` : '待上线') });
+    }
+  }
+  return out;
+}
+
 /** 登录保活：官网账号接口，服务端在需要时回写新的 sessionid / sid_guard；回合并后的 cookie。登录失效回 expired */
 async function keepAlive({ cookie } = {}) {
   if (!cookie) return { expired: true };
@@ -177,4 +214,4 @@ async function keepAlive({ cookie } = {}) {
   return { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') };
 }
 
-module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive };
+module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations };

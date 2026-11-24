@@ -917,10 +917,10 @@ struct HGPlayerScreen: View {
     // MARK: 动作
 
     /// 点赞只记在本机（红果账号登录也是只读，没法替你在官方点赞）；数字显示官方点赞数 + 自己这一下。
-    private func toggleLike() { library.toggleLike(session.episode.vid) }
+    private func toggleLike() { library.toggleLike(session.episode.vid, series: session.series) }
 
     private func doubleTapLike() {
-        if !library.isLiked(session.episode.vid) { library.toggleLike(session.episode.vid) }
+        if !library.isLiked(session.episode.vid) { library.toggleLike(session.episode.vid, series: session.series) }
         withAnimation(.spring(duration: 0.25)) { heartBurst = true }
         Task { try? await Task.sleep(for: .milliseconds(650)); withAnimation(.easeOut(duration: 0.2)) { heartBurst = false } }
     }

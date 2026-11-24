@@ -209,6 +209,22 @@ struct HGSeriesReview: Codable, Hashable, Identifiable {
 }
 struct HGSeriesReviews: Codable { let items: [HGSeriesReview]; let total: Int; let next: Int; let hasMore: Bool }
 
+/// 红果账号资料（「我的」顶部）
+struct HGAccountInfo: Codable, Hashable {
+    let signedIn: Bool
+    var uid: String? = nil
+    var name: String? = nil
+    var avatar: String? = nil
+    var signature: String? = nil
+    var vip: Bool? = nil
+    var watchMinutes: Int? = nil
+    var activeDays: Int? = nil
+    var follows: Int? = nil
+    var fans: Int? = nil
+    var likes: Int? = nil
+}
+struct HGReservations: Codable { let results: [HGSeries] }
+
 /// 红果 App 云端收藏（追剧书架）
 struct HGCloudFavorite: Codable, Hashable {
     let series_id: String
@@ -314,6 +330,8 @@ enum HGAPI {
     static func reviews(_ sid: String, offset: Int) async throws -> HGSeriesReviews {
         try core.decode(HGSeriesReviews.self, try await core.call("reviews", [sid, offset]))
     }
+    static func accountInfo() async throws -> HGAccountInfo { try core.decode(HGAccountInfo.self, try await core.call("accountProfile", [])) }
+    static func reservations() async throws -> [HGSeries] { try core.decode(HGReservations.self, try await core.call("accountReservations", [])).results }
     /// 登录保活；回 true = 仍登录
     @discardableResult static func keepAlive() async -> Bool {
         struct R: Codable { let signedIn: Bool }

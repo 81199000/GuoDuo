@@ -1,85 +1,264 @@
 import SwiftUI
 
+/// 我的（官方同款）：头像 / 昵称 / 红果号 / 关注·粉丝·获赞 → 快捷入口 → 历史 / 收藏 / 点赞 / 预约 标签 + 封面网格
 struct HGMineView: View {
+    enum Shelf: String, CaseIterable { case history = "历史", favorites = "收藏", likes = "点赞", reserve = "预约" }
+    enum Filter: String, CaseIterable { case all = "全部", comic = "漫剧", ten = "看10集以上" }
     @State private var library = HGLibrary.shared
     @State private var account: HGAccountStatus?
+    @State private var info: HGAccountInfo?
     @State private var cloud: [HGCloudHistoryRow] = []
     @State private var cloudFavorites: [HGCloudFavorite] = []
+    @State private var reserved: [HGSeries] = []
     @State private var cloudError: String?
     @State private var showLogin = false
+    @State private var showSettings = false
     @State private var resume: HGPlayerRequest?
-    @AppStorage("hg.bgPlay.v2") private var bgPlay = false
+    @AppStorage("hg.mine.shelf") private var shelf: Shelf = .history
+    @State private var filter: Filter = .all
+    @State private var managing = false
 
     var body: some View {
-        List {
-            accountSection
-            // 外面只放一排前几部（横滑），点「全部」进完整列表
-            if signedIn {
-                // 登录了：本机 + 红果 App 云端观看记录合成一排，按最后观看时间新→旧；点了直接从进度续播
-                let rows = mergedHistory
-                HGShelfSection(title: "继续观看", empty: "还没有观看记录", id: "history",
-                               items: rows.map { ($0.series, "看到第 \(max(1, $0.vid_index)) 集") },
-                               tap: { s in if let r = rows.first(where: { $0.series_id == s.id }) { Task { await play(r) } } }) {
-                    HGCloudHistoryScreen(rows: rows) { r in Task { await play(r) } }
+        GeometryReader { geo in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    quickRow
+                    VStack(alignment: .leading, spacing: 12) {
+                        shelfTabs
+                        if shelf == .history { filterRow }
+                        if let cloudError { Text(cloudError).font(.caption).foregroundStyle(HGTheme.textTertiary).padding(.horizontal, 16) }
+                        grid(width: geo.size.width - 32)
+                            .padding(.horizontal, 16)
+                    }
+                    .padding(.vertical, 14)
+                    .background(HGTheme.surface.opacity(0.55), in: UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22, style: .continuous))
+                    HGBrandFooter().padding(.horizontal, 16).padding(.bottom, 24)
                 }
-                let favs = mergedFavorites
-                HGShelfSection(title: "收藏", empty: "还没有收藏", id: "favorites",
-                               items: favs.map { ($0, $0.episode_count.map { "共 \($0) 集" }) }) {
-                    HGSeriesGridScreen(title: "收藏", items: favs)
-                }
-            } else {
-                HGShelfSection(title: "继续观看", empty: "还没有观看记录", id: "history",
-                               items: library.history.map { ($0.series, "看到第 \($0.episodeIndex + 1) 集") }) {
-                    HGSeriesListScreen(title: "继续观看", kind: .history)
-                }
-                HGShelfSection(title: "收藏", empty: "还没有收藏", id: "favorites",
-                               items: library.favorites.map { ($0, $0.episode_count.map { "共 \($0) 集" }) }) {
-                    HGSeriesListScreen(title: "收藏", kind: .favorites)
-                }
+                .padding(.top, 8)
+                .frame(width: geo.size.width)
             }
-            Section {
-                NavigationLink { DYStorageScreen() } label: {
-                    Label("储存空间", systemImage: "internaldrive")
-                }
-                .accessibilityIdentifier("hg.mine.storage")
-                Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
-            }
-            .listRowBackground(HGTheme.surface)
-            HGAboutSection()
-            Section { HGBrandFooter() }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 24, trailing: 16))
+            .refreshable { await refreshAccount() }
         }
-        .scrollContentBackground(.hidden)
+        .background(HGTheme.background)
+        .toolbarVisibility(.hidden, for: .navigationBar)
         .navigationTitle("我的")
         .task { await refreshAccount() }
         .sheet(isPresented: $showLogin, onDismiss: { Task { await refreshAccount() } }) {
             HGLoginSheet { showLogin = false }.presentationDetents([.medium])
         }
+        .sheet(isPresented: $showSettings) { NavigationStack { HGMineSettings(signedIn: signedIn, onLogout: {
+            Task { try? await HGAPI.logout(); showSettings = false; await refreshAccount() }
+        }) }.presentationDetents([.medium, .large]) }
         .fullScreenCover(item: $resume) { HGPlayerScreen(request: $0) }
+        .navigationDestination(item: $openDetail) { HGDetailView(series: $0) }
     }
 
-    @ViewBuilder private var accountSection: some View {
-        Section {
-            if let a = account?.account, account?.signedIn == true {
-                HStack {
-                    Label(a.nickname, systemImage: "person.crop.circle.fill").foregroundStyle(HGTheme.textPrimary)
-                    Spacer()
-                    Button("退出") { Task { try? await HGAPI.logout(); await refreshAccount() } }.font(.footnote)
+    // MARK: 顶部：头像 / 昵称 / 红果号 / 数字
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Spacer()
+                Button { showSettings = true } label: {
+                    Image(systemName: "line.3.horizontal").font(.title3).foregroundStyle(HGTheme.textPrimary).frame(width: 40, height: 40)
                 }
-                if let cloudError { Text(cloudError).font(.caption).foregroundStyle(HGTheme.textTertiary) }
-            } else {
-                Button { showLogin = true } label: {
-                    HStack {
-                        Label("登录红果账号", systemImage: "qrcode.viewfinder")
-                        Spacer()
-                        Text("同步推荐 / 观看记录 / 收藏").font(.caption).foregroundStyle(HGTheme.textTertiary)
+                .accessibilityIdentifier("hg.mine.settings")
+            }
+            HStack(spacing: 14) {
+                AsyncImage(url: info?.avatar.flatMap(URL.init(string:))) { phase in
+                    if case .success(let img) = phase { img.resizable().scaledToFill() }
+                    else { Circle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "person.fill").font(.title).foregroundStyle(HGTheme.textTertiary)) }
+                }
+                .frame(width: 72, height: 72).clipShape(Circle())
+                VStack(alignment: .leading, spacing: 6) {
+                    if signedIn {
+                        Text(info?.name ?? account?.account?.nickname ?? "红果用户").font(.title2.weight(.semibold)).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                        if let uid = info?.uid ?? account?.account?.id {
+                            Button { UIPasteboard.general.string = uid } label: {
+                                HStack(spacing: 4) {
+                                    Text("红果号：\(uid)").font(.footnote).foregroundStyle(HGTheme.textTertiary)
+                                    Image(systemName: "doc.on.doc").font(.caption2).foregroundStyle(HGTheme.textTertiary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } else {
+                        Button { showLogin = true } label: {
+                            Text("登录红果账号").font(.title3.weight(.semibold)).foregroundStyle(HGTheme.textPrimary)
+                        }
+                        .accessibilityIdentifier("hg.mine.login")
+                        Text("扫码登录后同步推荐、观看记录、收藏、预约").font(.footnote).foregroundStyle(HGTheme.textTertiary)
                     }
                 }
-                .accessibilityIdentifier("hg.mine.login")
+                Spacer(minLength: 0)
             }
-        } header: { Text("红果账号") }
-        .listRowBackground(HGTheme.surface)
+            if signedIn {
+                HStack(alignment: .bottom, spacing: 26) {
+                    stat(info?.follows ?? 0, "关注"); stat(info?.fans ?? 0, "粉丝"); stat(info?.likes ?? 0, "获赞")
+                    Spacer()
+                    if let m = info?.watchMinutes, m > 0 {
+                        Text("累计观看 \(m >= 60 ? "\(m / 60)小时" : "\(m)分钟")").font(.caption).foregroundStyle(HGTheme.textTertiary)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func stat(_ n: Int, _ title: String) -> some View {
+        VStack(spacing: 2) {
+            Text(n >= 10_000 ? String(format: "%.1fw", Double(n) / 1e4) : "\(n)").font(.headline.monospacedDigit()).foregroundStyle(HGTheme.textPrimary)
+            Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary)
+        }
+    }
+
+    // MARK: 快捷入口（我们能接的：追剧 / 预约 / 储存 / 设置）
+
+    private var quickRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                quick("追剧", sub: "\(mergedFavorites.count) 部") { shelf = .favorites }
+                quick("预约", sub: signedIn ? "\(reserved.filter { $0.upcoming == true }.count) 部待上线" : "登录后同步") { shelf = .reserve }
+                NavigationLink { DYStorageScreen() } label: { quickLabel("储存", sub: "清理缓存") }.buttonStyle(.plain)
+                    .accessibilityIdentifier("hg.mine.storage")
+                quick("设置", sub: "听书 / 更新") { showSettings = true }
+            }
+            .padding(.horizontal, 16)
+        }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+    }
+
+    private func quick(_ t: String, sub: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { quickLabel(t, sub: sub) }.buttonStyle(.plain).accessibilityIdentifier("hg.mine.quick.\(t)")
+    }
+
+    private func quickLabel(_ t: String, sub: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(t).font(.headline).foregroundStyle(HGTheme.textPrimary)
+            Text(sub).font(.caption).foregroundStyle(HGTheme.textSecondary).lineLimit(1)
+        }
+        .frame(width: 104, height: 62, alignment: .leading).padding(.leading, 14)
+        .background(HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radius + 2, style: .continuous))
+    }
+
+    // MARK: 历史 / 收藏 / 点赞 / 预约
+
+    private var shelfTabs: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 26) {
+            ForEach(Shelf.allCases, id: \.self) { t in
+                Button { shelf = t; managing = false } label: {
+                    Text(t.rawValue).font(t == shelf ? .title3.weight(.bold) : .title3)
+                        .foregroundStyle(t == shelf ? HGTheme.textPrimary : HGTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("hg.mine.tab.\(t.rawValue)")
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var filterRow: some View {
+        HStack(spacing: 8) {
+            ForEach(Filter.allCases, id: \.self) { f in
+                let on = f == filter
+                Button { filter = f } label: {
+                    Text(f.rawValue).font(.subheadline).padding(.horizontal, 14).frame(height: 32)
+                        .background(on ? HGTheme.accent.opacity(0.2) : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
+                        .foregroundStyle(on ? HGTheme.accent : HGTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+            Button(managing ? "完成" : "管理") { managing.toggle() }.font(.subheadline).foregroundStyle(HGTheme.textPrimary)
+                .accessibilityIdentifier("hg.mine.manage")
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private struct Cell: Identifiable { let series: HGSeries; let sub: String?; let history: HGCloudHistoryRow?; var id: String { series.id } }
+
+    private var cells: [Cell] {
+        switch shelf {
+        case .history:
+            return mergedHistory.filter { r in
+                switch filter {
+                case .all: true
+                case .comic: (r.series.tags ?? []).contains("漫剧") || r.series_title.contains("漫")
+                case .ten: r.vid_index >= 10
+                }
+            }.map { Cell(series: $0.series, sub: "\(max(1, $0.vid_index))集/\($0.total.map(String.init) ?? "?")集", history: $0) }
+        case .favorites:
+            return mergedFavorites.map { Cell(series: $0, sub: $0.episode_count.map { "共\($0)集" }, history: nil) }
+        case .likes:
+            return likedSeries.map { Cell(series: $0, sub: $0.episode_count.map { "共\($0)集" }, history: nil) }
+        case .reserve:
+            return reserved.map { Cell(series: $0, sub: $0.heat ?? ($0.upcoming == true ? "待上线" : "已上线"), history: nil) }
+        }
+    }
+
+    /// 点过赞的剧（本机记录；红果账号的点赞列表没有公开接口）
+    private var likedSeries: [HGSeries] { library.likedSeries }
+
+    @ViewBuilder private func grid(width: CGFloat) -> some View {
+        let list = cells
+        if list.isEmpty {
+            Text(emptyText).font(.footnote).foregroundStyle(HGTheme.textTertiary).frame(maxWidth: .infinity).padding(.vertical, 40)
+        } else {
+            // 封面宽约 110（官方外屏一排 3 个），列数按宽度自适应
+            let n = max(3, Int((width + 10) / 120))
+            let w = (width - CGFloat(n - 1) * 10) / CGFloat(n)
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(w), spacing: 10, alignment: .top), count: n), spacing: 16) {
+                ForEach(list) { c in
+                    Button { open(c) } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Color.clear.aspectRatio(3 / 4, contentMode: .fit)
+                                .overlay { HGCoverFill(url: c.series.coverURL) }
+                                .overlay(alignment: .topTrailing) {
+                                    if let b = c.series.badge ?? (c.series.upcoming == true ? "待上线" : nil) {
+                                        Text(b).font(.caption2.weight(.semibold)).foregroundStyle(.white)
+                                            .padding(.horizontal, 5).padding(.vertical, 2)
+                                            .background(.black.opacity(0.5), in: UnevenRoundedRectangle(bottomLeadingRadius: 6, style: .continuous))
+                                    }
+                                }
+                                .overlay(alignment: .topLeading) {
+                                    if managing { Image(systemName: "minus.circle.fill").font(.title3).foregroundStyle(.white, HGTheme.accent).padding(4) }
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+                            Text(c.series.series_title).font(.subheadline).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                            if let sub = c.sub { Text(sub).font(.caption).foregroundStyle(HGTheme.textTertiary).lineLimit(1) }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("hg.mine.cell")
+                }
+            }
+            .accessibilityIdentifier(shelf == .history ? "hg.shelf.history" : "hg.shelf.\(shelf)")
+        }
+    }
+
+    private var emptyText: String {
+        switch shelf {
+        case .history: "还没有观看记录"
+        case .favorites: "还没有收藏"
+        case .likes: "还没有点赞"
+        case .reserve: signedIn ? "还没有预约" : "登录红果账号后显示预约"
+        }
+    }
+
+    @State private var openDetail: HGSeries?
+
+    private func open(_ c: Cell) {
+        if managing {
+            switch shelf {
+            case .history: library.removeHistory(c.id); cloud.removeAll { $0.series_id == c.id }
+            case .favorites: if library.isFavorite(c.id) { library.toggleFavorite(c.series) }
+            default: break
+            }
+            return
+        }
+        if let h = c.history { Task { await play(h) } } else { openDetail = c.series }
     }
 
     private var signedIn: Bool { account?.signedIn == true }
@@ -138,9 +317,13 @@ struct HGMineView: View {
         }
         #endif
         account = try? await HGAPI.accountStatus()
-        guard account?.signedIn == true else { cloud = []; cloudFavorites = []; return }
+        guard account?.signedIn == true else { cloud = []; cloudFavorites = []; reserved = []; info = nil; return }
         async let h = Result { try await HGAPI.cloudHistoryAll() }
         async let f = Result { try await HGAPI.cloudFavorites() }
+        async let i = try? HGAPI.accountInfo()
+        async let r = try? HGAPI.reservations()
+        info = await i
+        reserved = await r ?? []
         var errors: [String] = []
         switch await h {
         case .success(let rows): cloud = rows
@@ -394,5 +577,30 @@ extension HGCloudHistoryRow {
     func with(cover: String) -> HGCloudHistoryRow {
         HGCloudHistoryRow(series_id: series_id, series_title: series_title, cover: cover, episode_id: episode_id,
                           vid_index: vid_index, currentTime: currentTime, total: total, updatedAt: updatedAt)
+    }
+}
+
+/// 「我的」右上 ☰：账号 / 听书 / 版本更新 / 退出
+struct HGMineSettings: View {
+    let signedIn: Bool
+    let onLogout: () -> Void
+    @AppStorage("hg.bgPlay.v2") private var bgPlay = false
+    var body: some View {
+        List {
+            Section {
+                NavigationLink { DYStorageScreen() } label: { Label("储存空间", systemImage: "internaldrive") }
+                Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
+            }
+            .listRowBackground(HGTheme.surface)
+            HGAboutSection()
+            if signedIn {
+                Section { Button("退出红果账号", role: .destructive, action: onLogout).accessibilityIdentifier("hg.mine.logout") }
+                    .listRowBackground(HGTheme.surface)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(HGTheme.background)
+        .navigationTitle("设置")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

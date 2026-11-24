@@ -249,6 +249,16 @@ globalThis.HG = {
     if (!cookie) return { signedIn: false, results: [] };
     return { signedIn: true, results: await accountFeed.historyAll({ cookie }) };
   }); },
+  accountProfile(callId) { wrap(callId, async () => {
+    const cookie = await accountCookie();
+    if (!cookie) return { signedIn: false };
+    return { signedIn: true, ...(await accountFeed.profile({ cookie })) };
+  }); },
+  accountReservations(callId) { wrap(callId, async () => {
+    const cookie = await accountCookie();
+    if (!cookie) return { signedIn: false, results: [] };
+    return { signedIn: true, results: await accountFeed.reservations({ cookie }) };
+  }); },
   // 云端收藏（红果 App 追剧书架）
   accountFavorites(callId) { wrap(callId, async () => {
     const cookie = await accountCookie();
