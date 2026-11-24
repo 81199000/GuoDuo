@@ -120,11 +120,32 @@ struct HGCloudHistoryRow: Codable, Hashable, Identifiable {
     let vid_index: Int
     let currentTime: Double
     let total: Int?
+    /// 最后观看时间（毫秒）；旧接口没有
+    var updatedAt: Double? = nil
     var id: String { series_id }
-    var series: HGSeries { HGSeries(series_id: series_id, series_title: series_title, cover: cover, episode_count: total) }
+    var series: HGSeries { HGSeries(series_id: series_id, series_title: series_title, cover: cover, episode_count: (total ?? 0) > 0 ? total : nil) }
 }
 
 struct HGCloudHistory: Codable { let results: [HGCloudHistoryRow]? }
+
+/// 红果首页「推荐」一页：登录了是账号个性化推荐（personal）；next / session 续页
+struct HGForYouPage: Codable {
+    let results: [HGSeries]
+    let next: Int
+    let session: String
+    let hasMore: Bool
+    let personal: Bool?
+}
+
+/// 红果 App 云端收藏（追剧书架）
+struct HGCloudFavorite: Codable, Hashable {
+    let series_id: String
+    let series_title: String
+    let cover: String?
+    let episode_count: Int?
+    var series: HGSeries { HGSeries(series_id: series_id, series_title: series_title, cover: cover, episode_count: (episode_count ?? 0) > 0 ? episode_count : nil) }
+}
+struct HGCloudFavorites: Codable { let results: [HGCloudFavorite]? }
 
 enum HGCategory: String, CaseIterable, Identifiable {
     case hot = "hot-drama", real = "real-drama", comic = "comic-drama", ai = "ai-drama", hotReal = "hot-real-drama"
@@ -194,5 +215,16 @@ enum HGAPI {
     static func logout() async throws { _ = try await core.call("accountLogout", []) }
     static func cloudHistory(refresh: Bool) async throws -> [HGCloudHistoryRow] {
         try core.decode(HGCloudHistory.self, try await core.call("accountHistory", [refresh])).results ?? []
+    }
+    /// 完整云端观看记录（分页拉完，最新在前）
+    static func cloudHistoryAll() async throws -> [HGCloudHistoryRow] {
+        try core.decode(HGCloudHistory.self, try await core.call("accountHistoryAll", [])).results ?? []
+    }
+    static func cloudFavorites() async throws -> [HGCloudFavorite] {
+        try core.decode(HGCloudFavorites.self, try await core.call("accountFavorites", [])).results ?? []
+    }
+    /// 红果首页推荐流；登录了带账号 cookie
+    static func forYou(offset: Int, session: String) async throws -> HGForYouPage {
+        try core.decode(HGForYouPage.self, try await core.call("forYou", [offset, session]))
     }
 }

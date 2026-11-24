@@ -1,9 +1,9 @@
 import SwiftUI
 import QuartzCore
 
-/// 推荐：红果五个片库（热播榜 / 真人剧 / 漫剧 / AI 剧 / 真人热播）拼成随机剧池，
+/// 推荐：登录了红果账号 → 先用红果首页「推荐」流（账号个性化，同绿果TV forYou）；
+/// 没登录 / 推荐流失败或翻完 → 红果五个片库（热播榜 / 真人剧 / 漫剧 / AI 剧 / 真人热播）拼成随机剧池。
 /// 竖滑一屏一部，每部只放第 1 集；放完自动滑到下一部。感兴趣点「看全集」进整部剧。
-/// 红果 App 自己的推荐流接口没逆向出来（上游也没有），这是上游「热播推荐 · 随机」同一思路。
 @MainActor @Observable
 final class HGFeedModel {
     /// 全 App 一份：打开 App 就在后台备片，点进推荐直接放本地文件
@@ -36,6 +36,18 @@ final class HGFeedModel {
     /// 第一轮（第 1 集）用完了：改从第 2 集推荐
     private var round = 0
     private var working = false
+
+    // 账号推荐流（红果首页「推荐」，带登录 cookie）
+    private var signedIn = false
+    private var checkedAccount = false
+    private var forYouPool: [HGSeries] = []
+    private var forYouOffset = 0
+    private var forYouSession = ""
+    private var forYouFails = 0
+    /// 连续失败 3 次 / 翻完：本次启动不再走推荐流，全用片库随机
+    private var forYouDown = false
+    /// 当前推荐是不是来自账号推荐流（调试 / 界面提示用）
+    private(set) var personal = false
 
     // MARK: 看过的（跨次启动记住，下次不再推荐同一部的同一集）
 
@@ -93,6 +105,19 @@ final class HGFeedModel {
 
     /// 一部一部来：取集列表 → 取源 → 下载解密 → 进列表。拿到什么放什么，不按横竖挑
     private func fillLoop() async {
+        // 登录 / 退出了：推荐流从头来（换成新账号的推荐）
+        let nowSignedIn = (try? await HGAPI.accountStatus())?.signedIn == true
+        if nowSignedIn != signedIn || !checkedAccount {
+            let justSignedIn = checkedAccount && nowSignedIn && !signedIn
+            checkedAccount = true
+            signedIn = nowSignedIn
+            forYouPool = []; forYouOffset = 0; forYouSession = ""; forYouFails = 0; forYouDown = false
+            // 用着用着刚登录：后面还没划到的存货是片库随机的，丢掉换成账号推荐（当前这部和已预热的下一部留着）
+            if justSignedIn && items.count > consumed + 2 {
+                items = Array(items.prefix(consumed + 2))
+                persist()
+            }
+        }
         while stockAhead < Self.ahead {
             guard let s = await nextCandidate() else {
                 if round == 0 { round = 1; poolSeen = []; pool = []; nextPage = [:]; exhausted = []; continue }
@@ -126,8 +151,34 @@ final class HGFeedModel {
         items.contains { $0.id == id }
     }
 
-    /// 剧池里下一部（没看过的、红果来源）；不够就翻下一页
+    /// 账号推荐流里下一部（第一轮才用：推荐流每部都从第 1 集放，看过第 1 集的跳过）
+    private func nextForYou() async -> HGSeries? {
+        guard signedIn, round == 0, !forYouDown else { return nil }
+        for _ in 0..<6 {
+            while !forYouPool.isEmpty {
+                let s = forYouPool.removeFirst()
+                if !watched.contains(key(s.series_id, 0)) && !inStock(s.series_id) { return s }
+            }
+            guard let page = try? await HGAPI.forYou(offset: forYouOffset, session: forYouSession) else {
+                forYouFails += 1
+                if forYouFails >= 3 { forYouDown = true }
+                return nil
+            }
+            forYouFails = 0
+            personal = page.personal == true
+            forYouSession = page.session
+            // 推荐流每次请求都会变，去重靠 poolSeen（片库随机那边也不会再出同一部）
+            forYouPool = page.results.filter { poolSeen.insert($0.series_id).inserted }
+            if !page.hasMore || page.next <= forYouOffset { forYouDown = true }
+            forYouOffset = page.next
+            if forYouPool.isEmpty && forYouDown { return nil }
+        }
+        return nil
+    }
+
+    /// 剧池里下一部（没看过的、红果来源）；不够就翻下一页。登录了先从账号推荐流里拿
     private func nextCandidate() async -> HGSeries? {
+        if let s = await nextForYou() { return s }
         for _ in 0..<6 {
             if let i = pool.firstIndex(where: { _ in true }) { return pool.remove(at: i) }
             var fresh: [HGSeries] = []

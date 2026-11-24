@@ -11,6 +11,7 @@ import { createAccountService } from './upstream/account-session.js';
 import * as xifan from './upstream/xifan.js';
 import * as hema from './upstream/hema.js';
 import { fetchPublicFallback } from './web-fallback.cjs';
+import * as accountFeed from './account-feed.cjs';
 
 const PLAYABLE = ['h264', 'avc', 'avc1', 'hevc', 'h265', 'hvc1', 'hev1', 'bytevc1'];
 const APP_EMPTY_CODES = ['EMPTY_RESPONSE', 'ETIMEDOUT', 'ECONNABORTED', 'ERR_NETWORK'];
@@ -72,6 +73,12 @@ setDeviceIdentityFile('hg.danmaku.identity');
 const safeStorage = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'keychain',
   encryptString: s => Buffer.from(s, 'utf8'), decryptString: b => Buffer.from(b).toString('utf8') };
 const account = createAccountService({ filePath: 'hg.account.session', safeStorage });
+// 已登录时的红果 cookie（上游登录态原样存钥匙串 hg.account.session，透传加密 = 明文 JSON）
+async function accountCookie() {
+  const st = await account.status().catch(() => null);
+  if (!st?.signedIn) return '';
+  try { return String(JSON.parse(Native.kvGet('hg.account.session') || 'null')?.cookie || ''); } catch (_) { return ''; }
+}
 
 const normEpisodes = d => ({ series_id: String(d.series_id), series_title: String(d.series_title || '未命名短剧'),
   cover: d.cover || '', description: d.description || '',
@@ -210,6 +217,24 @@ globalThis.HG = {
   accountCancelLogin(callId, id) { wrap(callId, () => account.cancelLogin?.(id)); },
   accountLogout(callId) { wrap(callId, () => account.logout()); },
   accountHistory(callId, refresh) { wrap(callId, () => account.history({ refresh: !!refresh })); },
+  // 红果首页「推荐」流：登录了带 cookie = 账号个性化推荐；没登录也能拿到通用推荐。
+  forYou(callId, offset, session) { wrap(callId, async () => {
+    const cookie = await accountCookie();
+    const r = await accountFeed.forYou({ cookie, offset, session });
+    return { ...r, personal: !!cookie };
+  }); },
+  // 完整云端观看记录（分页拉完，不止第一页）
+  accountHistoryAll(callId) { wrap(callId, async () => {
+    const cookie = await accountCookie();
+    if (!cookie) return { signedIn: false, results: [] };
+    return { signedIn: true, results: await accountFeed.historyAll({ cookie }) };
+  }); },
+  // 云端收藏（红果 App 追剧书架）
+  accountFavorites(callId) { wrap(callId, async () => {
+    const cookie = await accountCookie();
+    if (!cookie) return { signedIn: false, results: [] };
+    return { signedIn: true, results: await accountFeed.favorites({ cookie }) };
+  }); },
   cancel(callId) { controllers.get(callId)?.abort(); },
 };
 globalThis.Buffer = Buffer;
