@@ -426,10 +426,11 @@ struct HGPlayerScreen: View {
                     rail
                 }
                 // DouDuo 默认模式同款：先按系统右侧栏（横屏状态栏列）让位，再按遮挡区（外屏摄像头）微调
-                // Duo：外屏 / 展开一律按外屏的位置——栏中线离屏幕物理右缘 48.2pt，对齐右上信号圈（老板 2026-11-25：展开要跟外屏一样）
-                .offset(x: DYDuoMetrics.isDuoHardware ? 0 : DYDuoMetrics.actionRailHorizontalOffset(
+                // DouDuo 默认模式同款（DouyinFeedView actions）：展开时栏中线对齐右侧系统栏列（信号圈）中线，再减 6pt 视觉修正；外屏不动
+                .offset(x: DYDuoMetrics.actionRailHorizontalOffset(
                     isRegular: hSize == .regular, trailingInset: systemColumnInset,
-                    columnWidth: DDMedia.actionColumnWidth, outerPadding: DDMedia.chromeSidePadding))
+                    columnWidth: DDMedia.actionColumnWidth, outerPadding: DDMedia.chromeSidePadding,
+                    opticalLeadingInset: 6))
                 .scaleEffect(fit.scale, anchor: .bottomTrailing)
                 .background(GeometryReader { g in
                     Color.clear.onChange(of: g.frame(in: .global).minY, initial: true) { _, y in
@@ -438,10 +439,7 @@ struct HGPlayerScreen: View {
                         if abs(raw - railTopY) > 1 { railTopY = raw }
                     }
                 })
-                .offset(x: DYDuoMetrics.isDuoHardware ? -(duoSignalCenter - DDMedia.chromeSidePadding - DDMedia.actionColumnWidth / 2)
-                           : (hSize == .compact ? -9 : 0), y: push)
-                // Duo 展开也用外屏的栏宽 / 图标大小（高度、宽度跟外屏一致）
-                .environment(\.horizontalSizeClass, DYDuoMetrics.isDuoHardware ? .compact : hSize)
+                .offset(x: hSize == .compact ? -9 : 0, y: push)
                 .onChange(of: push, initial: true) { _, p in railPush = p }
                 .padding(.bottom, fit.bottom)
             }
@@ -490,12 +488,6 @@ struct HGPlayerScreen: View {
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .filter { $0.activationState == .foregroundActive }
             .flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.right ?? 0
-    }
-
-    /// Duo 右上信号圈中线离屏幕物理右缘多远：展开横屏信号在右侧状态栏列里（列宽一半），外屏 / 展开竖屏 48.2pt（实测）
-    private var duoSignalCenter: CGFloat {
-        let inset = systemColumnInset
-        return inset > 40 ? inset / 2 : HGSideTabRail.centerFromEdge
     }
 
     private var isLandscapeWindow: Bool {
