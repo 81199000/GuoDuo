@@ -439,7 +439,7 @@ struct HGPlayerScreen: View {
                         if abs(raw - railTopY) > 1 { railTopY = raw }
                     }
                 })
-                .offset(x: hSize == .compact ? -9 : 0, y: push)
+                .offset(x: hSize == .compact ? -9 : 0, y: push + innerLandscapeDrop(fitBottom: fit.bottom))
                 .onChange(of: push, initial: true) { _, p in railPush = p }
                 .padding(.bottom, fit.bottom)
             }
@@ -488,6 +488,15 @@ struct HGPlayerScreen: View {
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .filter { $0.activationState == .foregroundActive }
             .flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.right ?? 0
+    }
+
+    /// Duo 展开横屏：栏底离屏幕下缘跟外屏竖屏一样（外屏实测「更多」下缘离底 104pt；展开横屏底部安全区大，栏被抬高约 23pt）
+    /// 老板 2026-11-25：内屏横屏菜单下移对齐外屏高度
+    private static let outerRailBottomGap: CGFloat = 104
+    private func innerLandscapeDrop(fitBottom: CGFloat) -> CGFloat {
+        guard DYDuoMetrics.isDuoHardware, hSize == .regular, isLandscapeWindow else { return 0 }
+        let gap = fitBottom + max(safeBottom, 18) + 36
+        return max(0, gap - Self.outerRailBottomGap)
     }
 
     private var isLandscapeWindow: Bool {
