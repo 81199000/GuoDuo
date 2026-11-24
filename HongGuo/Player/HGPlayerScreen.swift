@@ -49,6 +49,8 @@ struct HGPlayerScreen: View {
     @AppStorage("hg.minimal") private var minimal = false
     /// 菜单栏顶边（屏幕坐标，未下推前）；外屏竖屏信号圈比安全区伸得更下，栏顶要躲开它
     @State private var railTopY: CGFloat = 999
+    /// 播放层自己的安全区（量出来的，不读窗口）
+    @State private var layerInsets = EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 0)
     @State private var railPush: CGFloat = 0
     @State private var peek = false
 
@@ -185,6 +187,9 @@ struct HGPlayerScreen: View {
                 HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
                                onClose: { showComments = false })
             }
+        }
+        .background {
+            GeometryReader { g in Color.clear.onChange(of: g.safeAreaInsets, initial: true) { _, v in layerInsets = v } }
         }
         .modifier(DYHingeStateRoot())
         .ignoresSafeArea()
@@ -402,7 +407,8 @@ struct HGPlayerScreen: View {
         // 矮屏（外屏横屏只有 ~466pt 高）：菜单栏整列放不下会顶出屏幕上沿 →
         // 先把栏底的 56 让出来（栏往下移），还不够再整列等比缩小，保证返回键到「更多」全在屏内
         let fit = railFit(backOnRail: backOnRail)
-        let push = max(0, (max(safeTop, 12) + statusClearance) - railTopY)
+        // 往下推躲信号圈：只在 Duo 外屏竖屏（信号圈伸得深）；展开 / 横屏照 DouDuo 不推
+        let push = outerPortrait ? max(0, (max(safeTop, 12) + statusClearance) - railTopY) : 0
         return ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
@@ -439,7 +445,7 @@ struct HGPlayerScreen: View {
                         if abs(raw - railTopY) > 1 { railTopY = raw }
                     }
                 })
-                .offset(x: hSize == .compact ? -9 : 0, y: push + innerLandscapeDrop(fitBottom: fit.bottom))
+                .offset(x: hSize == .compact ? -9 : 0, y: push)
                 .onChange(of: push, initial: true) { _, p in railPush = p }
                 .padding(.bottom, fit.bottom)
             }
@@ -470,7 +476,7 @@ struct HGPlayerScreen: View {
         cells += [50, 36]
         var natural = cells.reduce(0, +) + CGFloat(max(0, cells.count - 1)) * DDMedia.actionItemSpacing + 16
         natural += DDMedia.actionGroupSpacing + 50
-        if backOnRail { natural += 44 + DDMedia.actionGroupSpacing }
+        if backOnRail { natural += 50 + DDMedia.actionGroupSpacing }
         // 栏下面固定要留的：进度条那 36 + 底部安全区；
         // 栏上面要躲开右上角的信号 / 时间圈：顶部安全区再加 16pt 间隙（外屏的信号圈比安全区还往下伸）
         let below = max(safeBottom, 18) + 36
@@ -490,13 +496,10 @@ struct HGPlayerScreen: View {
             .flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.right ?? 0
     }
 
-    /// Duo 展开横屏：栏底离屏幕下缘跟外屏竖屏一样（外屏实测「更多」下缘离底 104pt；展开横屏底部安全区大，栏被抬高约 23pt）
-    /// 老板 2026-11-25：内屏横屏菜单下移对齐外屏高度
-    private static let outerRailBottomGap: CGFloat = 104
-    private func innerLandscapeDrop(fitBottom: CGFloat) -> CGFloat {
-        guard DYDuoMetrics.isDuoHardware, hSize == .regular, isLandscapeWindow else { return 0 }
-        let gap = fitBottom + max(safeBottom, 18) + 36
-        return max(0, gap - Self.outerRailBottomGap)
+    private var outerPortrait: Bool {
+        guard DYDuoMetrics.isDuoHardware,
+              let w = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size else { return false }
+        return w.width < 600 && w.width < w.height
     }
 
     private var isLandscapeWindow: Bool {
@@ -510,7 +513,7 @@ struct HGPlayerScreen: View {
                 Image(systemName: "chevron.backward")
                     .font(.title2.weight(.medium))
                     .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 50, height: 50)
                     .contentShape(Circle())
                     .ddMediaGlassCircle()
             }
@@ -627,8 +630,10 @@ struct HGPlayerScreen: View {
         }
     }
 
+    /// 底部安全区：用播放层自己量到的（DouDuo 同款，读整个窗口的在展开横屏会偏大、把菜单栏抬高）
+    /// 外屏竖屏保持原来的（老板确认外屏是对的）：读窗口
     private var safeBottom: CGFloat {
-        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.bottom ?? 34
+        outerPortrait ? ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.bottom ?? 34) : layerInsets.bottom
     }
 
     /// 左下信息：剧名（加粗）+ 集数 / 播放量（次要色），DouDuo 信息区同款字号与阴影
