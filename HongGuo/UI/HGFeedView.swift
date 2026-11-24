@@ -350,6 +350,8 @@ struct HGFeedView: View {
                             ForEach(model.items) { item in
                                 page(item, size: geo)
                                     .frame(width: geo.width, height: geo.height)
+                                    // 正在放的这部压在最上面：滑动时钉住的菜单栏不被下一部的画面盖住
+                                    .zIndex(item.id == sessionID ? 1 : 0)
                                     .id(item.id)
                             }
                         }
@@ -358,6 +360,7 @@ struct HGFeedView: View {
                     }
                     .scrollTargetBehavior(.paging)
                     .scrollPosition(id: $current)
+
                     .scrollIndicators(.hidden)
                     .refreshable {
                         session?.stop(); session = nil; sessionID = nil

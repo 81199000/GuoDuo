@@ -51,6 +51,8 @@ struct HGDiscoverView: View {
     @Environment(\.hgSideRail) private var sideRail
     @State private var router = HGRootRouter.shared
     @State private var loadedKey = ""
+    /// 加载代次：换频道 / 刷新就 +1，旧请求回来直接丢、也不再挡新请求（以前「加载中」挡住新频道 → 白屏）
+    @State private var generation = 0
 
     var body: some View {
         GeometryReader { geo in
@@ -142,29 +144,31 @@ struct HGDiscoverView: View {
         }
     }
 
+    /// 四个入口一行（官方剧场同款尺寸：约 84×36，图标 22）；宽度够就一行铺开，不够（外屏）左右滑
     private var entries: some View {
-        // 宽度够（每个 ≥ 84pt）一排 4 个；外屏窄就 2×2
         let all = [Entry.filter, .rank, .new, .upcoming]
         return ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { ForEach(all) { entryButton($0).frame(minWidth: 84) } }
-            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                GridRow { entryButton(all[0]); entryButton(all[1]) }
-                GridRow { entryButton(all[2]); entryButton(all[3]) }
+            HStack(spacing: 8) { ForEach(all) { entryButton($0).frame(minWidth: 82, maxWidth: 150) } }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) { ForEach(all) { entryButton($0).frame(width: 88) } }
+                    .padding(.horizontal, 16)
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }
-        .padding(.horizontal, 16)
     }
 
     private func entryButton(_ e: Entry) -> some View {
         Button { entry = e } label: {
-            HStack(spacing: 7) {
-                Image(systemName: e.icon).font(.footnote.weight(.bold)).foregroundStyle(HGTheme.textPrimary)
-                    .frame(width: 26, height: 26)
-                    .background(HGTheme.accent.gradient, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
-                Text(e.title).font(.subheadline.weight(.medium)).foregroundStyle(HGTheme.textPrimary).lineLimit(1).fixedSize()
+            HStack(spacing: 6) {
+                Image(systemName: e.icon).font(.caption2.weight(.bold)).foregroundStyle(HGTheme.textPrimary)
+                    .frame(width: 22, height: 22)
+                    .background(HGTheme.accent.gradient, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
+                Text(e.title).font(.footnote.weight(.medium)).foregroundStyle(HGTheme.textPrimary).lineLimit(1).fixedSize()
             }
-            .frame(maxWidth: .infinity).frame(height: 46)
-            .background(HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+            .frame(maxWidth: .infinity).frame(height: 36)
+            .background(HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("hg.entry.\(e.rawValue)")
@@ -194,36 +198,39 @@ struct HGDiscoverView: View {
     // MARK: 数据
 
     private func reload() async {
+        generation += 1
         offset = 0; session = ""; page = 1; hasMore = true; error = nil
-        items = []
+        items = []; loading = false
         await loadMore()
     }
 
     private func loadMore() async {
         guard !loading, hasMore else { return }
-        loading = true; defer { loading = false }
+        loading = true
+        let gen = generation
+        defer { if gen == generation { loading = false } }
         let c = channel
         do {
             var results: [HGSeries]
             if c.isFeed {
-                // 推荐流一页只有 6~7 部：一次拉到 12 部以上再显示，两列不会空一截
-                results = []
-                repeat {
-                    let r = try await HGAPI.forYou(offset: offset, session: session, channel: c.rawValue)
-                    guard c == channel else { return }
-                    results += r.results; offset = r.next; session = r.session; hasMore = r.hasMore
-                } while hasMore && results.count < 24 && items.isEmpty
+                // 推荐流一页只有 4~7 部、每页约 1.6 秒：拿到一页先显示，首屏不够一屏再接着补（不白等）
+                let r = try await HGAPI.forYou(offset: offset, session: session, channel: c.rawValue)
+                guard c == channel, gen == generation else { return }
+                results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
+                if items.count + results.count < 16 && hasMore {
+                    Task { @MainActor in try? await Task.sleep(for: .milliseconds(50)); await loadMore() }
+                }
             } else if let b = c.board {
                 let r = try await HGAPI.rank(zone: b.zone, board: b.board, offset: offset, session: session)
-                guard c == channel else { return }
+                guard c == channel, gen == generation else { return }
                 results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
             } else if c == .ai {
                 let r = try await HGAPI.find(["genre": "ai_series", "sort": "hot_score"], offset: offset, session: session)
-                guard c == channel else { return }
+                guard c == channel, gen == generation else { return }
                 results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
             } else {
                 let r = try await HGAPI.browse(c == .xifan ? .xifan : .hema, page: page)
-                guard c == channel else { return }
+                guard c == channel, gen == generation else { return }
                 results = r.results; hasMore = r.hasMore ?? false; page += 1
             }
             let seen = Set(items.map(\.id))
@@ -231,7 +238,7 @@ struct HGDiscoverView: View {
             for s in results where !seen.contains(s.id) && !fresh.contains(where: { $0.id == s.id }) { fresh.append(s) }
             items += fresh
         } catch {
-            guard c == channel else { return }
+            guard c == channel, gen == generation else { return }
             self.error = error.localizedDescription
             hasMore = false
         }

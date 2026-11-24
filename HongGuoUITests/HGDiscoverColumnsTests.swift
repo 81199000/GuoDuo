@@ -26,9 +26,14 @@ final class HGDiscoverColumnsTests: XCTestCase {
         let win = app.windows.firstMatch.frame
         let cards = app.descendants(matching: .any).matching(identifier: "hg.card").allElementsBoundByIndex.prefix(8)
         for c in cards where c.frame.width > 0 { XCTAssertLessThanOrEqual(c.frame.maxX, win.maxX + 1, "卡片出屏：\(c.frame)") }
-        for e in ["filter", "rank", "new", "upcoming"] {
-            let b = app.buttons["hg.entry.\(e)"]; XCTAssertTrue(b.exists)
-            XCTAssertLessThanOrEqual(b.frame.maxX, win.maxX + 1, "入口出屏：\(e) \(b.frame)")
+        // 入口一行、官方尺寸（高 36）；外屏放不下左右滑
+        let f0 = app.buttons["hg.entry.filter"].frame, f3 = app.buttons["hg.entry.upcoming"].frame
+        XCTAssertEqual(f0.minY, f3.minY, accuracy: 1, "四个入口应在一行")
+        XCTAssertLessThanOrEqual(f0.height, 40, "入口太高：\(f0)")
+        if f3.maxX > win.maxX + 1 {
+            app.buttons["hg.entry.rank"].swipeLeft(); sleep(1)
+            XCTAssertLessThanOrEqual(app.buttons["hg.entry.upcoming"].frame.maxX, win.maxX + 1, "左滑后看不到「预约」")
+            app.buttons["hg.entry.new"].swipeRight(); sleep(1)
         }
         XCTAssertTrue(app.descendants(matching: .any)["hg.waterfall.2"].exists, "外屏应是 2 列")
         shot(app, "1-outer")

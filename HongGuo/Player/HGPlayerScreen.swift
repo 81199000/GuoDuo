@@ -338,7 +338,7 @@ struct HGPlayerScreen: View {
                 if session.boosting || (session.lockedBoost && !lockBadgeExpired) { boostBadge }
                 if seeking && !consoleShown { seekOverlay }
                 statusOverlay
-                if clean { exitCleanButton } else if consoleShown { consoleTitle(ep) } else { chrome(ep) }   // 横屏评论从右滑出时，视频缩到左边，菜单栏仍贴视频右侧
+                if feed == nil { chromeLayer(ep) }   // 横屏评论从右滑出时，视频缩到左边，菜单栏仍贴视频右侧
             } else if let poster = session.posters[ep.vid] {
                 // 已预下的集：滑动途中就是本集第一帧真画面
                 posterView(poster, size: size).allowsHitTesting(false)
@@ -349,6 +349,18 @@ struct HGPlayerScreen: View {
             }
         }
         .clipped()
+        // 推荐页：菜单栏不跟视频一起滑——渲染时按本页在推荐滚动视图里的位置反向平移，同一帧算，不滞后
+        .overlay {
+            if feed != nil && i == session.index {
+                chromeLayer(ep).visualEffect { content, proxy in
+                    content.offset(y: -proxy.frame(in: .scrollView).minY)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func chromeLayer(_ ep: HGEpisode) -> some View {
+        if clean { exitCleanButton } else if consoleShown { consoleTitle(ep) } else { chrome(ep) }
     }
 
     /// 首帧海报：铺满规则与画面层一致（DYVideoFit）

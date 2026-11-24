@@ -43,7 +43,8 @@ final class HGDiscoverBoardsTests: XCTestCase {
         XCTAssertTrue(app.buttons["hg.find.sort.online_time"].waitForExistence(timeout: 20), "新剧没有排序项")
         sleep(3); shot(app, "5-new")
         back(app)
-        // 预约
+        // 预约（外屏一行放不下时在右边，先滑过去）
+        if !app.buttons["hg.entry.upcoming"].isHittable { app.buttons["hg.entry.rank"].swipeLeft(); sleep(1) }
         tap(app, "hg.entry.upcoming", "预约进不去")
         sleep(6); shot(app, "6-upcoming")
         back(app)
