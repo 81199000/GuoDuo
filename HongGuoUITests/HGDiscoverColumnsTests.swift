@@ -17,7 +17,7 @@ final class HGDiscoverColumnsTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app.launch()
         XCTAssertFalse(app.buttons["hg.tab.搜索"].exists, "菜单栏不该再有搜索")
-        let ch = app.buttons["hg.channel.真人剧"]
+        let ch = app.buttons["hg.channel.找剧"]
         XCTAssertTrue(ch.waitForExistence(timeout: 15)); ch.tap()
         let card = app.descendants(matching: .any)["hg.card"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 30))
@@ -37,6 +37,27 @@ final class HGDiscoverColumnsTests: XCTestCase {
         }
         XCTAssertTrue(app.descendants(matching: .any)["hg.waterfall.2"].exists, "外屏应是 2 列")
         shot(app, "1-outer")
+        // 漫剧：分类标签行 + 推荐榜卡（前 3 + 查看全部）；点分类出该分类的剧；⌄ 展开全部分类
+        app.buttons["hg.channel.漫剧"].tap()
+        XCTAssertTrue(app.buttons["hg.chip.推荐"].waitForExistence(timeout: 20), "漫剧没有分类标签行")
+        XCTAssertTrue(app.descendants(matching: .any)["hg.top"].waitForExistence(timeout: 20), "漫剧没有推荐榜卡")
+        XCTAssertFalse(app.buttons["hg.entry.filter"].exists, "四个入口只在找剧里")
+        sleep(3); shot(app, "1b-comic")
+        let chip = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'hg.chip.' AND identifier != 'hg.chip.推荐'")).firstMatch
+        let chipName = chip.label
+        chip.tap()
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "点分类「\(chipName)」没有出剧")
+        XCTAssertFalse(app.descendants(matching: .any)["hg.top"].exists, "选了分类不该再有推荐榜卡")
+        sleep(2); shot(app, "1c-comic-chip")
+        app.buttons["hg.chips.all"].tap(); sleep(1); shot(app, "1d-comic-allchips")
+        app.buttons["hg.chips.all"].tap()
+        app.buttons["hg.chip.推荐"].tap()
+        XCTAssertTrue(app.buttons["hg.top.all"].waitForExistence(timeout: 20))
+        app.buttons["hg.top.all"].tap()
+        XCTAssertTrue(app.buttons["hg.board.comic_series_hot_rank"].waitForExistence(timeout: 20), "查看全部没落到漫剧推荐榜")
+        sleep(2); shot(app, "1e-comic-rank")
+        back(app)
+        app.buttons["hg.channel.找剧"].tap()
         // 搜索：联想 → 结果
         app.buttons["hg.discover.search"].tap()
         let field = app.textFields["hg.search.field"]

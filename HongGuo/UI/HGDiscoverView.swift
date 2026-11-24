@@ -4,33 +4,32 @@ import SwiftUI
 /// 顶部搜索框 → 频道（找剧 / 真人剧 / 漫剧 / 西饭 / 河马）→ 四个入口（筛选 / 排行榜 / 新剧 / 预约）→ 两列大卡瀑布流。
 /// 找剧 / 真人剧 / 漫剧是红果首页推荐流（登录了按账号推荐）；榜单目录和筛选项都由服务端下发。
 struct HGDiscoverView: View {
-    /// 频道：推荐流（找剧 / 真人剧 / 漫剧）、AI 剧（找剧筛选）、系列剧 + 官方各榜（排行榜接口）、西饭 / 河马
+    /// 频道（官方剧场同款）：找剧 = 首页推荐流 + 四个入口；真人剧 / 漫剧 / AI剧 = 分类标签行 + 推荐榜卡 + 推荐流；
+    /// 系列剧 = 系列剧推荐榜；西饭 / 河马 = 其他片源。热播 / 新剧 / 热搜 / 必看…各榜都在「排行榜」里。
     enum Channel: String, CaseIterable {
-        case all = "16", real = "39", comic = "36", ai, series
-        case hot, new, search, must, chase, followed, prestige
-        case xifan, hema
+        case all = "16", real = "39", comic = "36", ai, series, xifan, hema
         var title: String {
             switch self {
             case .all: "找剧"; case .real: "真人剧"; case .comic: "漫剧"; case .ai: "AI剧"; case .series: "系列剧"
-            case .hot: "热播榜"; case .new: "新剧榜"; case .search: "热搜榜"; case .must: "必看榜"
-            case .chase: "追更榜"; case .followed: "收藏榜"; case .prestige: "臻果榜"
             case .xifan: "西饭"; case .hema: "河马"
             }
         }
+        /// 首页推荐流频道（不选分类时）
         var isFeed: Bool { [.all, .real, .comic].contains(self) }
-        /// 排行榜接口：(分区, 榜)
-        var board: (zone: String, board: String)? {
+        /// 找剧筛选里的类型（分类标签按它下发，题材 ID 每个类型不同）
+        var genre: String? { switch self { case .real: "short_play"; case .comic: "comic_series"; case .ai: "ai_series"; default: nil } }
+        /// 推荐榜卡（前 3 名 + 查看全部）用的 (分区, 榜)
+        var topBoard: (zone: String, board: String)? {
             switch self {
-            case .series: ("series_album", "series_album_hot_sc")
-            case .hot: ("all", "ranklist_hot_play_sc"); case .new: ("all", "ranklist_new_rank_sc")
-            case .search: ("all", "ranklist_hot_search_sc"); case .must: ("all", "ranklist_must_watch")
-            case .chase: ("all", "ranklist_chase_update"); case .followed: ("all", "ranklist_followed")
-            case .prestige: ("all", "ranklist_prestige")
-            default: nil
+            case .real: ("human", "human_hot_sc"); case .comic: ("comic_series_rank", "comic_series_hot_rank")
+            case .ai: ("ai_playlet", "ai_playlet_hot_sc"); default: nil
             }
         }
-        var showsRank: Bool { board != nil && self != .series }
+        /// 整个频道就是一个榜
+        var board: (zone: String, board: String)? { self == .series ? ("series_album", "series_album_hot_sc") : nil }
     }
+    /// 分类标签：一组里的一项（题材 / 背景 / 人设）
+    struct Chip: Hashable { let type: String; let id: String; let name: String }
     enum Entry: String, Identifiable { case filter, rank, new, upcoming
         var id: String { rawValue }
         var title: String { switch self { case .filter: "筛选"; case .rank: "排行榜"; case .new: "新剧"; case .upcoming: "预约" } }
@@ -51,6 +50,13 @@ struct HGDiscoverView: View {
     @Environment(\.hgSideRail) private var sideRail
     @State private var router = HGRootRouter.shared
     @State private var loadedKey = ""
+    /// 真人剧 / 漫剧 / AI剧：当前选的分类（nil = 推荐）、各类型的分类标签、展开全部分类
+    @State private var chip: Chip?
+    @State private var chips: [String: [HGFindFilter]] = [:]
+    @State private var showAllChips = false
+    /// 推荐榜卡：前 3 名
+    @State private var top: [HGSeries] = []
+    @State private var rankZone: String?
     /// 加载代次：换频道 / 刷新就 +1，旧请求回来直接丢、也不再挡新请求（以前「加载中」挡住新频道 → 白屏）
     @State private var generation = 0
 
@@ -70,11 +76,13 @@ struct HGDiscoverView: View {
                 regular(width: geo.size.width)
             }
         }
-        .task(id: channel) {
-            guard channel.rawValue != loadedKey || items.isEmpty else { return }
-            loadedKey = channel.rawValue
+        .task(id: loadKey) {
+            guard loadKey != loadedKey || items.isEmpty else { return }
+            loadedKey = loadKey
             await reload()
         }
+        .task(id: channel) { await loadChipsAndTop() }
+        .onChange(of: channel) { _, _ in chip = nil; showAllChips = false }
         .toolbarVisibility(tabletop ? .automatic : .hidden, for: .navigationBar)
         .navigationTitle("发现")
         .navigationBarTitleDisplayMode(.inline)
@@ -89,7 +97,10 @@ struct HGDiscoverView: View {
             case .upcoming: HGRankScreen(title: "预约", fixedBoard: "ranklist_subscribe")
             }
         }
+        .navigationDestination(item: $rankZone) { z in HGRankScreen(initialZone: z) }
     }
+
+    private var loadKey: String { channel.rawValue + "|" + (chip.map { "\($0.type)=\($0.id)" } ?? "") }
 
     // MARK: 顶部
 
@@ -159,6 +170,109 @@ struct HGDiscoverView: View {
         }
     }
 
+    /// 分类标签行（官方同款：圆角胶囊一行，放不下左右滑，最右 ⌄ 展开全部分类）
+    @ViewBuilder private var chipBar: some View {
+        let groups = (channel.genre.flatMap { chips[$0] } ?? []).filter { ["category_dim_theme", "category_dim_epoch", "category_dim_role"].contains($0.type) }
+        if !groups.isEmpty {
+            // 一行：题材在前、再背景、再人设（同名去重），选中的排最前
+            var seen = Set<String>()
+            let flat = groups.flatMap { g in g.items.map { Chip(type: g.type, id: $0.id, name: $0.name) } }.filter { seen.insert($0.name).inserted }
+            let row = [Chip?.none] + (chip.map { [$0] } ?? []) + flat.filter { $0 != chip }.prefix(30).map { Optional($0) }
+            HStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(row, id: \.self) { c in chipButton(c) }
+                    }
+                    .padding(.leading, 16).padding(.trailing, 8)
+                }
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                Button { withAnimation(.snappy) { showAllChips.toggle() } } label: {
+                    Image(systemName: showAllChips ? "chevron.up" : "chevron.down").font(.footnote.weight(.semibold))
+                        .foregroundStyle(HGTheme.textSecondary)
+                        .frame(width: 40, height: 34).background(HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 16)
+                .accessibilityIdentifier("hg.chips.all")
+            }
+            if showAllChips {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(groups) { g in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(g.name).font(.caption).foregroundStyle(HGTheme.textTertiary)
+                            FlowLayout(spacing: 8) {
+                                ForEach(g.items) { it in chipButton(Chip(type: g.type, id: it.id, name: it.name)) }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private func chipButton(_ c: Chip?) -> some View {
+        let on = c == chip
+        return Button { chip = c; showAllChips = false } label: {
+            Text(c?.name ?? "推荐").font(.subheadline.weight(on ? .semibold : .regular)).lineLimit(1).fixedSize()
+                .padding(.horizontal, 16).frame(height: 34)
+                .background(on ? HGTheme.accent.opacity(0.22) : HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
+                .foregroundStyle(on ? HGTheme.accent : HGTheme.textPrimary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("hg.chip.\(c?.name ?? "推荐")")
+    }
+
+    /// 推荐榜卡（官方漫剧页同款）：前 3 名 + 查看全部
+    private var topCard: AnyView? {
+        guard chip == nil, top.count >= 3, let tb = channel.topBoard else { return nil }
+        return AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                Text("《 推荐榜 》").font(.subheadline.weight(.bold)).foregroundStyle(HGTheme.textPrimary)
+                ForEach(Array(top.prefix(3).enumerated()), id: \.element.id) { i, s in
+                    NavigationLink(value: s) {
+                        HStack(alignment: .top, spacing: 10) {
+                            HGCoverFill(url: s.coverURL).frame(width: 52, height: 70)
+                                .clipShape(RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
+                            Text("\(i + 1)").font(.subheadline.weight(.heavy)).foregroundStyle(i == 0 ? HGTheme.accent : HGTheme.textSecondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(s.series_title).font(.subheadline).foregroundStyle(HGTheme.textPrimary).lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                if let h = s.heat { Text(h).font(.caption).foregroundStyle(HGTheme.textTertiary) }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Button { rankZone = tb.zone } label: {
+                    Text("查看全部").font(.subheadline.weight(.medium)).foregroundStyle(HGTheme.textPrimary)
+                        .frame(maxWidth: .infinity).frame(height: 38)
+                        .background(HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("hg.top.all")
+            }
+            .padding(14)
+            .background(HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radius + 2, style: .continuous))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("hg.top")
+        )
+    }
+
+    private func loadChipsAndTop() async {
+        let c = channel
+        top = []
+        if let g = c.genre, chips[g] == nil, let r = try? await HGAPI.find(["genre": g], offset: 0, session: ""), let f = r.filters {
+            chips[g] = f
+        }
+        if let tb = c.topBoard, let r = try? await HGAPI.rank(zone: tb.zone, board: tb.board, offset: 0, session: ""), c == channel {
+            top = Array(r.results.prefix(3))
+        }
+    }
+
     private func entryButton(_ e: Entry) -> some View {
         Button { entry = e } label: {
             HStack(spacing: 6) {
@@ -179,11 +293,12 @@ struct HGDiscoverView: View {
             VStack(alignment: .leading, spacing: 14) {
                 searchBar
                 channelBar
-                if channel.isFeed { entries }
+                if channel == .all { entries }
+                if channel.genre != nil { chipBar }
                 if let error, items.isEmpty {
                     HGErrorView(message: error) { Task { await reload() } }
                 }
-                HGWaterfall(items: items, width: width - 32, showRank: channel.showsRank, loadMore: { Task { await loadMore() } })
+                HGWaterfall(items: items, width: width - 32, showRank: false, lead: topCard, leadHeight: 330, loadMore: { Task { await loadMore() } })
                     .padding(.horizontal, 16)
                 if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
             }
@@ -209,28 +324,33 @@ struct HGDiscoverView: View {
         loading = true
         let gen = generation
         defer { if gen == generation { loading = false } }
-        let c = channel
+        let c = channel, chipNow = chip
         do {
             var results: [HGSeries]
-            if c.isFeed {
+            if let ch = chip, let g = c.genre {
+                // 选了分类：找剧筛选（这个类型 + 这个分类，按热度）
+                let r = try await HGAPI.find(["genre": g, "sort": "hot_score", ch.type: ch.id], offset: offset, session: session)
+                guard c == channel, chipNow == chip, gen == generation else { return }
+                results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
+            } else if c.isFeed {
                 // 推荐流一页只有 4~7 部、每页约 1.6 秒：拿到一页先显示，首屏不够一屏再接着补（不白等）
                 let r = try await HGAPI.forYou(offset: offset, session: session, channel: c.rawValue)
-                guard c == channel, gen == generation else { return }
+                guard c == channel, chipNow == chip, gen == generation else { return }
                 results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
                 if items.count + results.count < 16 && hasMore {
                     Task { @MainActor in try? await Task.sleep(for: .milliseconds(50)); await loadMore() }
                 }
             } else if let b = c.board {
                 let r = try await HGAPI.rank(zone: b.zone, board: b.board, offset: offset, session: session)
-                guard c == channel, gen == generation else { return }
+                guard c == channel, chipNow == chip, gen == generation else { return }
                 results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
             } else if c == .ai {
                 let r = try await HGAPI.find(["genre": "ai_series", "sort": "hot_score"], offset: offset, session: session)
-                guard c == channel, gen == generation else { return }
+                guard c == channel, chipNow == chip, gen == generation else { return }
                 results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
             } else {
                 let r = try await HGAPI.browse(c == .xifan ? .xifan : .hema, page: page)
-                guard c == channel, gen == generation else { return }
+                guard c == channel, chipNow == chip, gen == generation else { return }
                 results = r.results; hasMore = r.hasMore ?? false; page += 1
             }
             let seen = Set(items.map(\.id))
@@ -238,7 +358,7 @@ struct HGDiscoverView: View {
             for s in results where !seen.contains(s.id) && !fresh.contains(where: { $0.id == s.id }) { fresh.append(s) }
             items += fresh
         } catch {
-            guard c == channel, gen == generation else { return }
+            guard c == channel, chipNow == chip, gen == generation else { return }
             self.error = error.localizedDescription
             hasMore = false
         }
@@ -254,6 +374,9 @@ struct HGWaterfall: View {
     /// 可用宽度（屏幕可见宽度减左右边距），由外层 GeometryReader 给
     let width: CGFloat
     var showRank = false
+    /// 第一列顶部插的卡（推荐榜）和它的估高
+    var lead: AnyView? = nil
+    var leadHeight: CGFloat = 0
     let loadMore: () -> Void
     /// 外屏（Duo 合上，内容区 382pt）两列时的卡宽
     static let cardWidth: CGFloat = 170
@@ -270,6 +393,7 @@ struct HGWaterfall: View {
         HStack(alignment: .top, spacing: Self.gap) {
             ForEach(0..<n, id: \.self) { i in
                 LazyVStack(spacing: Self.gap) {
+                    if i == 0, let lead { lead }
                     ForEach(cols[i]) { s in
                         NavigationLink(value: s) { HGBigCard(series: s, showRank: showRank) }
                             .buttonStyle(.plain)
@@ -286,6 +410,7 @@ struct HGWaterfall: View {
 
     private func split(_ n: Int, _ w: CGFloat) -> [[HGSeries]] {
         var cols = Array(repeating: [HGSeries](), count: n), h = Array(repeating: CGFloat(0), count: n)
+        if lead != nil { h[0] = leadHeight + Self.gap }
         for s in items {
             let i = h.indices.min { h[$0] < h[$1] } ?? 0
             cols[i].append(s)
@@ -404,6 +529,9 @@ struct HGRankScreen: View {
     var title = "排行榜"
     /// 预约入口：固定预约榜（分区可切）
     var fixedBoard: String? = nil
+    /// 从推荐榜卡「查看全部」进来：落到该分区的推荐榜
+    var initialZone: String? = nil
+    @State private var appliedInitial = false
     @AppStorage("hg.rank.zone") private var zone = "all"
     @AppStorage("hg.rank.board") private var board = "ranklist_hot_play_sc"
     @State private var zones: [HGRankZone] = []
@@ -452,7 +580,18 @@ struct HGRankScreen: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.visible, for: .navigationBar)
-        .task(id: key) { await reload() }
+        .task(id: key) {
+            if let z = initialZone, !appliedInitial {
+                appliedInitial = true
+                if zone != z { zone = z; board = ""; return }   // 换分区触发重新加载；榜由服务端目录落到第一个（推荐榜）
+            }
+            await reload()
+        }
+    }
+
+    static func defaultBoard(_ zone: String) -> String {
+        ["all": "ranklist_hot_sc", "human": "human_hot_sc", "comic_series_rank": "comic_series_hot_rank",
+         "ai_playlet": "ai_playlet_hot_sc", "series_album": "series_album_hot_sc"][zone] ?? "ranklist_hot_sc"
     }
 
     /// 预约榜是还没上线的剧，只在「预约」入口里出现
@@ -470,13 +609,15 @@ struct HGRankScreen: View {
         loading = true; defer { loading = false }
         let k = key
         do {
-            let r = try await HGAPI.rank(zone: zone, board: currentBoard, offset: offset, session: session)
+            // board 为空（刚换分区）：先按分区的推荐榜请求，目录回来再落位
+            let b = currentBoard.isEmpty ? Self.defaultBoard(zone) : currentBoard
+            let r = try await HGAPI.rank(zone: zone, board: b, offset: offset, session: session)
             guard k == key else { return }
             if let z = r.zones, !z.isEmpty {
                 zones = z
                 // 记住的分区 / 榜服务端没了：回到第一个
                 if !z.contains(where: { $0.id == zone }) { zone = z.first?.id ?? "all" }
-                if !isUpcoming, !visible(zone).contains(where: { $0.id == board }) { board = visible(zone).first?.id ?? board }
+                if !isUpcoming, !visible(zone).contains(where: { $0.id == board }) { board = b }
             }
             let seen = Set(items.map(\.id))
             items += r.results.filter { !seen.contains($0.id) }
@@ -750,5 +891,29 @@ struct HGSearchView: View {
             hasMore = r.hasMore ?? false
             cursor = r.cursor; page += 1
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+/// 换行排布（展开全部分类用）
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxW = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0, widest: CGFloat = 0
+        for v in subviews {
+            let s = v.sizeThatFits(.unspecified)
+            if x > 0 && x + s.width > maxW { y += rowH + spacing; x = 0; rowH = 0 }
+            x += s.width + spacing; rowH = max(rowH, s.height); widest = max(widest, x - spacing)
+        }
+        return CGSize(width: proposal.width ?? widest, height: y + rowH)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowH: CGFloat = 0
+        for v in subviews {
+            let s = v.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + s.width > bounds.maxX { y += rowH + spacing; x = bounds.minX; rowH = 0 }
+            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
+            x += s.width + spacing; rowH = max(rowH, s.height)
+        }
     }
 }
