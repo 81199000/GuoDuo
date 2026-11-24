@@ -4,10 +4,32 @@ import SwiftUI
 /// 顶部搜索框 → 频道（找剧 / 真人剧 / 漫剧 / 西饭 / 河马）→ 四个入口（筛选 / 排行榜 / 新剧 / 预约）→ 两列大卡瀑布流。
 /// 找剧 / 真人剧 / 漫剧是红果首页推荐流（登录了按账号推荐）；榜单目录和筛选项都由服务端下发。
 struct HGDiscoverView: View {
+    /// 频道：推荐流（找剧 / 真人剧 / 漫剧）、AI 剧（找剧筛选）、系列剧 + 官方各榜（排行榜接口）、西饭 / 河马
     enum Channel: String, CaseIterable {
-        case all = "16", real = "39", comic = "36", xifan, hema
-        var title: String { switch self { case .all: "找剧"; case .real: "真人剧"; case .comic: "漫剧"; case .xifan: "西饭"; case .hema: "河马" } }
+        case all = "16", real = "39", comic = "36", ai, series
+        case hot, new, search, must, chase, followed, prestige
+        case xifan, hema
+        var title: String {
+            switch self {
+            case .all: "找剧"; case .real: "真人剧"; case .comic: "漫剧"; case .ai: "AI剧"; case .series: "系列剧"
+            case .hot: "热播榜"; case .new: "新剧榜"; case .search: "热搜榜"; case .must: "必看榜"
+            case .chase: "追更榜"; case .followed: "收藏榜"; case .prestige: "臻果榜"
+            case .xifan: "西饭"; case .hema: "河马"
+            }
+        }
         var isFeed: Bool { [.all, .real, .comic].contains(self) }
+        /// 排行榜接口：(分区, 榜)
+        var board: (zone: String, board: String)? {
+            switch self {
+            case .series: ("series_album", "series_album_hot_sc")
+            case .hot: ("all", "ranklist_hot_play_sc"); case .new: ("all", "ranklist_new_rank_sc")
+            case .search: ("all", "ranklist_hot_search_sc"); case .must: ("all", "ranklist_must_watch")
+            case .chase: ("all", "ranklist_chase_update"); case .followed: ("all", "ranklist_followed")
+            case .prestige: ("all", "ranklist_prestige")
+            default: nil
+            }
+        }
+        var showsRank: Bool { board != nil && self != .series }
     }
     enum Entry: String, Identifiable { case filter, rank, new, upcoming
         var id: String { rawValue }
@@ -95,21 +117,27 @@ struct HGDiscoverView: View {
     }
 
     private var channelBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .firstTextBaseline, spacing: 22) {
-                ForEach(Channel.allCases, id: \.self) { c in
-                    let on = c == channel
-                    Button { channel = c } label: {
-                        Text(c.title)
-                            .font(on ? .title2.weight(.bold) : .title3)
-                            .foregroundStyle(on ? HGTheme.textPrimary : HGTheme.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("hg.channel.\(c.title)")
+        // 放得下（内屏）整排平铺；放不下（外屏）左右滑
+        // 14 个频道整排约 900pt：Duo 展开竖屏（约 1003pt 宽）整排放得下、不滑；外屏（382pt）左右滑
+        ScrollView(.horizontal, showsIndicators: false) { channelRow(spacing: 16).padding(.horizontal, 16) }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .clipped()
+        .animation(.snappy(duration: 0.2), value: channel)
+    }
+
+    private func channelRow(spacing: CGFloat) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: spacing) {
+            ForEach(Channel.allCases, id: \.self) { c in
+                let on = c == channel
+                Button { channel = c } label: {
+                    Text(c.title)
+                        .font(on ? .title2.weight(.bold) : .title3)
+                        .foregroundStyle(on ? HGTheme.textPrimary : HGTheme.textSecondary)
+                        .fixedSize()
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("hg.channel.\(c.title)")
             }
-            .padding(.horizontal, 16)
-            .animation(.snappy(duration: 0.2), value: channel)
         }
     }
 
@@ -143,7 +171,7 @@ struct HGDiscoverView: View {
                 if let error, items.isEmpty {
                     HGErrorView(message: error) { Task { await reload() } }
                 }
-                HGWaterfall(items: items, width: width - 32, loadMore: { Task { await loadMore() } })
+                HGWaterfall(items: items, showRank: channel.showsRank, loadMore: { Task { await loadMore() } })
                     .padding(.horizontal, 16)
                 if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
             }
@@ -173,7 +201,15 @@ struct HGDiscoverView: View {
                     let r = try await HGAPI.forYou(offset: offset, session: session, channel: c.rawValue)
                     guard c == channel else { return }
                     results += r.results; offset = r.next; session = r.session; hasMore = r.hasMore
-                } while hasMore && results.count < 12 && items.isEmpty
+                } while hasMore && results.count < 24 && items.isEmpty
+            } else if let b = c.board {
+                let r = try await HGAPI.rank(zone: b.zone, board: b.board, offset: offset, session: session)
+                guard c == channel else { return }
+                results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
+            } else if c == .ai {
+                let r = try await HGAPI.find(["genre": "ai_series", "sort": "hot_score"], offset: offset, session: session)
+                guard c == channel else { return }
+                results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
             } else {
                 let r = try await HGAPI.browse(c == .xifan ? .xifan : .hema, page: page)
                 guard c == channel else { return }
@@ -193,37 +229,53 @@ struct HGDiscoverView: View {
 
 // MARK: - 两列瀑布流大卡（官方剧场同款）
 
-/// 两列：每张卡按标题行数 / 有无标签估高，放进当前较矮的那列（不跳位：新的只往后排）
+/// 瀑布流：卡片宽度固定在外屏两列时的大小（约 170pt），列数按实际可用宽度算——
+/// Duo 外屏 2 列，展开内屏竖着 5 列、横着 7 列，iPad 同理。每张卡按估高放进当前最矮的那列（新的只往后排，不跳位）。
 struct HGWaterfall: View {
     let items: [HGSeries]
-    let width: CGFloat
     var showRank = false
     let loadMore: () -> Void
-    private let gap: CGFloat = 10
+    /// 外屏（Duo 合上，内容区 382pt）两列时的卡宽
+    static let cardWidth: CGFloat = 170
+    static let gap: CGFloat = 10
+    @State private var width: CGFloat = 0
+
+    static func columns(for width: CGFloat) -> Int {
+        max(2, Int((width + gap) / (cardWidth + gap)))
+    }
 
     var body: some View {
-        let colW = max(100, (width - gap) / 2)
-        let cols = split(colW)
-        HStack(alignment: .top, spacing: gap) {
-            ForEach(0..<2, id: \.self) { i in
-                LazyVStack(spacing: gap) {
-                    ForEach(cols[i]) { s in
-                        NavigationLink(value: s) { HGBigCard(series: s, showRank: showRank) }
-                            .buttonStyle(.plain)
-                            .onAppear { if s.id == items.last?.id || s.id == cols[i].last?.id { loadMore() } }
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 0)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+            if width > 0 {
+                let n = Self.columns(for: width)
+                let colW = (width - Self.gap * CGFloat(n - 1)) / CGFloat(n)
+                let cols = split(n, colW)
+                HStack(alignment: .top, spacing: Self.gap) {
+                    ForEach(0..<n, id: \.self) { i in
+                        LazyVStack(spacing: Self.gap) {
+                            ForEach(cols[i]) { s in
+                                NavigationLink(value: s) { HGBigCard(series: s, showRank: showRank) }
+                                    .buttonStyle(.plain)
+                                    .onAppear { if s.id == items.last?.id || s.id == cols[i].last?.id { loadMore() } }
+                            }
+                        }
+                        .frame(width: colW)
                     }
                 }
-                .frame(width: colW)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("hg.waterfall.\(n)")
             }
         }
     }
 
-    private func split(_ w: CGFloat) -> [[HGSeries]] {
-        var cols: [[HGSeries]] = [[], []], h: [CGFloat] = [0, 0]
+    private func split(_ n: Int, _ w: CGFloat) -> [[HGSeries]] {
+        var cols = Array(repeating: [HGSeries](), count: n), h = Array(repeating: CGFloat(0), count: n)
         for s in items {
-            let i = h[0] <= h[1] ? 0 : 1
+            let i = h.indices.min { h[$0] < h[$1] } ?? 0
             cols[i].append(s)
-            h[i] += HGBigCard.estimate(s, width: w) + gap
+            h[i] += HGBigCard.estimate(s, width: w) + Self.gap
         }
         return cols
     }
@@ -373,7 +425,7 @@ struct HGRankScreen: View {
                         }
                     }
                     if let error, items.isEmpty { HGErrorView(message: error) { Task { await reload() } } }
-                    HGWaterfall(items: items, width: geo.size.width - 32, showRank: !isUpcoming, loadMore: { Task { await loadMore() } })
+                    HGWaterfall(items: items, showRank: !isUpcoming, loadMore: { Task { await loadMore() } })
                         .padding(.horizontal, 16)
                     if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
                 }
@@ -456,7 +508,7 @@ struct HGFindScreen: View {
                     else if items.isEmpty && !loading && !hasMore {
                         Text("没有符合条件的剧").font(.footnote).foregroundStyle(HGTheme.textTertiary).frame(maxWidth: .infinity).padding(.top, 40)
                     }
-                    HGWaterfall(items: items, width: geo.size.width - 32, loadMore: { Task { await loadMore() } })
+                    HGWaterfall(items: items, loadMore: { Task { await loadMore() } })
                         .padding(.horizontal, 16).padding(.top, 4)
                     if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
                 }
