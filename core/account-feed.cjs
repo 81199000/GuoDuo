@@ -5,6 +5,7 @@ const { signedMetadataRequest, signedAccountRequest, requestJson } = require('./
 const { getPlaybackDevice } = require('./upstream/playback-device.js');
 const { catalogCover } = require('./upstream/hongguo-app-catalog.js');
 const { cleanTitle } = require('./upstream/hongguo-app-search.js');
+const { meta } = require('./catalog-more.cjs');
 
 // 红果「推荐」频道固定栏目 / 方案 ID（tab_type=16；同绿果TV / aston314/hongguo-tv）
 const FEED_CELL = '7294257141911650341', FEED_PLAN = '7294257258253254693';
@@ -25,10 +26,12 @@ function checkAccount(payload, what) {
   return payload.data || {};
 }
 
-/** 推荐流里所有剧（递归找 series_id + 标题；只留短剧，去掉切片 / 运营位） */
-function collectDramas(value, out, seen, depth = 0) {
+/** 推荐流里所有剧（递归找 series_id + 标题；只留短剧，去掉切片 / 运营位）。
+ *  热度 / 题材挂在外层（video_data 那层的 rec_tags、recommend_reason_list），剧本身在里层 video_detail：往下带 */
+function collectDramas(value, out, seen, depth = 0, outer = null) {
   if (depth > 10 || !value || typeof value !== 'object') return;
-  if (Array.isArray(value)) { for (const v of value) collectDramas(v, out, seen, depth + 1); return; }
+  if (Array.isArray(value)) { for (const v of value) collectDramas(v, out, seen, depth + 1, outer); return; }
+  if (value.recommend_reason_list || value.rec_tags || value.rec_text_item) outer = meta(value);
   const id = idOf(value.series_id_str || value.series_id);
   const title = cleanTitle(value.series_title || value.series_name || value.title);
   const episodes = Number(value.episode_cnt) || 0;
@@ -36,23 +39,53 @@ function collectDramas(value, out, seen, depth = 0) {
     const cover = catalogCover(value.cover || value.series_cover || '');
     if (cover) {
       seen.add(id);
-      const tags = Array.isArray(value.sub_title_list) ? value.sub_title_list.map(t => cleanTitle(t?.content)).filter(Boolean).slice(0, 4) : [];
+      const own = meta(value);
       out.push({ series_id: id, series_title: title, cover, episode_count: episodes,
-        description: cleanTitle(value.video_desc || value.series_intro), tags });
+        description: cleanTitle(value.video_desc || value.series_intro), plays: Number(value.series_play_cnt) || 0,
+        heat: own.heat || outer?.heat, tags: own.tags.length ? own.tags : (outer?.tags || []), badge: own.badge || outer?.badge });
     }
   }
-  for (const k of Object.keys(value)) if (value[k] && typeof value[k] === 'object') collectDramas(value[k], out, seen, depth + 1);
+  for (const k of Object.keys(value)) if (value[k] && typeof value[k] === 'object') collectDramas(value[k], out, seen, depth + 1, outer);
+}
+
+// 红果 7.1.9 起才下发频道（漫剧 / 真人剧）：推荐流按这个版本号发（同绿果TV feedQuery）
+const FEED_VERSION = { version_code: '71932', version_name: '7.1.9.32', manifest_version_code: '71932', update_version_code: '71932', pv_player: '71932' };
+const CHANNELS = ['16', '36', '39'];
+// 频道的栏目 / 方案 ID（推荐是固定的；漫剧 / 真人剧从 bookmall/tab 首屏拿）
+const channelCells = new Map([['16', [FEED_CELL, FEED_PLAN]]]);
+
+function withCookie(headers, cookie) { return cookie ? { ...headers, Cookie: cookie } : headers; }
+
+/** 漫剧 / 真人剧频道首屏：bookmall/tab 给首屏几部 + 栏目 / 方案 ID + session */
+async function channelFirst(channel, cookie, signal) {
+  const values = { ...FEED_VERSION, bottom_tab_type: '7', landing_bottom_tab_type: '7', need_personal_recommend: '1', device_level: '3',
+    screen_width_px: '1078', is_horizontal_screen: 'false', tab_type: channel, offset: '0', session_id: '', client_req_type: '1',
+    tab_index: '0', video_type_preferences_str: '[]' };
+  const s = signedMetadataRequest('/reading/bookapi/bookmall/tab/v1/', values);
+  const j = await requestJson(s.url, { method: 'GET', headers: withCookie(s.headers, cookie), preserveLargeIntegerFields: [...IDS, 'bookstore_id', 'cell_id_str'] },
+    Date.now() + 10000, signal);
+  const tab = (j?.data?.tab_item || []).find(t => String(t?.tab_type) === channel);
+  if (Number(j?.code) !== 0 || !tab) throw fail('推荐加载失败', 'APP_BUSINESS');
+  const cell = (tab.cell_data || []).map(c => idOf(c?.cell_id_str || c?.cell_id)).find(Boolean), plan = idOf(tab.bookstore_id);
+  if (cell && plan) channelCells.set(channel, [cell, plan]);
+  const results = [];
+  collectDramas(tab.cell_data, results, new Set());
+  const session = String(tab.session_id || '');
+  return { results, next: 0, session: session || 'first', hasMore: !!(cell && plan) };
 }
 
 /**
- * 红果首页「推荐」流：带登录 cookie = 账号个性化推荐；每次请求内容都会变。
- * offset / session 用上一页返回的 next / session 续页。
+ * 红果首页推荐流：channel 16 推荐 / 36 漫剧 / 39 真人剧。带登录 cookie = 账号个性化推荐；每次请求内容都会变。
+ * offset / session 用上一页返回的 next / session 续页（漫剧 / 真人剧第一次 offset 0 + 空 session = 首屏）。
  */
-async function forYou({ cookie = '', offset = 0, session = '', signal } = {}) {
-  const values = { bottom_tab_type: '7', client_req_type: '2', client_template: '7', change_type: '0', category_id: '0',
+async function forYou({ cookie = '', channel = '16', offset = 0, session = '', signal } = {}) {
+  channel = CHANNELS.includes(String(channel)) ? String(channel) : '16';
+  if (channel !== '16' && (!session || !channelCells.has(channel))) return channelFirst(channel, cookie, signal);
+  const [cell, plan] = channelCells.get(channel);
+  const values = { ...(channel === '16' ? {} : FEED_VERSION), bottom_tab_type: '7', client_req_type: '2', client_template: '7', change_type: '0', category_id: '0',
     cell_sub_id: '0', limit: '0', need_personal_recommend: '1', video_type_preferences_str: '[]',
-    cell_id: FEED_CELL, plan_id: FEED_PLAN, tab_type: '16', offset: String(Math.max(0, Number(offset) || 0)),
-    session_id: String(session || ''), filter_ids: '' };
+    cell_id: cell, plan_id: plan, tab_type: channel, offset: String(Math.max(0, Number(offset) || 0)),
+    session_id: session === 'first' ? '' : String(session || ''), filter_ids: '' };
   const s = signedMetadataRequest('/reading/bookapi/bookmall/cell/change/v', values);
   const headers = cookie ? { ...s.headers, Cookie: cookie } : s.headers;
   const j = await requestJson(s.url, { method: 'GET', headers, preserveLargeIntegerFields: IDS }, Date.now() + 10000, signal);

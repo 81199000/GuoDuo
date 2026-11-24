@@ -223,9 +223,9 @@ globalThis.HG = {
   // 找剧：类型 / 排序（最新上架）/ 上新时间 / 题材 / 人设 / 背景 / 男女频；select 是 JSON 字符串
   find(callId, select, offset, session) { wrap(callId, () => catalogMore.find({ select: JSON.parse(select || '{}'), offset, session })); },
   // 红果首页「推荐」流：登录了带 cookie = 账号个性化推荐；没登录也能拿到通用推荐。
-  forYou(callId, offset, session) { wrap(callId, async () => {
+  forYou(callId, offset, session, channel) { wrap(callId, async () => {
     const cookie = await accountCookie();
-    const r = await accountFeed.forYou({ cookie, offset, session });
+    const r = await accountFeed.forYou({ cookie, offset, session, channel: channel || '16' });
     return { ...r, personal: !!cookie };
   }); },
   // 完整云端观看记录（分页拉完，不止第一页）

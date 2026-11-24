@@ -11,6 +11,12 @@ struct HGSeries: Codable, Identifiable, Hashable {
     var rank: Int? = nil
     /// 播放量（榜单 / 找剧带回）
     var plays: Int? = nil
+    /// 封面左下角：「4381万热度」「共62万人在追」「3805万期待」（官方卡片同款，服务端给的原文）
+    var heat: String? = nil
+    /// 「爆剧」「新剧」「爆款新剧」等运营角标
+    var badge: String? = nil
+    /// 预约中（还没上线，不能播）
+    var upcoming: Bool? = nil
     var id: String { series_id }
     var coverURL: URL? { cover.flatMap { $0.isEmpty ? nil : URL(string: $0) } }
     /// 红果之外的来源（西饭 / 河马）编号带前缀；弹幕和热评只有红果有。
@@ -262,7 +268,8 @@ enum HGAPI {
         return try core.decode(HGFindPage.self, try await core.call("find", [json, offset, session]))
     }
     /// 红果首页推荐流；登录了带账号 cookie
-    static func forYou(offset: Int, session: String) async throws -> HGForYouPage {
-        try core.decode(HGForYouPage.self, try await core.call("forYou", [offset, session]))
+    /// channel：16 推荐 / 39 真人剧 / 36 漫剧
+    static func forYou(offset: Int, session: String, channel: String = "16") async throws -> HGForYouPage {
+        try core.decode(HGForYouPage.self, try await core.call("forYou", [offset, session, channel]))
     }
 }

@@ -25,14 +25,39 @@ async function call(path, values, body, signal) {
   throw last;
 }
 
-function card(v, extra = {}) {
+const jsonOf = v => { if (v && typeof v === 'object') return v; try { return JSON.parse(v || 'null'); } catch (_) { return null; } };
+const SEASON = /^第.{1,4}[季部]$/;
+
+/**
+ * 卡片角标和标签（官方卡片同款）：热度 / 在追 / 期待人数 + 3 个题材标签。
+ * 来源：rec_text_item（榜单「8209万热度」「3805万期待」）、rec_tags（推荐流「5426万热度」「共62万人在追」）、
+ * recommend_reason_list 里 data_type 27 的热度值（找剧「6256万」）、data_type 3 的题材；都没有就用 category_schema。
+ */
+function meta(v) {
+  const reason = jsonOf(v?.recommend_reason_list) || {};
+  const lists = [reason.secondary_info_list, reason.sub_title_list, v?.secondary_infos, v?.secondary_info_list, v?.sub_title_list]
+    .filter(Array.isArray).flat();
+  let heat = cleanTitle(v?.rec_text_item?.RecommendText);
+  if (!heat) heat = cleanTitle((Array.isArray(reason.rec_tags) ? reason.rec_tags : Array.isArray(v?.rec_tags) ? v.rec_tags : [])
+    .map(t => t?.content).find(t => /热度|在追|期待|推荐/.test(t || '')));
+  if (!heat) { const h = lists.find(t => Number(t?.data_type) === 27)?.content; if (h) heat = `${cleanTitle(h)}热度`; }
+  // data_type 3 = 题材（23 演员、32 类型）；不够 3 个用 category_schema 补
+  let tags = lists.filter(t => Number(t?.data_type) === 3).map(t => cleanTitle(t?.content));
+  tags = tags.concat((jsonOf(v?.category_schema) || []).map(c => cleanTitle(c?.name)));
+  tags = [...new Set(tags.filter(t => t && t.length <= 6 && !SEASON.test(t)))].slice(0, 3);
+  const badge = cleanTitle(reason.tag_info?.text || v?.video_tag_info?.text);
+  return { heat: heat || undefined, tags, badge: badge || undefined };
+}
+
+function card(v, extra = {}, { upcoming = false } = {}) {
   const id = idOf(v?.series_id_str || v?.series_id), title = cleanTitle(v?.title || v?.series_title || v?.series_name);
   const episodes = Number(v?.episode_cnt) || 0;
-  if (!id || !title || ![1, 1004].includes(Number(v?.content_type))) return null;
-  const tags = Array.isArray(v.sub_title_list) ? v.sub_title_list.map(t => cleanTitle(t?.content)).filter(Boolean).slice(0, 4) : [];
+  const type = Number(v?.content_type);
+  // 1 真人剧 / 1004 短剧；1007 = 预约中（还没上线，不能播）
+  if (!id || !title || !([1, 1004].includes(type) || (upcoming && type === 1007))) return null;
   const plays = Number(v.series_play_cnt || v.play_cnt) || 0;
   return { series_id: id, series_title: title, cover: catalogCover(v.cover || v.series_cover || ''), episode_count: episodes,
-    description: cleanTitle(v.video_desc || v.series_intro), tags, plays, ...extra };
+    description: cleanTitle(v.video_desc || v.series_intro), plays, ...meta(v), ...(type === 1007 ? { upcoming: true } : {}), ...extra };
 }
 
 /** 榜单目录：分区（全部 / 系列剧 / 漫剧 / 真人剧 / AI 剧）→ 各自的榜（推荐 / 热播 / 新剧 / 热搜 / 必看…），服务端下发 */
@@ -61,8 +86,9 @@ async function rank({ zone = 'all', board = 'ranklist_hot_play_sc', offset = 0, 
   if (Number(j?.code) !== 0 || !Array.isArray(view?.cell_data)) throw fail('榜单暂时打不开', 'APP_BUSINESS');
   const rows = view.cell_data.flatMap(c => Array.isArray(c?.video_data) ? c.video_data : c?.video_data ? [c.video_data] : []);
   const seen = new Set(), results = [];
+  const upcoming = /subscribe/.test(board);
   for (const v of rows) {
-    const c = card(v, { rank: offset + results.length + 1 });
+    const c = card(v, { rank: offset + results.length + 1 }, { upcoming });
     if (c && !seen.has(c.series_id)) { seen.add(c.series_id); results.push(c); }
   }
   const next = Number(view.next_offset) || 0;
@@ -110,4 +136,4 @@ async function find({ select = {}, offset = 0, session = '', signal } = {}) {
     filters: first ? parseFilters(data.selector_rows) : [] };
 }
 
-module.exports = { rank, find, parseBoards, parseFilters };
+module.exports = { rank, find, parseBoards, parseFilters, meta };

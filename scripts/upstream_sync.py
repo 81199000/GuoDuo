@@ -48,8 +48,8 @@ FILES = {
 PATCHES = [
     ("app-source.js",
      "    if (!['/reading/distribution/category/landpage/v/', '/reading/bookapi/bookmall/cell/change/v'].includes(apiPath)) {",
-     "    if (!['/reading/distribution/category/landpage/v/', '/reading/bookapi/bookmall/cell/change/v', '/novel/player/video_detail/v1/'].includes(apiPath)) {",
-     "放行剧集详情接口（每集评论/点赞统计）"),
+     "    if (!['/reading/distribution/category/landpage/v/', '/reading/bookapi/bookmall/cell/change/v', '/novel/player/video_detail/v1/', '/reading/bookapi/bookmall/tab/v1/'].includes(apiPath)) {",
+     "放行剧集详情接口（每集评论/点赞统计）+ 首页频道接口（漫剧/真人剧推荐流首屏）"),
     ("app-source.js",
      "                        ...(requestedQuality === 'auto' ? {} : { width: selected.width, height: selected.height }) });",
      "                        width: selected.width, height: selected.height });  // GuoDuo：推荐缓存按横竖分桶，auto 也带上宽高",

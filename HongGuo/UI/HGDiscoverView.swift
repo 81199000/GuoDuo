@@ -1,20 +1,20 @@
 import SwiftUI
 
-/// 发现：红果 App 官方榜单（分区 × 榜）/ 找剧（类型、最新上架、上新时间、题材、人设…）/ 西饭 / 河马。
-/// 榜单目录和筛选项都由红果服务端下发，不写死。
+/// 发现（剧场）：官方 App 同款排版——
+/// 顶部搜索框 → 频道（找剧 / 真人剧 / 漫剧 / 西饭 / 河马）→ 四个入口（筛选 / 排行榜 / 新剧 / 预约）→ 两列大卡瀑布流。
+/// 找剧 / 真人剧 / 漫剧是红果首页推荐流（登录了按账号推荐）；榜单目录和筛选项都由服务端下发。
 struct HGDiscoverView: View {
-    enum Mode: String, CaseIterable { case rank, find, xifan, hema
-        var title: String { switch self { case .rank: "榜单"; case .find: "找剧"; case .xifan: "西饭"; case .hema: "河马" } }
+    enum Channel: String, CaseIterable {
+        case all = "16", real = "39", comic = "36", xifan, hema
+        var title: String { switch self { case .all: "找剧"; case .real: "真人剧"; case .comic: "漫剧"; case .xifan: "西饭"; case .hema: "河马" } }
+        var isFeed: Bool { [.all, .real, .comic].contains(self) }
     }
-    @AppStorage("hg.discover.mode") private var mode: Mode = .rank
-    @AppStorage("hg.discover.zone") private var zone = "all"
-    @AppStorage("hg.discover.board") private var board = "ranklist_hot_play_sc"
-    @State private var zones: [HGRankZone] = []
-    /// 找剧：当前选的（每组单选；空 = 不限）
-    @State private var select: [String: String] = ["genre": "short_play", "sort": "hot_score"]
-    @State private var filters: [HGFindFilter] = []
-    @State private var moreFilters = false
-
+    enum Entry: String, Identifiable { case filter, rank, new, upcoming
+        var id: String { rawValue }
+        var title: String { switch self { case .filter: "筛选"; case .rank: "排行榜"; case .new: "新剧"; case .upcoming: "预约" } }
+        var icon: String { switch self { case .filter: "line.3.horizontal.decrease"; case .rank: "flame.fill"; case .new: "play.fill"; case .upcoming: "calendar" } }
+    }
+    @AppStorage("hg.discover.channel") private var channel: Channel = .all
     @State private var items: [HGSeries] = []
     @State private var offset = 0
     @State private var session = ""
@@ -24,108 +24,459 @@ struct HGDiscoverView: View {
     @State private var error: String?
     @State private var showShare = false
     @State private var openSeries: HGSeries?
+    @State private var entry: Entry?
     @State private var tabletop = false
     @Environment(\.hgSideRail) private var sideRail
     @State private var router = HGRootRouter.shared
     @State private var loadedKey = ""
 
-    private let columns = [GridItem(.adaptive(minimum: 104, maximum: 180), spacing: 12, alignment: .top)]
-    /// 预约榜是还没上线的剧（点进去不能播），不放
-    private static let hiddenBoards: Set<String> = ["ranklist_subscribe", "human_subscribe", "comic_series_subscribe", "ai_playlet_subscribe"]
-    /// 找剧里外面常驻的几组；其余收进「更多筛选」
-    private static let mainFilters: Set<String> = ["genre", "sort", "online_time", "category_dim_theme"]
-
-    private var key: String {
-        switch mode {
-        case .rank: "rank|\(zone)|\(board)"
-        case .find: "find|" + select.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-        case .xifan, .hema: mode.rawValue
-        }
-    }
-
     var body: some View {
         GeometryReader { geo in
             if let crease = HGTabletop.crease(geo), !items.isEmpty {
-                // 桌面姿态：标题收成小标题，选项条保留在最上面，下面一部一部翻
                 VStack(spacing: 0) {
-                    modeChips.padding(.vertical, 4)
+                    channelBar.padding(.vertical, 4)
                     HGDiscoverTabletop(items: items, crease: HGTabletop.Crease(top: crease.top - 36, bottom: crease.bottom - 36),
                                        loadMore: { Task { await loadMore() } },
                                        openDetail: { openSeries = $0 })
-                        .id(key)
+                        .id(channel.rawValue)
                 }
                 .onAppear { tabletop = true }
                 .onDisappear { tabletop = false }
             } else {
-                regular
+                regular(width: geo.size.width)
             }
         }
-        // 返回首页时不重拉（否则列表清空 → 桌面布局闪回普通网格、翻到哪部也丢了）
-        .task(id: key) {
-            guard key != loadedKey || items.isEmpty else { return }
-            loadedKey = key
+        .task(id: channel) {
+            guard channel.rawValue != loadedKey || items.isEmpty else { return }
+            loadedKey = channel.rawValue
             await reload()
         }
+        .toolbarVisibility(tabletop ? .automatic : .hidden, for: .navigationBar)
         .navigationTitle("发现")
-        .navigationBarTitleDisplayMode(tabletop ? .inline : .automatic)
-        .toolbar {
-            if !sideRail {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showShare = true } label: { Image(systemName: "link") }.accessibilityIdentifier("hg.share")
-                }
-            }
-        }
+        .navigationBarTitleDisplayMode(.inline)
         .onChange(of: router.shareTick) { _, _ in showShare = true }
         .sheet(isPresented: $showShare) { HGShareLinkSheet { openSeries = $0; showShare = false }.presentationDetents([.height(240)]) }
         .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
-    }
-
-    private var modeChips: some View {
-        chips(Mode.allCases.map { ($0.rawValue, $0.title) }, selected: mode.rawValue, prefix: "hg.mode") {
-            mode = Mode(rawValue: $0) ?? .rank
+        .navigationDestination(item: $entry) { e in
+            switch e {
+            case .filter: HGFindScreen()
+            case .rank: HGRankScreen()
+            case .new: HGFindScreen(title: "新剧", preset: ["sort": "online_time", "online_time": "days_30"])
+            case .upcoming: HGRankScreen(title: "预约", fixedBoard: "ranklist_subscribe")
+            }
         }
     }
 
-    @ViewBuilder private var options: some View {
-        switch mode {
-        case .rank:
-            if !zones.isEmpty {
-                chips(zones.map { ($0.id, $0.name) }, selected: zone, small: true, prefix: "hg.zone") { z in
-                    guard z != zone else { return }
-                    zone = z
-                    // 换分区：落到该区同名的榜（热播 → 热播），没有就第一个
-                    let boards = visibleBoards(z)
-                    let name = zones.first { $0.id == zone }?.boards.first { $0.id == board }?.name
-                    board = boards.first { $0.name == name }?.id ?? boards.first?.id ?? board
+    // MARK: 顶部
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Button { router.go(.search) } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(HGTheme.textTertiary)
+                    Text("搜索短剧").foregroundStyle(HGTheme.textTertiary)
+                    Spacer(minLength: 0)
                 }
-                chips(visibleBoards(zone).map { ($0.id, $0.name) }, selected: board, small: true, prefix: "hg.board") { board = $0 }
+                .font(.subheadline)
+                .padding(.horizontal, 14).frame(height: 40)
+                .background(HGTheme.surface, in: Capsule())
             }
-        case .find:
-            ForEach(filters.filter { Self.mainFilters.contains($0.type) || moreFilters }) { f in filterRow(f) }
-            if filters.contains(where: { !Self.mainFilters.contains($0.type) }) {
-                Button { withAnimation(.snappy) { moreFilters.toggle() } } label: {
-                    Label(moreFilters ? "收起筛选" : "更多筛选（人设 / 背景 / 频道）", systemImage: moreFilters ? "chevron.up" : "slider.horizontal.3")
-                        .font(.footnote).foregroundStyle(HGTheme.textSecondary)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("hg.discover.search")
+            if !sideRail {
+                Button { showShare = true } label: {
+                    Image(systemName: "link").font(.subheadline.weight(.semibold)).foregroundStyle(HGTheme.textSecondary)
+                        .frame(width: 40, height: 40).background(HGTheme.surface, in: Circle())
                 }
-                .padding(.horizontal)
-                .accessibilityIdentifier("hg.find.more")
+                .accessibilityIdentifier("hg.share")
             }
-        case .xifan, .hema:
-            EmptyView()
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var channelBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .firstTextBaseline, spacing: 22) {
+                ForEach(Channel.allCases, id: \.self) { c in
+                    let on = c == channel
+                    Button { channel = c } label: {
+                        Text(c.title)
+                            .font(on ? .title2.weight(.bold) : .title3)
+                            .foregroundStyle(on ? HGTheme.textPrimary : HGTheme.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("hg.channel.\(c.title)")
+                }
+            }
+            .padding(.horizontal, 16)
+            .animation(.snappy(duration: 0.2), value: channel)
         }
     }
 
-    private func visibleBoards(_ z: String) -> [HGRankBoard] {
-        (zones.first { $0.id == z }?.boards ?? []).filter { !Self.hiddenBoards.contains($0.id) }
+    private var entries: some View {
+        HStack(spacing: 8) {
+            ForEach([Entry.filter, .rank, .new, .upcoming]) { e in
+                Button { entry = e } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: e.icon).font(.footnote.weight(.bold)).foregroundStyle(HGTheme.textPrimary)
+                            .frame(width: 26, height: 26)
+                            .background(HGTheme.accent.gradient, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall + 2, style: .continuous))
+                        Text(e.title).font(.subheadline.weight(.medium)).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 46)
+                    .background(HGTheme.surface, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("hg.entry.\(e.rawValue)")
+            }
+        }
+        .padding(.horizontal, 16)
     }
 
-    /// 一组筛选：类型 / 排序必选；其余带「不限」
-    private func filterRow(_ f: HGFindFilter) -> some View {
+    private func regular(width: CGFloat) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                searchBar
+                channelBar
+                if channel.isFeed { entries }
+                if let error, items.isEmpty {
+                    HGErrorView(message: error) { Task { await reload() } }
+                }
+                HGWaterfall(items: items, width: width - 32, loadMore: { Task { await loadMore() } })
+                    .padding(.horizontal, 16)
+                if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
+            }
+            .padding(.vertical, 8)
+        }
+        .refreshable { await reload() }
+    }
+
+    // MARK: 数据
+
+    private func reload() async {
+        offset = 0; session = ""; page = 1; hasMore = true; error = nil
+        items = []
+        await loadMore()
+    }
+
+    private func loadMore() async {
+        guard !loading, hasMore else { return }
+        loading = true; defer { loading = false }
+        let c = channel
+        do {
+            var results: [HGSeries]
+            if c.isFeed {
+                // 推荐流一页只有 6~7 部：一次拉到 12 部以上再显示，两列不会空一截
+                results = []
+                repeat {
+                    let r = try await HGAPI.forYou(offset: offset, session: session, channel: c.rawValue)
+                    guard c == channel else { return }
+                    results += r.results; offset = r.next; session = r.session; hasMore = r.hasMore
+                } while hasMore && results.count < 12 && items.isEmpty
+            } else {
+                let r = try await HGAPI.browse(c == .xifan ? .xifan : .hema, page: page)
+                guard c == channel else { return }
+                results = r.results; hasMore = r.hasMore ?? false; page += 1
+            }
+            let seen = Set(items.map(\.id))
+            var fresh: [HGSeries] = []
+            for s in results where !seen.contains(s.id) && !fresh.contains(where: { $0.id == s.id }) { fresh.append(s) }
+            items += fresh
+        } catch {
+            guard c == channel else { return }
+            self.error = error.localizedDescription
+            hasMore = false
+        }
+    }
+}
+
+// MARK: - 两列瀑布流大卡（官方剧场同款）
+
+/// 两列：每张卡按标题行数 / 有无标签估高，放进当前较矮的那列（不跳位：新的只往后排）
+struct HGWaterfall: View {
+    let items: [HGSeries]
+    let width: CGFloat
+    var showRank = false
+    let loadMore: () -> Void
+    private let gap: CGFloat = 10
+
+    var body: some View {
+        let colW = max(100, (width - gap) / 2)
+        let cols = split(colW)
+        HStack(alignment: .top, spacing: gap) {
+            ForEach(0..<2, id: \.self) { i in
+                LazyVStack(spacing: gap) {
+                    ForEach(cols[i]) { s in
+                        NavigationLink(value: s) { HGBigCard(series: s, showRank: showRank) }
+                            .buttonStyle(.plain)
+                            .onAppear { if s.id == items.last?.id || s.id == cols[i].last?.id { loadMore() } }
+                    }
+                }
+                .frame(width: colW)
+            }
+        }
+    }
+
+    private func split(_ w: CGFloat) -> [[HGSeries]] {
+        var cols: [[HGSeries]] = [[], []], h: [CGFloat] = [0, 0]
+        for s in items {
+            let i = h[0] <= h[1] ? 0 : 1
+            cols[i].append(s)
+            h[i] += HGBigCard.estimate(s, width: w) + gap
+        }
+        return cols
+    }
+}
+
+struct HGBigCard: View {
+    let series: HGSeries
+    var showRank = false
+
+    /// 封面 3:4 + 标题 1~2 行 + 标签行
+    static func estimate(_ s: HGSeries, width: CGFloat) -> CGFloat {
+        let chars = max(1, Int((width - 24) / 15))
+        let lines: CGFloat = s.series_title.count > chars ? 2 : 1
+        return width * 4 / 3 + 20 + lines * 21 + ((s.tags ?? []).isEmpty ? 0 : 30)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.aspectRatio(3 / 4, contentMode: .fit)
+                .overlay { HGCoverFill(url: series.coverURL) }
+                .overlay(alignment: .bottom) {
+                    LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom).frame(height: 56)
+                }
+                .overlay(alignment: .bottomLeading) {
+                    if let heat = series.heat ?? playsText {
+                        Label(heat, systemImage: "flame.fill").labelStyle(HGHeatLabel())
+                            .padding(.horizontal, 10).padding(.bottom, 8)
+                    }
+                }
+                .overlay(alignment: .topLeading) { rankBadge }
+                .overlay(alignment: .topTrailing) { badge }
+                .clipped()
+            VStack(alignment: .leading, spacing: 8) {
+                Text(series.series_title).font(.subheadline.weight(.medium)).foregroundStyle(HGTheme.textPrimary)
+                    .lineLimit(2).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                if let tags = series.tags, !tags.isEmpty {
+                    HStack(spacing: 5) {
+                        ForEach(tags.prefix(3), id: \.self) { t in
+                            Text(t).font(.caption2).foregroundStyle(HGTheme.textSecondary).lineLimit(1)
+                                .padding(.horizontal, 6).padding(.vertical, 3)
+                                .background(HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(HGTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: HGTheme.radius + 2, style: .continuous))
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("hg.card")
+    }
+
+    private var playsText: String? {
+        guard let n = series.plays, n >= 10_000 else { return nil }
+        return n >= 100_000_000 ? String(format: "%.1f亿播放", Double(n) / 1e8) : "\(n / 10_000)万播放"
+    }
+
+    @ViewBuilder private var rankBadge: some View {
+        if showRank, let r = series.rank {
+            Text("\(r)").font(.subheadline.weight(.heavy)).monospacedDigit()
+                .frame(minWidth: 28, minHeight: 26).padding(.horizontal, 4)
+                .background(r <= 3 ? HGTheme.accent : HGTheme.surfaceHigh.opacity(0.92),
+                            in: UnevenRoundedRectangle(bottomTrailingRadius: HGTheme.radius, style: .continuous))
+                .foregroundStyle(HGTheme.textPrimary)
+                .accessibilityLabel("第 \(r) 名")
+        }
+    }
+
+    @ViewBuilder private var badge: some View {
+        if series.upcoming == true {
+            tag("待上线")
+        } else if let b = series.badge, !b.isEmpty {
+            tag(b)
+        }
+    }
+
+    private func tag(_ t: String) -> some View {
+        Text(t).font(.caption2.weight(.bold)).foregroundStyle(HGTheme.textPrimary)
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(HGTheme.accent, in: UnevenRoundedRectangle(bottomLeadingRadius: HGTheme.radiusSmall, style: .continuous))
+    }
+}
+
+/// 封面铺满（不留边）
+struct HGCoverFill: View {
+    let url: URL?
+    var body: some View {
+        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
+            if case .success(let image) = phase { image.resizable().scaledToFill() }
+            else { Rectangle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "film").foregroundStyle(HGTheme.textTertiary)) }
+        }
+    }
+}
+
+struct HGHeatLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon.font(.caption2)
+            configuration.title.font(.caption.weight(.semibold)).monospacedDigit()
+        }
+        .foregroundStyle(HGTheme.textPrimary)
+        .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+    }
+}
+
+// MARK: - 排行榜（分区 × 榜）
+
+struct HGRankScreen: View {
+    var title = "排行榜"
+    /// 预约入口：固定预约榜（分区可切）
+    var fixedBoard: String? = nil
+    @AppStorage("hg.rank.zone") private var zone = "all"
+    @AppStorage("hg.rank.board") private var board = "ranklist_hot_play_sc"
+    @State private var zones: [HGRankZone] = []
+    @State private var items: [HGSeries] = []
+    @State private var offset = 0
+    @State private var session = ""
+    @State private var hasMore = true
+    @State private var loading = false
+    @State private var error: String?
+
+    private var isUpcoming: Bool { fixedBoard != nil }
+    private var currentBoard: String {
+        guard isUpcoming else { return board }
+        return zones.first { $0.id == zone }?.boards.first { $0.id.contains("subscribe") }?.id ?? fixedBoard ?? board
+    }
+    private var key: String { "\(zone)|\(currentBoard)" }
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !zones.isEmpty {
+                        HGChips(options: zones.filter { z in !isUpcoming || z.boards.contains { $0.id.contains("subscribe") } }.map { ($0.id, $0.name) },
+                                selected: zone, prefix: "hg.zone") { z in
+                            guard z != zone else { return }
+                            let name = zones.first { $0.id == zone }?.boards.first { $0.id == board }?.name
+                            zone = z
+                            let boards = visible(z)
+                            board = boards.first { $0.name == name }?.id ?? boards.first?.id ?? board
+                        }
+                        if !isUpcoming {
+                            HGChips(options: visible(zone).map { ($0.id, $0.name) }, selected: board, small: true, prefix: "hg.board") { board = $0 }
+                        }
+                    }
+                    if let error, items.isEmpty { HGErrorView(message: error) { Task { await reload() } } }
+                    HGWaterfall(items: items, width: geo.size.width - 32, showRank: !isUpcoming, loadMore: { Task { await loadMore() } })
+                        .padding(.horizontal, 16)
+                    if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
+                }
+                .padding(.vertical, 8)
+            }
+            .refreshable { await reload() }
+        }
+        .background(HGTheme.background)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: key) { await reload() }
+    }
+
+    /// 预约榜是还没上线的剧，只在「预约」入口里出现
+    private func visible(_ z: String) -> [HGRankBoard] {
+        (zones.first { $0.id == z }?.boards ?? []).filter { !$0.id.contains("subscribe") }
+    }
+
+    private func reload() async {
+        offset = 0; session = ""; hasMore = true; error = nil; items = []
+        await loadMore()
+    }
+
+    private func loadMore() async {
+        guard !loading, hasMore else { return }
+        loading = true; defer { loading = false }
+        let k = key
+        do {
+            let r = try await HGAPI.rank(zone: zone, board: currentBoard, offset: offset, session: session)
+            guard k == key else { return }
+            if let z = r.zones, !z.isEmpty {
+                zones = z
+                // 记住的分区 / 榜服务端没了：回到第一个
+                if !z.contains(where: { $0.id == zone }) { zone = z.first?.id ?? "all" }
+                if !isUpcoming, !visible(zone).contains(where: { $0.id == board }) { board = visible(zone).first?.id ?? board }
+            }
+            let seen = Set(items.map(\.id))
+            items += r.results.filter { !seen.contains($0.id) }
+            offset = r.next; session = r.session; hasMore = r.hasMore
+        } catch {
+            guard k == key else { return }
+            self.error = error.localizedDescription; hasMore = false
+        }
+    }
+}
+
+// MARK: - 筛选 / 新剧（分类落地页）
+
+struct HGFindScreen: View {
+    var title = "筛选"
+    var preset: [String: String] = [:]
+    @State private var select: [String: String] = [:]
+    @State private var filters: [HGFindFilter] = []
+    @State private var moreFilters = false
+    @State private var items: [HGSeries] = []
+    @State private var offset = 0
+    @State private var session = ""
+    @State private var hasMore = true
+    @State private var loading = false
+    @State private var error: String?
+    @State private var started = false
+
+    private static let mainFilters: Set<String> = ["genre", "sort", "online_time", "category_dim_theme"]
+    private var key: String { select.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: "&") }
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(filters.filter { Self.mainFilters.contains($0.type) || moreFilters }) { f in row(f) }
+                    if filters.contains(where: { !Self.mainFilters.contains($0.type) }) {
+                        Button { withAnimation(.snappy) { moreFilters.toggle() } } label: {
+                            Label(moreFilters ? "收起" : "更多筛选（人设 / 背景 / 频道）", systemImage: moreFilters ? "chevron.up" : "slider.horizontal.3")
+                                .font(.footnote).foregroundStyle(HGTheme.textSecondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .accessibilityIdentifier("hg.find.more")
+                    }
+                    if let error, items.isEmpty { HGErrorView(message: error) { Task { await reload() } } }
+                    else if items.isEmpty && !loading && !hasMore {
+                        Text("没有符合条件的剧").font(.footnote).foregroundStyle(HGTheme.textTertiary).frame(maxWidth: .infinity).padding(.top, 40)
+                    }
+                    HGWaterfall(items: items, width: geo.size.width - 32, loadMore: { Task { await loadMore() } })
+                        .padding(.horizontal, 16).padding(.top, 4)
+                    if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
+                }
+                .padding(.vertical, 8)
+            }
+            .refreshable { await reload() }
+        }
+        .background(HGTheme.background)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { if !started { started = true; select = ["genre": "short_play", "sort": "hot_score"].merging(preset) { $1 } } }
+        .task(id: key) { if started { await reload() } }
+    }
+
+    private func row(_ f: HGFindFilter) -> some View {
         let required = f.type == "genre" || f.type == "sort"
         let opts = (required ? [] : [("", "不限")]) + f.items.map { ($0.id, $0.name) }
         return HStack(spacing: 0) {
-            Text(f.name).font(.caption).foregroundStyle(HGTheme.textTertiary).frame(width: 38, alignment: .leading).padding(.leading)
-            chips(opts, selected: select[f.type] ?? "", small: true, prefix: "hg.find.\(f.type)", leading: 4) { v in
+            Text(f.name).font(.caption).foregroundStyle(HGTheme.textTertiary).frame(width: 38, alignment: .leading).padding(.leading, 16)
+            HGChips(options: opts, selected: select[f.type] ?? "", small: true, prefix: "hg.find.\(f.type)", leading: 4) { v in
                 if f.type == "genre" {
                     // 换类型：题材 / 人设等 ID 每个类型不同，清掉重新拿
                     guard v != select["genre"] else { return }
@@ -138,55 +489,38 @@ struct HGDiscoverView: View {
         }
     }
 
-    private var regular: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                modeChips
-                options
-                if let error, items.isEmpty {
-                    HGErrorView(message: error) { Task { await reload() } }
-                } else if items.isEmpty && !loading && !hasMore {
-                    Text("没有符合条件的剧").font(.footnote).foregroundStyle(HGTheme.textTertiary)
-                        .frame(maxWidth: .infinity).padding(.top, 40)
-                }
-                LazyVGrid(columns: columns, spacing: 18) {
-                    ForEach(items) { s in
-                        NavigationLink(value: s) {
-                            HGSeriesCard(series: s, subtitle: subtitle(s))
-                                .overlay(alignment: .topLeading) { rankBadge(s) }
-                        }
-                        .buttonStyle(.plain)
-                        .onAppear { if s.id == items.last?.id { Task { await loadMore() } } }
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 4)
-                if loading { ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding() }
-            }
-            .padding(.vertical, 8)
-        }
-        .refreshable { await reload() }
+    private func reload() async {
+        offset = 0; session = ""; hasMore = true; error = nil; items = []
+        await loadMore()
     }
 
-    private func subtitle(_ s: HGSeries) -> String? {
-        if let n = s.plays, n >= 10_000 {
-            return n >= 100_000_000 ? String(format: "%.1f 亿次播放", Double(n) / 1e8) : "\(n / 10_000) 万次播放"
+    private func loadMore() async {
+        guard !loading, hasMore else { return }
+        loading = true; defer { loading = false }
+        let k = key
+        do {
+            let r = try await HGAPI.find(select, offset: offset, session: session)
+            guard k == key else { return }
+            if let f = r.filters, !f.isEmpty { filters = f }
+            let seen = Set(items.map(\.id))
+            items += r.results.filter { !seen.contains($0.id) }
+            offset = r.next; session = r.session; hasMore = r.hasMore
+        } catch {
+            guard k == key else { return }
+            self.error = error.localizedDescription; hasMore = false
         }
-        return s.tags?.prefix(2).joined(separator: " · ")
     }
+}
 
-    @ViewBuilder private func rankBadge(_ s: HGSeries) -> some View {
-        if mode == .rank, let r = s.rank {
-            Text("\(r)").font(.caption.weight(.heavy)).monospacedDigit()
-                .frame(minWidth: 22, minHeight: 20).padding(.horizontal, 3)
-                .background(r <= 3 ? HGTheme.accent : HGTheme.surfaceHigh.opacity(0.9),
-                            in: UnevenRoundedRectangle(topLeadingRadius: HGTheme.radius, bottomTrailingRadius: HGTheme.radiusSmall, style: .continuous))
-                .foregroundStyle(HGTheme.textPrimary)
-                .accessibilityLabel("第 \(r) 名")
-        }
-    }
-
-    private func chips(_ options: [(String, String)], selected: String, small: Bool = false, prefix: String, leading: CGFloat? = nil, pick: @escaping (String) -> Void) -> some View {
+/// 横滑胶囊选项
+struct HGChips: View {
+    let options: [(String, String)]
+    let selected: String
+    var small = false
+    let prefix: String
+    var leading: CGFloat = 16
+    let pick: (String) -> Void
+    var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(options, id: \.0) { value, title in
@@ -200,44 +534,7 @@ struct HGDiscoverView: View {
                     .accessibilityIdentifier("\(prefix).\(value.isEmpty ? "all" : value)")
                 }
             }
-            .padding(.leading, leading ?? 16).padding(.trailing, 16)
-        }
-    }
-
-    private func reload() async {
-        offset = 0; session = ""; page = 1; hasMore = true; error = nil
-        items = []
-        await loadMore()
-    }
-
-    private func loadMore() async {
-        guard !loading, hasMore else { return }
-        loading = true; defer { loading = false }
-        let k = key
-        do {
-            let results: [HGSeries]
-            switch mode {
-            case .rank:
-                let r = try await HGAPI.rank(zone: zone, board: board, offset: offset, session: session)
-                guard k == key else { return }
-                if let z = r.zones, !z.isEmpty { zones = z }
-                results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
-            case .find:
-                let r = try await HGAPI.find(select, offset: offset, session: session)
-                guard k == key else { return }
-                if let f = r.filters, !f.isEmpty { filters = f }
-                results = r.results; offset = r.next; session = r.session; hasMore = r.hasMore
-            case .xifan, .hema:
-                let r = try await HGAPI.browse(mode == .xifan ? .xifan : .hema, page: page)
-                guard k == key else { return }
-                results = r.results; hasMore = r.hasMore ?? false; page += 1
-            }
-            let seen = Set(items.map(\.id))
-            items += results.filter { !seen.contains($0.id) }
-        } catch {
-            guard k == key else { return }
-            self.error = error.localizedDescription
-            hasMore = false
+            .padding(.leading, leading).padding(.trailing, 16)
         }
     }
 }
