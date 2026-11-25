@@ -669,7 +669,7 @@ struct HGPlayerScreen: View {
         .ddMediaLabelShadow()
     }
 
-    /// DouDuo 同款右侧栏：玻璃胶囊（点赞 / 评论 / 收藏 / 铺满）+ 玻璃圆「更多」
+    /// DouDuo 同款右侧栏：玻璃胶囊（点赞 / 评论 / 收藏）+ 玻璃圆「更多」（铺满在更多里）
     private var rail: some View {
         let fav = library.isFavorite(session.series.id)
         let liked = library.isLiked(session.episode.vid)
@@ -692,10 +692,7 @@ struct HGPlayerScreen: View {
         items.append(.init(id: "hg.rail.favorite", icon: fav ? "star.fill" : "star",
                            text: HGRailMemo.text("favorite", session.stats?.follows.map { DDMedia.count($0 + (fav ? 1 : 0)) }),
                            tint: fav ? DDMedia.warning : .white, reservesText: true) { library.toggleFavorite(session.series) })
-        items.append(.init(id: "hg.rail.fill", icon: "fit", text: "", fitInward: !fillWidth) {
-            fillWidth.toggle(); userScale = 1
-            flash(fillWidth ? "铺满：开" : "完整画面")
-        })
+        // 2026-11-26 老板：铺满按钮从右侧栏挪进「更多」（hg.more.fill）；双指捏合照样能切
         return DDActionRail(items: items) { showMore = true }
             .overlay(alignment: .topLeading) {
                 if commentTip {
@@ -733,6 +730,12 @@ struct HGPlayerScreen: View {
                         showMore = false
                         withAnimation(.easeOut(duration: 0.2)) { minimal.toggle() }
                         flash(minimal ? "极简模式：按住返回键看标题，暂停时显示详情" : "已退出极简")
+                    }
+                    moreItem(fillWidth ? "rectangle.arrowtriangle.2.inward" : "rectangle.arrowtriangle.2.outward",
+                             fillWidth ? "完整画面" : "铺满全屏", on: fillWidth, id: "hg.more.fill") {
+                        showMore = false
+                        fillWidth.toggle(); userScale = 1
+                        flash(fillWidth ? "铺满：开" : "完整画面")
                     }
                     moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
                         showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }

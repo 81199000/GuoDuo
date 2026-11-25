@@ -1,6 +1,6 @@
 import XCTest
 
-/// 顶部分区药丸按屏宽自适应（最前「全部」，选中只变色不藏别的）：真人剧 / 漫剧 / AI剧 / 系列剧 / 西饭 / 河马，放不下的收进「类别」菜单最底下「更多分区」
+/// 顶部分区药丸按屏宽自适应（最前「全部」，选中只变色不藏别的）：真人剧 / 漫剧 / AI剧 / 系列剧 / 西饭 / 河马，放不下的收进「类别」菜单最上面「更多分区」
 final class HGHomeCategoryTests: XCTestCase {
     private let all = ["真人剧", "漫剧", "AI剧", "系列剧", "西饭", "河马"]
     private func shot(_ n: String) { let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = n; a.lifetime = .keepAlways; add(a) }

@@ -258,6 +258,21 @@ struct HGHomeView: View {
 
     private var categoryMenu: some View {
         Menu {
+            // 顶部放不下的分区（按屏宽自适应）：放菜单最上面（2026-11-26 老板），单独一组 + 图标 + 说明
+            let hidden = Array(Self.zoneChips.dropFirst(pillCount))
+            if !hidden.isEmpty {
+                Section("更多分区") {
+                    ForEach(hidden, id: \.id) { c in
+                        let info = Self.zoneInfo(c.id)
+                        Button { withAnimation(.snappy) { zone = c.id } } label: {
+                            Image(systemName: zone == c.id ? "checkmark" : info.icon)
+                            Text(c.name)
+                            Text(info.note)
+                        }
+                        .accessibilityIdentifier("hg.home.zone.\(c.name)")
+                    }
+                }
+            }
             if let src = Self.otherSource(zone) {
                 // 西饭 / 河马：题材是它们自己的（点了进该片源该题材的列表）
                 Section("题材") {
@@ -272,21 +287,6 @@ struct HGHomeView: View {
                         Button(t.name) { find = FindRoute(title: t.name, preset: ["genre": genre, "category_dim_theme": t.id]) }
                     }
                     if (themes[genre] ?? []).isEmpty { Text("分类加载中…") }
-                }
-            }
-            // 顶部放不下的分区（按屏宽自适应）：放最底下，单独一组 + 图标 + 说明
-            let hidden = Array(Self.zoneChips.dropFirst(pillCount))
-            if !hidden.isEmpty {
-                Section("更多分区") {
-                    ForEach(hidden, id: \.id) { c in
-                        let info = Self.zoneInfo(c.id)
-                        Button { withAnimation(.snappy) { zone = c.id } } label: {
-                            Image(systemName: zone == c.id ? "checkmark" : info.icon)
-                            Text(c.name)
-                            Text(info.note)
-                        }
-                        .accessibilityIdentifier("hg.home.zone.\(c.name)")
-                    }
                 }
             }
         } label: {

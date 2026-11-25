@@ -5,6 +5,7 @@ final class HGFlowTests: XCTestCase {
     func testPlayerPhase2() throws {
         let app = XCUIApplication()
         app.launchEnvironment["HG_START_TAB"] = "discover"
+        app.launchArguments += ["-hg.home.style.v1", "classic"]   // 走红果主题（两列大卡）
         app.launch()
         // 发现页是官方剧场大卡（不显示集数）：按卡片标识找
         let card = app.descendants(matching: .any).matching(identifier: "hg.card").firstMatch
@@ -55,11 +56,11 @@ final class HGFlowTests: XCTestCase {
         app.buttons["hg.comments.close"].tap()
         sleep(1)
 
-        // 右侧栏只剩 点赞 / 评论 / 收藏 / 放大缩小 / 更多
-        for id in ["hg.rail.likes", "hg.rail.comments", "hg.rail.favorite", "hg.rail.fill", "hg.rail.more"] {
+        // 右侧栏只剩 点赞 / 评论 / 收藏 / 更多（铺满 2026-11-26 收进更多）
+        for id in ["hg.rail.likes", "hg.rail.comments", "hg.rail.favorite", "hg.rail.more"] {
             XCTAssertTrue(app.buttons[id].exists, "缺少 \(id)")
         }
-        for id in ["hg.rail.episodes", "hg.rail.speed", "hg.rail.danmaku", "hg.rail.clean", "hg.rail.pip"] {
+        for id in ["hg.rail.episodes", "hg.rail.speed", "hg.rail.danmaku", "hg.rail.clean", "hg.rail.pip", "hg.rail.fill"] {
             XCTAssertFalse(app.buttons[id].exists, "\(id) 应收进更多")
         }
         XCTAssertTrue(app.buttons["hg.rail.likes"].frame.minY > 140, "右侧栏顶部被状态栏挡住")
@@ -82,10 +83,16 @@ final class HGFlowTests: XCTestCase {
         attach(app, "swiped-ep5")
 
         // 铺满 / 完整切换、清屏
-        app.buttons["hg.rail.fill"].tap()
+        app.buttons["hg.rail.more"].tap()
+        XCTAssertTrue(app.buttons["hg.more.fill"].waitForExistence(timeout: 3), "更多里没有铺满")
+        app.buttons["hg.more.fill"].tap()
         sleep(1)
         attach(app, "fit-mode")
-        app.buttons["hg.rail.fill"].tap()
+        app.buttons["hg.rail.more"].tap()
+        XCTAssertTrue(app.buttons["hg.more.fill"].waitForExistence(timeout: 3))
+        attach(app, "more-fill")
+        app.buttons["hg.more.fill"].tap()
+        sleep(1)
         app.buttons["hg.rail.more"].tap()
         XCTAssertTrue(app.buttons["hg.more.clean"].waitForExistence(timeout: 3))
         app.buttons["hg.more.clean"].tap()
