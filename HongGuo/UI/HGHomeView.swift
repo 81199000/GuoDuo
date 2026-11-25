@@ -83,7 +83,7 @@ struct HGHomeView: View {
     static func fittingPills(width: CGFloat) -> Int {
         let font = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: .subheadline).pointSize, weight: .medium)
         let pill = { (t: String) -> CGFloat in ceil((t as NSString).size(withAttributes: [.font: font]).width) + 32 }
-        var used = pill("类别") + 16          // 类别 + 箭头
+        var used = pill("类别") + 16 + pill("全部") + 8   // 类别（+ 箭头）+ 最前面的「全部」
         var n = 0
         for c in zoneChips {
             let w = pill(c.name) + 8
@@ -195,19 +195,10 @@ struct HGHomeView: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    if let name = zoneName {
-                        // 选了分区：只留「✕ + 当前分区 + 类别」（奈飞同款）
-                        Button { withAnimation(.snappy) { zone = "" } } label: {
-                            Image(systemName: "xmark").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                                .frame(width: 36, height: 36).hgGlassPill(18)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("hg.home.chip.clear")
-                        chip(name, on: true) {}
-                    } else {
-                        ForEach(Self.zoneChips.prefix(pillCount), id: \.id) { c in
-                            chip(c.name, on: false) { withAnimation(.snappy) { zone = c.id } }
-                        }
+                    // 2026-11-26 老板：选了分区不再把别的藏起来，只把选中的那个字变主题色；最前面加「全部」
+                    chip("全部", on: zone.isEmpty) { withAnimation(.snappy) { zone = "" } }
+                    ForEach(Self.zoneChips.prefix(pillCount), id: \.id) { c in
+                        chip(c.name, on: zone == c.id) { withAnimation(.snappy) { zone = c.id } }
                     }
                     categoryMenu
                 }
@@ -256,12 +247,13 @@ struct HGHomeView: View {
 
     private func chip(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(.subheadline.weight(on ? .semibold : .medium)).foregroundStyle(.white)
+            Text(title).font(.subheadline.weight(on ? .bold : .medium)).foregroundStyle(on ? HGTheme.accent : .white)
                 .padding(.horizontal, 16).frame(height: 36)
                 .hgGlassPill(12)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("hg.home.chip.\(title)")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private var categoryMenu: some View {
@@ -289,7 +281,7 @@ struct HGHomeView: View {
                     ForEach(hidden, id: \.id) { c in
                         let info = Self.zoneInfo(c.id)
                         Button { withAnimation(.snappy) { zone = c.id } } label: {
-                            Image(systemName: info.icon)
+                            Image(systemName: zone == c.id ? "checkmark" : info.icon)
                             Text(c.name)
                             Text(info.note)
                         }
@@ -298,11 +290,12 @@ struct HGHomeView: View {
                 }
             }
         } label: {
+            let inMenu = Self.zoneChips.dropFirst(pillCount).first { $0.id == zone }
             HStack(spacing: 6) {
-                Text("类别").font(.subheadline.weight(.medium))
+                Text(inMenu?.name ?? "类别").font(.subheadline.weight(inMenu != nil ? .bold : .medium))
                 Image(systemName: "chevron.down").font(.caption2.weight(.bold))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(inMenu != nil ? HGTheme.accent : .white)
             .padding(.horizontal, 16).frame(height: 36)
             .hgGlassPill(12)
         }
