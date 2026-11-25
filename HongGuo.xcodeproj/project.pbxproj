@@ -41,6 +41,7 @@
 		9BBD61815E1592F7C5DC00E1 /* HGUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */; };
 		9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */; };
 		A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */; };
+		B0116EABCA9E2FF8F0C64EEC /* HGHomeCategoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE05E75195FC6C5FCBFF8634 /* HGHomeCategoryTests.swift */; };
 		B29309B9BDD3AA149E241A30 /* HGAmbientShots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF37E1CDF8569857A3FD01E /* HGAmbientShots.swift */; };
 		B3A4C4C7609655B90A4D537D /* DYDeskLight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC264E72C0F41CF058F2ABF /* DYDeskLight.swift */; };
 		B561F5F63197372870E0DA18 /* HGMineShelfTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E0D00CA110AAFF7DF6B466 /* HGMineShelfTests.swift */; };
@@ -134,6 +135,7 @@
 		DA47B9473DF2D45CB2A814B9 /* HGMineSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMineSettingsTests.swift; sourceTree = "<group>"; };
 		DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPhoneSendProbe.swift; sourceTree = "<group>"; };
 		DD247DF97A9973934B2B0BFF /* HGUpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGUpdateChecker.swift; sourceTree = "<group>"; };
+		DE05E75195FC6C5FCBFF8634 /* HGHomeCategoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGHomeCategoryTests.swift; sourceTree = "<group>"; };
 		E1A08138DB57EA101DA32C4E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E5077CA7284996E39E525152 /* HGFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFlowTests.swift; sourceTree = "<group>"; };
 		EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerSheets.swift; sourceTree = "<group>"; };
@@ -200,6 +202,7 @@
 				6E3E44C02B343DF5B884F2B7 /* HGDiscoverColumnsTests.swift */,
 				384B996C591FDC9541415513 /* HGFeedChromeTests.swift */,
 				E5077CA7284996E39E525152 /* HGFlowTests.swift */,
+				DE05E75195FC6C5FCBFF8634 /* HGHomeCategoryTests.swift */,
 				D57829FD8C11E9A930153B36 /* HGHomeHeaderTests.swift */,
 				5D9D94B0754D0A9004D09455 /* HGHomeShots.swift */,
 				5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */,
@@ -406,6 +409,7 @@
 				74F271DE013ED4958FF0E588 /* HGDiscoverColumnsTests.swift in Sources */,
 				103F2DD6912F16EF4D488E1E /* HGFeedChromeTests.swift in Sources */,
 				4333D747EADBFAA931839304 /* HGFlowTests.swift in Sources */,
+				B0116EABCA9E2FF8F0C64EEC /* HGHomeCategoryTests.swift in Sources */,
 				E5A48F1D3FE84346281730A6 /* HGHomeHeaderTests.swift in Sources */,
 				ECD4904CCAD3301E0616FA5D /* HGHomeShots.swift in Sources */,
 				E47899B4BDDC29D228EE4842 /* HGLandscapeShot.swift in Sources */,

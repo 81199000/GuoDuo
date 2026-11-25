@@ -49,11 +49,13 @@ struct HGHomeRow: Identifiable, Hashable {
 }
 
 struct HGHomeView: View {
-    /// 分区药丸（nil = 全部）
+    /// 分区（nil = 全部）。前两个是顶部药丸（红果 App 首页也只有真人剧 / 漫剧）；
+    /// AI剧 / 系列剧是榜单接口才有的分区，收进「类别」菜单最底下单独一组（老板 2026-11-25）
     static let zoneChips: [(id: String, name: String, genre: String)] = [
         ("human", "真人剧", "short_play"), ("comic_series_rank", "漫剧", "comic_series"),
         ("ai_playlet", "AI剧", "ai_series"), ("series_album", "系列剧", "short_play"),
     ]
+    static let pillZones = 2
     struct FindRoute: Hashable { let title: String; let preset: [String: String] }
 
     @State private var model = HGHomeModel.shared
@@ -73,8 +75,9 @@ struct HGHomeView: View {
     /// 中线都在约 70pt，跟右上角时间同一行；我们 logo 行高约 34pt → 行顶 53pt，竖横屏一样（不跟系统安全区走）。
     /// 外屏：保持原位（按系统安全区）；其它设备按系统安全区
     static func topInset(width: CGFloat, safeTop: CGFloat) -> CGFloat {
-        guard DYDuoMetrics.isDuoHardware, width >= 600 else { return safeTop }
-        return 53
+        guard DYDuoMetrics.isDuoHardware else { return safeTop }
+        // 外屏：老板 11-25 嫌 logo 太贴顶 → 往下半个图标（logo 高 30 → 15pt）
+        return width >= 600 ? 53 : safeTop + 15
     }
     /// 往下滑分类药丸那行弹上去收起，往上滑弹回来（奈飞同款）
     @State private var chipsHidden = false
@@ -161,7 +164,7 @@ struct HGHomeView: View {
                         .accessibilityIdentifier("hg.home.chip.clear")
                         chip(name, on: true) {}
                     } else {
-                        ForEach(Self.zoneChips, id: \.id) { c in
+                        ForEach(Self.zoneChips.prefix(Self.pillZones), id: \.id) { c in
                             chip(c.name, on: false) { withAnimation(.snappy) { zone = c.id } }
                         }
                     }
@@ -222,10 +225,24 @@ struct HGHomeView: View {
 
     private var categoryMenu: some View {
         Menu {
-            ForEach(themes[genre] ?? []) { t in
-                Button(t.name) { find = FindRoute(title: t.name, preset: ["genre": genre, "category_dim_theme": t.id]) }
+            Section("题材") {
+                ForEach(themes[genre] ?? []) { t in
+                    Button(t.name) { find = FindRoute(title: t.name, preset: ["genre": genre, "category_dim_theme": t.id]) }
+                }
+                if (themes[genre] ?? []).isEmpty { Text("分类加载中…") }
             }
-            if (themes[genre] ?? []).isEmpty { Text("分类加载中…") }
+            // 跟题材不是一类：是单独的剧场分区（官方 App 首页没有）→ 放最底下，单独一组 + 图标 + 说明，一眼看出不一样
+            Section("更多剧场 · 红果榜单分区") {
+                ForEach(Self.zoneChips.dropFirst(Self.pillZones), id: \.id) { c in
+                    // 系统菜单：标签里第二个 Text 显示成副标题小字
+                    Button { withAnimation(.snappy) { zone = c.id } } label: {
+                        Image(systemName: c.id == "ai_playlet" ? "sparkles" : "square.stack.3d.up")
+                        Text(c.name)
+                        Text(c.id == "ai_playlet" ? "AI 生成的短剧" : "一部剧多季连播")
+                    }
+                    .accessibilityIdentifier("hg.home.zone.\(c.name)")
+                }
+            }
         } label: {
             HStack(spacing: 6) {
                 Text("类别").font(.subheadline.weight(.medium))
