@@ -36,7 +36,8 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: GuoDuo 需要访问本地网络，才能找到并安装到你家里的安卓电视。
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: GuoDuo 需要访问本地网络，才能找到你家里的电视、安装 GuoDuo TV 和用手机遥控。
+        INFOPLIST_KEY_NSCameraUsageDescription: 扫电视上的二维码，连接 GuoDuo TV 遥控。
     info:
       path: HongGuo/Info.plist
       properties:
@@ -44,7 +45,10 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UIBackgroundModes: [audio]
         CADisableMinimumFrameDurationOnPhone: true
-        NSBonjourServices: ["_adb._tcp"]
+        NSBonjourServices: ["_adb._tcp", "_guoduo._tcp"]
+        # GuoDuo TV 遥控接口是局域网 http（电视上跑的小服务），只放开本地网络，公网仍强制 https
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
   HongGuoUITests:
     type: bundle.ui-testing
     platform: iOS

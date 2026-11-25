@@ -801,6 +801,10 @@ struct HGMineSettings: View {
 
             // 乌力 wuli-tv-install：手机经 ADB 把电视版 APK 推到家里的安卓电视
             Section {
+                NavigationLink { HGTVRemoteView() } label: {
+                    HGSettingRow(icon: "appletvremote.gen4.fill", tint: .indigo, title: "电视遥控", subtitle: "扫码 / 局域网连接 GuoDuo TV，手机电视互相接着看") { EmptyView() }
+                }
+                .accessibilityIdentifier("hg.mine.tvRemote")
                 NavigationLink { HGTVInstallView() } label: {
                     HGSettingRow(icon: "tv.fill", tint: .teal, title: "安装到电视", subtitle: "局域网找安卓电视，一键装 GuoDuo TV") { EmptyView() }
                 }

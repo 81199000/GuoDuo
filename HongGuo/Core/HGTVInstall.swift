@@ -136,7 +136,7 @@ final class HGTVScanner: NSObject, NetServiceBrowserDelegate, NetServiceDelegate
 
     func netService(_ sender: NetService, didNotResolve errorDict: [String: NSNumber]) { resolving.removeAll { $0 === sender } }
 
-    private static func ipv4(_ addrs: [Data]) -> String? {
+    static func ipv4(_ addrs: [Data]) -> String? {
         for d in addrs {
             let ip: String? = d.withUnsafeBytes { raw -> String? in
                 guard raw.count >= MemoryLayout<sockaddr_in>.size else { return nil }

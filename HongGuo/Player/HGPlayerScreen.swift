@@ -62,6 +62,9 @@ struct HGPlayerScreen: View {
     @State private var showComments = false
     @State private var showEpisodes = false
     @State private var showMore = false
+    /// 投到电视：绑过多台时弹选择；一台没绑过进遥控页
+    @State private var castPick = false
+    @State private var castSetup = false
     @State private var commentTip = false
     @State private var commentTipTask: Task<Void, Never>?
     /// 评论是否占着一侧（侧滑 / 半折常驻）：本视图自己的 body 里算出来，不能用环境值读回自己
@@ -207,6 +210,10 @@ struct HGPlayerScreen: View {
                 .presentationDragIndicator(.visible)
                 .hgGlassPanelBackground()
         }
+        .confirmationDialog("投到哪台电视", isPresented: $castPick, titleVisibility: .visible) {
+            ForEach(HGTVStore.shared.devices) { tv in Button(tv.name) { cast(to: tv) } }
+        }
+        .sheet(isPresented: $castSetup) { NavigationStack { HGTVRemoteView() }.presentationDetents([.large]) }
         .sheet(isPresented: $showEpisodes) {
             HGEpisodeSheet(session: session) { showEpisodes = false }
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
@@ -746,6 +753,10 @@ struct HGPlayerScreen: View {
                         fillWidth.toggle(); userScale = 1
                         flash(fillWidth ? "铺满：开" : "完整画面")
                     }
+                    moreItem("tv", "投到电视", id: "hg.more.tv") {
+                        showMore = false
+                        castToTV()
+                    }
                     moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
                         showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
                     }
@@ -813,7 +824,7 @@ struct HGPlayerScreen: View {
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, minHeight: 34)
                 .hgGlassTile(on: on, radius: HGTheme.radiusSmall, solidWhenOn: true)
-                .foregroundStyle(on ? Color.white : HGTheme.textPrimary)
+                .foregroundStyle(on ? Color.black : HGTheme.textPrimary)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)
@@ -852,7 +863,7 @@ struct HGPlayerScreen: View {
             VStack(spacing: 6) {
                 Image(systemName: icon).font(.title3).frame(width: 52, height: 52)
                     .hgGlassTile(on: on, radius: HGTheme.radius, solidWhenOn: false)
-                    .foregroundStyle(on ? HGTheme.accent : HGTheme.textPrimary)
+                    .foregroundStyle(on ? Color.black : HGTheme.textPrimary)
                 Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary).lineLimit(1).minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
@@ -968,6 +979,20 @@ struct HGPlayerScreen: View {
         if !library.isLiked(session.episode.vid) { library.toggleLike(session.episode.vid, series: session.series) }
         withAnimation(.spring(duration: 0.25)) { heartBurst = true }
         Task { try? await Task.sleep(for: .milliseconds(650)); withAnimation(.easeOut(duration: 0.2)) { heartBurst = false } }
+    }
+
+    /// 手机 → 电视：电视从这一集这一秒接着播，手机暂停（2026-11-26 老板）
+    private func castToTV() {
+        let tvs = HGTVStore.shared.devices
+        guard !tvs.isEmpty else { castSetup = true; return }
+        if tvs.count == 1 { cast(to: tvs[0]) } else { castPick = true }
+    }
+
+    private func cast(to tv: HGRemoteTV) {
+        let s = session.series, i = session.index, t = session.position
+        if session.isPlaying { session.togglePlay() }
+        flash("正在投到 \(tv.name)…")
+        Task { flash(await HGTVHandoff.send(series: s, index: i, seconds: t, to: tv)) }
     }
 
     private func flash(_ s: String) {
@@ -1155,12 +1180,13 @@ extension View {
         }
     }
 
-    /// 面板里的按钮 / 选项块：未选是白 10% 薄片（玻璃上再垫一层亮），选中按原来的主题红（倍速 / 密度那种实心，功能格那种淡红）
+    /// 面板里的按钮 / 选项块：未选是白 10% 薄片（玻璃上再垫一层亮）；
+    /// 选中（2026-11-26 老板：红色换掉）= 白底黑字（跟首页标签栏选中的白一致，玻璃上最清楚、不跟视频抢色）
     func hgGlassTile(on: Bool, radius: CGFloat, solidWhenOn: Bool) -> some View {
         background {
             let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
             if on {
-                shape.fill(solidWhenOn ? HGTheme.accent : HGTheme.accent.opacity(0.32))
+                shape.fill(Color.white.opacity(solidWhenOn ? 0.92 : 0.88))
             } else {
                 shape.fill(Color.white.opacity(0.10))
                     .overlay(shape.strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
