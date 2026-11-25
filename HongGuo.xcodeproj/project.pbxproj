@@ -32,6 +32,7 @@
 		828EF0ACED39D4092D79971F /* HongGuoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 788133021D40CA13E6BF8B34 /* HongGuoApp.swift */; };
 		850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */; };
 		8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */; };
+		8B1F4A352F1F2FC60D83C550 /* HGTVInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048C67C1934CE5DEC810E132 /* HGTVInstall.swift */; };
 		94479E4BB06CF2766D555764 /* DYLiveAdaptiveLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */; };
 		9BBD61815E1592F7C5DC00E1 /* HGUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */; };
 		9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */; };
@@ -41,6 +42,7 @@
 		B9F9F7759CAF97B09EF948EB /* HGEpisodePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */; };
 		BAC747AB7AF77014EE49FD13 /* HGLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */; };
 		BEC76F1B74103BE5875FA9C1 /* DDMediaRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB9B393254B6C5DB1888B84 /* DDMediaRail.swift */; };
+		C04C06B3073C3CD29FD1D244 /* HGAdb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25929D23E827F51B444FF335 /* HGAdb.swift */; };
 		C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 734656AB064DDD880E3510F9 /* HGPostureTests.swift */; };
 		C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB216E63F437213FB239626 /* HGNativeCrypto.swift */; };
 		C634513537027F4B3D33889C /* HGStorageScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4D0587E49A31FF6A753654 /* HGStorageScreen.swift */; };
@@ -50,7 +52,9 @@
 		DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */; };
 		E0D0C9987C1F9875D390EEC1 /* HGDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */; };
 		E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10360A81DE829C3660CD38CF /* HGTheme.swift */; };
+		E247175EC3B32E8618AD8F84 /* HGTVInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E813099B823B24A7FCD9179 /* HGTVInstallTests.swift */; };
 		E47899B4BDDC29D228EE4842 /* HGLandscapeShot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */; };
+		EE22E40DC6D410C8FC661239 /* HGTVInstallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 634625D78E8B78169B5EE211 /* HGTVInstallView.swift */; };
 		F41C678E3E73A4B45F05642D /* HGConsoleGestureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BD63EC01FC0B32F4C014B /* HGConsoleGestureTests.swift */; };
 		FF4A8D0069FB91E8A6E12AAF /* HGTabletopSwipeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A8E37298163958332DBE2E7 /* HGTabletopSwipeTests.swift */; };
 /* End PBXBuildFile section */
@@ -67,6 +71,8 @@
 
 /* Begin PBXFileReference section */
 		0090B4685D32319D9E2379CC /* HGMediaCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMediaCache.swift; sourceTree = "<group>"; };
+		048C67C1934CE5DEC810E132 /* HGTVInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTVInstall.swift; sourceTree = "<group>"; };
+		0E813099B823B24A7FCD9179 /* HGTVInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTVInstallTests.swift; sourceTree = "<group>"; };
 		10360A81DE829C3660CD38CF /* HGTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTheme.swift; sourceTree = "<group>"; };
 		124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYPictureInPicture.swift; sourceTree = "<group>"; };
 		13E90C0DB3E0CB3C06EBC423 /* HGConsolePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGConsolePane.swift; sourceTree = "<group>"; };
@@ -74,6 +80,7 @@
 		1FCB4AE89C633049C3792826 /* HGModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGModels.swift; sourceTree = "<group>"; };
 		200BD63EC01FC0B32F4C014B /* HGConsoleGestureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGConsoleGestureTests.swift; sourceTree = "<group>"; };
 		20261A567433EA51E32A4681 /* HGTabletop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTabletop.swift; sourceTree = "<group>"; };
+		25929D23E827F51B444FF335 /* HGAdb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGAdb.swift; sourceTree = "<group>"; };
 		28EFA5F5726071B966B0AD66 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2DC3F9242FACD60B82125A86 /* HGSwipeTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGSwipeTiming.swift; sourceTree = "<group>"; };
 		2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYLiveAdaptiveLayout.swift; sourceTree = "<group>"; };
@@ -85,6 +92,7 @@
 		536D20075F82248682811BB9 /* hgcore.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = hgcore.js; sourceTree = "<group>"; };
 		5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGLandscapeShot.swift; sourceTree = "<group>"; };
 		609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGUpdateViews.swift; sourceTree = "<group>"; };
+		634625D78E8B78169B5EE211 /* HGTVInstallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTVInstallView.swift; sourceTree = "<group>"; };
 		713E6EDFF2D60896235A2A32 /* DYDuoLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDuoLayout.swift; sourceTree = "<group>"; };
 		734656AB064DDD880E3510F9 /* HGPostureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPostureTests.swift; sourceTree = "<group>"; };
 		788133021D40CA13E6BF8B34 /* HongGuoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HongGuoApp.swift; sourceTree = "<group>"; };
@@ -177,6 +185,7 @@
 				2DC3F9242FACD60B82125A86 /* HGSwipeTiming.swift */,
 				8A8E37298163958332DBE2E7 /* HGTabletopSwipeTests.swift */,
 				98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */,
+				0E813099B823B24A7FCD9179 /* HGTVInstallTests.swift */,
 				D308219684BFBD084EDD00CB /* HGUpdateTests.swift */,
 			);
 			path = HongGuoUITests;
@@ -185,6 +194,7 @@
 		A734163291F0EC7E0226F355 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				25929D23E827F51B444FF335 /* HGAdb.swift */,
 				A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */,
 				7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */,
 				8F6C93B035ABEAD2EB863C24 /* HGKeychain.swift */,
@@ -193,6 +203,7 @@
 				1FCB4AE89C633049C3792826 /* HGModels.swift */,
 				4FB216E63F437213FB239626 /* HGNativeCrypto.swift */,
 				95E7DA217FFBE4ABFD88FC15 /* HGTrace.swift */,
+				048C67C1934CE5DEC810E132 /* HGTVInstall.swift */,
 				DD247DF97A9973934B2B0BFF /* HGUpdateChecker.swift */,
 			);
 			path = Core;
@@ -207,6 +218,7 @@
 				B7EA34D56203BB82C3E2F95C /* HGMineView.swift */,
 				20261A567433EA51E32A4681 /* HGTabletop.swift */,
 				10360A81DE829C3660CD38CF /* HGTheme.swift */,
+				634625D78E8B78169B5EE211 /* HGTVInstallView.swift */,
 				609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */,
 			);
 			path = UI;
@@ -369,6 +381,7 @@
 				B561F5F63197372870E0DA18 /* HGMineShelfTests.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,
 				7DBC9E95A4F4B7FD4D9EFE2D /* HGSwipeTiming.swift in Sources */,
+				E247175EC3B32E8618AD8F84 /* HGTVInstallTests.swift in Sources */,
 				FF4A8D0069FB91E8A6E12AAF /* HGTabletopSwipeTests.swift in Sources */,
 				64E467E5DCBC4B78E2361A43 /* HGTabletopTests.swift in Sources */,
 				2C7AF9B5F466D880B5605510 /* HGUpdateTests.swift in Sources */,
@@ -388,6 +401,7 @@
 				9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */,
 				3A9EC27C1A804BB0D5532186 /* DYVideoAmbient.swift in Sources */,
 				850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */,
+				C04C06B3073C3CD29FD1D244 /* HGAdb.swift in Sources */,
 				8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */,
 				49FA5DA4AEF09A647279EEAC /* HGConsolePane.swift in Sources */,
 				127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */,
@@ -407,6 +421,8 @@
 				035240DB9995537147AA27BA /* HGStorageFiles.swift in Sources */,
 				B674A141AB189E1F97DFF503 /* HGStorageRing.swift in Sources */,
 				C634513537027F4B3D33889C /* HGStorageScreen.swift in Sources */,
+				8B1F4A352F1F2FC60D83C550 /* HGTVInstall.swift in Sources */,
+				EE22E40DC6D410C8FC661239 /* HGTVInstallView.swift in Sources */,
 				D31128F45578A62D3EC54966 /* HGTabletop.swift in Sources */,
 				E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */,
 				43812D0C967124C6477C695F /* HGTrace.swift in Sources */,
@@ -456,6 +472,7 @@
 				INFOPLIST_FILE = HongGuo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GuoDuo;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "GuoDuo 需要访问本地网络，才能找到并安装到你家里的安卓电视。";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -481,6 +498,7 @@
 				INFOPLIST_FILE = HongGuo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GuoDuo;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "GuoDuo 需要访问本地网络，才能找到并安装到你家里的安卓电视。";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
