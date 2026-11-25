@@ -5,7 +5,7 @@ const { signedMetadataRequest, signedAccountRequest, requestJson } = require('./
 const { getPlaybackDevice } = require('./upstream/playback-device.js');
 const { catalogCover } = require('./upstream/hongguo-app-catalog.js');
 const { cleanTitle } = require('./upstream/hongguo-app-search.js');
-const { meta } = require('./catalog-more.cjs');
+const { meta, avatarUrl } = require('./catalog-more.cjs');
 
 // 红果「推荐」频道固定栏目 / 方案 ID（tab_type=16；同绿果TV / aston314/hongguo-tv）
 const FEED_CELL = '7294257141911650341', FEED_PLAN = '7294257258253254693';
@@ -167,7 +167,7 @@ async function profile({ cookie, signal } = {}) {
   if (!uid) throw fail('登录已失效，请重新登录', 'SESSION_EXPIRED');
   const vip = d.vip_info || {};
   const num = v => Math.max(0, Number(v) || 0);
-  return { uid, name: cleanTitle(d.user_name) || '红果用户', avatar: String(d.expand_avatar_url || d.avatar_url || ''),
+  return { uid, name: cleanTitle(d.user_name) || '红果用户', avatar: avatarUrl(d.expand_avatar_url || d.avatar_url || '') || String(d.expand_avatar_url || d.avatar_url || ''),
     cover: String(d.profile_cover_url || ''), signature: cleanTitle(d.description), vip: String(vip.is_vip) === '1',
     watchMinutes: Math.round(num(d.video_consume_duration) / 60000), activeDays: num(d.active_day),
     follows: num(d.follow_count ?? d.following_count), fans: num(d.fans_count ?? d.follower_count), likes: num(d.digg_count ?? d.total_favorited) };
@@ -257,8 +257,12 @@ async function signedPost(cookie, apiPath, payload, signal) {
   let j = null; try { j = JSON.parse(r.data); } catch (_) {}
   if (r.status !== 200 || !j) throw fail(`红果没有接收（HTTP ${r.status}）`, 'HTTP');
   const code = Number(j.code ?? j.Code ?? 0), msg = String(j.message || j.prompts || j.data?.prompts || '');
+  // 只记返回码 / 提示，不记 cookie、正文
+  Native.log?.(`comment/add code=${code} msg=${msg.slice(0, 60)} id=${j.data?.comment_info?.comment_id || j.data?.comment_id || ''}`);
   if (code === 100004 || /session_expired/i.test(msg)) throw fail('登录已失效，请重新登录', 'SESSION_EXPIRED');
-  if (code !== 0) throw fail(msg && !/^success$/i.test(msg) ? `发送失败：${msg}` : `发送失败（${code}）`, 'APP_BUSINESS');
+  // 有评论 id 就算发出去了（老板实测：提示失败但其实发布了）
+  if (j.data?.comment_info?.comment_id || j.data?.comment_id) return j.data;
+  if (code !== 0) throw fail(msg && !/^success$/i.test(msg) ? `发送失败：${msg}（${code}）` : `发送失败（${code}）`, 'APP_BUSINESS');
   return j.data || {};
 }
 

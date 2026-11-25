@@ -28,6 +28,7 @@ struct HGCommentPanel: View {
     @State private var sending = false
     @State private var sendNote: String?
     @State private var signedIn: Bool?
+    @State private var me: HGAccountInfo?
     @FocusState private var composing: Bool
 
     private var count: Int? { total ?? data?.total }
@@ -69,7 +70,10 @@ struct HGCommentPanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("hg.comments.panel")
         .task(id: episode.vid) { await load() }
-        .task { signedIn = (try? await HGAPI.accountStatus())?.signedIn ?? false }
+        .task {
+            signedIn = (try? await HGAPI.accountStatus())?.signedIn ?? false
+            if signedIn == true { me = try? await HGAPI.accountInfo() }
+        }
     }
 
     // MARK: 发评论 / 弹幕
@@ -143,13 +147,16 @@ struct HGCommentPanel: View {
             } else {
                 try await HGAPI.postComment(series: series.series_id, vid: episode.vid, text: text)
                 // 先插到列表最上面；红果那边审核通过后刷新才会出现在公开列表里
-                let me = HGReview(author: "我", avatar: nil, content: text, created_at: Date().timeIntervalSince1970 * 1000, likes: 0)
-                if data != nil { data?.items.insert(me, at: 0) } else { data = HGComments(total: nil, items: [me]) }
+                // 用自己账号的头像 / 昵称（「我的」页同一份资料）
+                let mine = HGReview(author: me?.name ?? "我", avatar: me?.avatar, content: text,
+                                    created_at: Date().timeIntervalSince1970 * 1000, likes: 0)
+                if data != nil { data?.items.insert(mine, at: 0) } else { data = HGComments(total: nil, items: [mine]) }
                 sendNote = "评论已发出，红果审核后公开显示"
             }
             draft = ""; composing = false
         } catch {
             sendNote = error.localizedDescription
+            HGTrace.log("发\(asDanmaku ? "弹幕" : "评论")失败: \(error.localizedDescription)")
         }
     }
 

@@ -259,4 +259,4 @@ async function episodeComments({ sid, vid, offset = 0, signal } = {}) {
   return { items, total: Number(d.comment_cnt) || null, next, hasMore: d.has_more === true && next > offset };
 }
 
-module.exports = { rank, find, parseBoards, parseFilters, meta, suggest, info, seasons, reviews, episodeComments };
+module.exports = { rank, find, parseBoards, parseFilters, meta, suggest, info, seasons, reviews, episodeComments, avatarUrl };

@@ -32,7 +32,10 @@ final class HGCore: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         func def(_ name: String, _ block: Any) { native.setObject(block, forKeyedSubscript: name as NSString) }
         let b64 = { (s: String) in Data(base64Encoded: s) ?? Data() }
 
-        def("log", { [weak self] (s: String) in self?.log(s) } as @convention(block) (String) -> Void)
+        def("log", { [weak self] (s: String) in
+            self?.log(s)
+            if s.hasPrefix("comment/add") { HGTrace.log(s) }   // 发评论结果落到真机日志，方便拉回来看
+        } as @convention(block) (String) -> Void)
         def("timer", { [weak self] (id: Int, ms: Double) in
             self?.queue.asyncAfter(deadline: .now() + ms / 1000) {
                 self?.context.objectForKeyedSubscript("__timerFire")?.call(withArguments: [id])
