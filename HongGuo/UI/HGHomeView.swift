@@ -79,7 +79,7 @@ struct HGHomeView: View {
             let posterW: CGFloat = w < 600 ? 110 : 132
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
-                    hero(width: min(w - 32, w < 600 ? 520 : 440))
+                    hero(width: w < 600 ? min(w - 32, 520) : w - 32, wide: w >= 600)
                         .padding(.horizontal, 16)
                     if zone.isEmpty {
                         continueRow(posterW)
@@ -208,10 +208,13 @@ struct HGHomeView: View {
             ?? HGRankScreen.defaultBoard(zone)
     }
 
-    @ViewBuilder private func hero(width: CGFloat) -> some View {
+    @ViewBuilder private func hero(width: CGFloat, wide: Bool) -> some View {
         let key = "\(zone.isEmpty ? "all" : zone)|\(heroBoard)"
         if let s = model.rows[key]?.first {
-            HGHeroCard(series: s, width: width, play: { Task { await play(s) } }, open: { openSeries = s })
+            Group {
+                if wide { HGWideHeroCard(series: s, width: width, play: { Task { await play(s) } }, open: { openSeries = s }) }
+                else { HGHeroCard(series: s, width: width, play: { Task { await play(s) } }, open: { openSeries = s }) }
+            }
                 .task(id: s.id) {
                     if let url = s.coverURL, let c = await HGHeroTint.color(url) {
                         withAnimation(.easeOut(duration: 0.4)) { heroTint = c }
@@ -220,7 +223,7 @@ struct HGHomeView: View {
                 .accessibilityIdentifier("hg.home.hero")
         } else {
             RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.06))
-                .frame(width: width, height: width / 0.82)
+                .frame(width: width, height: wide ? HGWideHeroCard.height(width) : width / 0.82)
                 .overlay { if model.failed.contains(key) { Button("加载失败，点我重试") { Task { await loadHero() } } } else { ProgressView() } }
         }
     }
@@ -626,6 +629,95 @@ struct HGHeroCard: View {
     private var meta: String {
         var parts: [String] = []
         if let h = series.heat, !h.isEmpty { parts.append(h) }
+        parts += (series.tags ?? []).prefix(3)
+        return parts.joined(separator: " • ")
+    }
+}
+
+/// 内屏 / 横屏大海报：短剧只有竖海报（2026-11-25 实测红果没有横版长封面，每集封面是随手截帧）→
+/// 同一张竖海报放大模糊铺底 + 左侧压暗放简介和按钮 + 右侧清晰竖海报完整不裁（奈飞内屏横版大卡的排法）
+struct HGWideHeroCard: View {
+    let series: HGSeries
+    let width: CGFloat
+    let play: () -> Void
+    let open: () -> Void
+    @State private var library = HGLibrary.shared
+
+    /// 高度：宽 ÷ 2.1，夹在 300～460（内屏横屏一屏能露出下面一行）
+    static func height(_ w: CGFloat) -> CGFloat { min(460, max(300, w / 2.1)) }
+
+    var body: some View {
+        let h = Self.height(width)
+        let fav = library.isFavorite(series.id)
+        let posterH = h - 40
+        let posterW = posterH * 3 / 4
+        ZStack(alignment: .leading) {
+            // 铺底：同一张海报放大糊开
+            HGCoverFill(url: series.coverURL)
+                .frame(width: width, height: h)
+                .blur(radius: 28, opaque: true)
+                .scaleEffect(1.15)
+                .clipped()
+            // 左侧压暗（文字区），右侧透出底色
+            LinearGradient(stops: [.init(color: .black.opacity(0.78), location: 0),
+                                   .init(color: .black.opacity(0.55), location: 0.45),
+                                   .init(color: .black.opacity(0.15), location: 1)],
+                           startPoint: .leading, endPoint: .trailing)
+            HStack(alignment: .center, spacing: 24) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(series.series_title).font(.system(size: 34, weight: .heavy)).foregroundStyle(.white)
+                        .lineLimit(2).minimumScaleFactor(0.6)
+                        .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
+                    if !meta.isEmpty {
+                        Text(meta).font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                    }
+                    if let d = series.description, !d.isEmpty {
+                        Text(d).font(.subheadline).foregroundStyle(.white.opacity(0.8)).lineLimit(3)
+                            .frame(maxWidth: 460, alignment: .leading)
+                    }
+                    HStack(spacing: 12) {
+                        Button(action: play) {
+                            Label("播放", systemImage: "play.fill").font(.headline).foregroundStyle(.black)
+                                .frame(width: 180, height: 46)
+                                .background(.white, in: Capsule())
+                        }
+                        .accessibilityIdentifier("hg.home.hero.play")
+                        Button { library.toggleFavorite(series) } label: {
+                            Label(fav ? "已追剧" : "追剧", systemImage: fav ? "checkmark" : "plus").font(.headline).foregroundStyle(.white)
+                                .frame(width: 180, height: 46)
+                                .hgGlassPill(23)
+                        }
+                        .accessibilityIdentifier("hg.home.hero.favorite")
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 6)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // 清晰竖海报：完整不裁
+                Button(action: open) {
+                    Color.clear.frame(width: posterW, height: posterH)
+                        .overlay { HGCoverFill(url: series.coverURL) }
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .shadow(color: .black.opacity(0.5), radius: 16, y: 8)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 32)
+        }
+        .frame(width: width, height: h)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: open)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.18), lineWidth: 1))
+        .shadow(color: .black.opacity(0.45), radius: 18, y: 10)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(series.series_title)
+    }
+
+    private var meta: String {
+        var parts: [String] = []
+        if let h = series.heat, !h.isEmpty { parts.append(h) }
+        if let n = series.episode_count, n > 0 { parts.append("共\(n)集") }
         parts += (series.tags ?? []).prefix(3)
         return parts.joined(separator: " • ")
     }

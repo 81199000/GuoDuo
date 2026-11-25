@@ -22,7 +22,9 @@ final class HGHomeShots: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         sleep(4); shot("L-mid")
         for _ in 0..<4 { app.swipeDown() }
-        sleep(2); shot("L-top")
+        sleep(3); shot("L-top")
+        let h = app.descendants(matching: .any).matching(identifier: "hg.home.hero").firstMatch
+        if h.exists { print("HOME L hero=\(h.frame) win=\(app.windows.firstMatch.frame)") }
         XCUIDevice.shared.orientation = .portrait
     }
 }
