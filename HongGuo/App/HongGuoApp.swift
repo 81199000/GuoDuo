@@ -168,6 +168,7 @@ struct HGRootView: View {
                 try? await Task.sleep(for: .seconds(2))
                 HGFeedModel.shared.start()
             }
+            .task { _ = try? await HGAPI.accountStatus() }
             .task {
                 // 登录保活：一天碰一次官网账号接口，续期的 cookie 写回钥匙串（会话过期才登出）
                 try? await Task.sleep(for: .seconds(5))
@@ -175,6 +176,7 @@ struct HGRootView: View {
                 if Date().timeIntervalSince1970 - last > 20 * 3600 {
                     await HGAPI.keepAlive()
                     UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "hg.account.beat")
+                    _ = try? await HGAPI.accountStatus()   // 会话过期被登出：库切回游客
                 }
             }
             .task {

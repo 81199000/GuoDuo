@@ -303,6 +303,7 @@ struct HGMineView: View {
         refreshGen += 1
         account = HGAccountStatus(signedIn: false, account: nil)
         info = nil; cloud = []; cloudFavorites = []; reserved = []; cloudError = nil
+        library.switchAccount(nil)
         showSettings = false
         do { try await HGAPI.logout() } catch { cloudError = "退出失败：\(error.localizedDescription)" }
         await refreshAccount()

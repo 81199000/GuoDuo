@@ -297,7 +297,12 @@ enum HGAPI {
         return try core.decode(R.self, try await core.call("resolveShare", [text])).series_id
     }
 
-    static func accountStatus() async throws -> HGAccountStatus { try core.decode(HGAccountStatus.self, try await core.call("accountStatus", [])) }
+    static func accountStatus() async throws -> HGAccountStatus {
+        let st = try core.decode(HGAccountStatus.self, try await core.call("accountStatus", []))
+        // 观看记录 / 收藏 / 点赞按账号分开：状态一出来就切到这个账号那份（没登录 = 游客那份）
+        await MainActor.run { HGLibrary.shared.switchAccount(st.signedIn ? st.account?.id : nil) }
+        return st
+    }
     static func startLogin() async throws -> HGQRLogin { try core.decode(HGQRLogin.self, try await core.call("accountStartLogin", [])) }
     static func pollLogin(_ id: String) async throws -> HGQRPoll { try core.decode(HGQRPoll.self, try await core.call("accountPollLogin", [id])) }
     static func cancelLogin(_ id: String) async { _ = try? await core.call("accountCancelLogin", [id]) }
@@ -307,7 +312,10 @@ enum HGAPI {
     static func phoneLogin(_ code: String) async throws -> HGPhoneStep { try core.decode(HGPhoneStep.self, try await core.call("accountPhoneLogin", [code])) }
     static func phoneVerify() async throws -> HGPhoneStep { try core.decode(HGPhoneStep.self, try await core.call("accountPhoneVerify", [])) }
     static func phoneCancel() async { _ = try? await core.call("accountPhoneCancel", []) }
-    static func logout() async throws { _ = try await core.call("accountLogout", []) }
+    static func logout() async throws {
+        _ = try await core.call("accountLogout", [])
+        await MainActor.run { HGLibrary.shared.switchAccount(nil) }
+    }
     static func cloudHistory(refresh: Bool) async throws -> [HGCloudHistoryRow] {
         try core.decode(HGCloudHistory.self, try await core.call("accountHistory", [refresh])).results ?? []
     }
