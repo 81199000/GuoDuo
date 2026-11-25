@@ -14,7 +14,6 @@
 		115DE648C4BA61CAE4FB65FE /* HGPlayerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */; };
 		127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */; };
 		142E749D3D81D1304CC2CD02 /* HGUpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD247DF97A9973934B2B0BFF /* HGUpdateChecker.swift */; };
-		19AE92C0B40B37FD22D25BF7 /* HGEdgeHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33619E0E32D6152E96E7B3DE /* HGEdgeHighlight.swift */; };
 		19FC9B42D5463244E12BAF0A /* HGRailMeasure.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */; };
 		1DE989258E72ED5BFD0C9F78 /* hgcore.js in Resources */ = {isa = PBXBuildFile; fileRef = 536D20075F82248682811BB9 /* hgcore.js */; };
 		213C1C18EB8F4FFB719BFE8A /* HGPlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */; };
@@ -39,7 +38,6 @@
 		850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */; };
 		8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */; };
 		94479E4BB06CF2766D555764 /* DYLiveAdaptiveLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */; };
-		990AE8ADA821B4145552944B /* HGRimStylesShot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9294534CA027007A61A692 /* HGRimStylesShot.swift */; };
 		9BBD61815E1592F7C5DC00E1 /* HGUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */; };
 		9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */; };
 		A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */; };
@@ -88,7 +86,6 @@
 		2DC3F9242FACD60B82125A86 /* HGSwipeTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGSwipeTiming.swift; sourceTree = "<group>"; };
 		2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYLiveAdaptiveLayout.swift; sourceTree = "<group>"; };
 		3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGEpisodePlayer.swift; sourceTree = "<group>"; };
-		33619E0E32D6152E96E7B3DE /* HGEdgeHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGEdgeHighlight.swift; sourceTree = "<group>"; };
 		384B996C591FDC9541415513 /* HGFeedChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFeedChromeTests.swift; sourceTree = "<group>"; };
 		40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerScreen.swift; sourceTree = "<group>"; };
 		4E3580BD644DA26273751BCE /* HGLoginSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGLoginSheetTests.swift; sourceTree = "<group>"; };
@@ -123,7 +120,6 @@
 		B9AC4AB06DBF295A0ED6F9E4 /* HGLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGLibrary.swift; sourceTree = "<group>"; };
 		CBB9B393254B6C5DB1888B84 /* DDMediaRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DDMediaRail.swift; sourceTree = "<group>"; };
 		CBDC17F262A75AC9C9C0C5F5 /* DYDanmakuEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDanmakuEngine.swift; sourceTree = "<group>"; };
-		CE9294534CA027007A61A692 /* HGRimStylesShot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGRimStylesShot.swift; sourceTree = "<group>"; };
 		D308219684BFBD084EDD00CB /* HGUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGUpdateTests.swift; sourceTree = "<group>"; };
 		D705E7BBE3F47172EC57C783 /* HGStorageRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGStorageRing.swift; sourceTree = "<group>"; };
 		D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDiscoverView.swift; sourceTree = "<group>"; };
@@ -168,7 +164,6 @@
 				DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */,
 				13E90C0DB3E0CB3C06EBC423 /* HGConsolePane.swift */,
 				79C8DED3D743BCB5ECDD5301 /* HGDisableScrollToTop.swift */,
-				33619E0E32D6152E96E7B3DE /* HGEdgeHighlight.swift */,
 				3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */,
 				40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */,
 				EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */,
@@ -203,7 +198,6 @@
 				DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */,
 				734656AB064DDD880E3510F9 /* HGPostureTests.swift */,
 				AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */,
-				CE9294534CA027007A61A692 /* HGRimStylesShot.swift */,
 				2DC3F9242FACD60B82125A86 /* HGSwipeTiming.swift */,
 				8A8E37298163958332DBE2E7 /* HGTabletopSwipeTests.swift */,
 				98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */,
@@ -406,7 +400,6 @@
 				A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,
 				19FC9B42D5463244E12BAF0A /* HGRailMeasure.swift in Sources */,
-				990AE8ADA821B4145552944B /* HGRimStylesShot.swift in Sources */,
 				7DBC9E95A4F4B7FD4D9EFE2D /* HGSwipeTiming.swift in Sources */,
 				FF4A8D0069FB91E8A6E12AAF /* HGTabletopSwipeTests.swift in Sources */,
 				64E467E5DCBC4B78E2361A43 /* HGTabletopTests.swift in Sources */,
@@ -433,7 +426,6 @@
 				E0D0C9987C1F9875D390EEC1 /* HGDetailView.swift in Sources */,
 				D1B5259E08CA48BB437AD799 /* HGDisableScrollToTop.swift in Sources */,
 				07BDF6E2CDD207FB701FF6D5 /* HGDiscoverView.swift in Sources */,
-				19AE92C0B40B37FD22D25BF7 /* HGEdgeHighlight.swift in Sources */,
 				B9F9F7759CAF97B09EF948EB /* HGEpisodePlayer.swift in Sources */,
 				6916EAB6CA0E9D217FE479D7 /* HGFeedView.swift in Sources */,
 				492C9A670DB13F9C06B7F011 /* HGKeychain.swift in Sources */,

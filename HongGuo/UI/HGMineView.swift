@@ -745,27 +745,12 @@ struct HGMineSettings: View {
     let signedIn: Bool
     let onLogout: () -> Void
     @AppStorage("hg.bgPlay.v2") private var bgPlay = false
-    @AppStorage(HGRimStyle.key) private var rimStyle = HGRimStyle.ambientSweep.rawValue
-    @AppStorage(HGRimStrength.key) private var rimStrength = HGRimStrength.highlight.rawValue
     var body: some View {
         List {
             Section {
                 NavigationLink { DYStorageScreen() } label: { Label("储存空间", systemImage: "internaldrive") }
                 Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
             }
-            .listRowBackground(HGTheme.surface)
-            // 菜单光圈试验：推荐页视频上的胶囊 / 圆钮边缘效果，切完回推荐页直接看
-            Section {
-                Picker("样式", selection: $rimStyle) {
-                    ForEach(HGRimStyle.allCases) { Text($0.rawValue).tag($0.rawValue) }
-                }
-                .accessibilityIdentifier("hg.rim.style")
-                Picker("强度", selection: $rimStrength) {
-                    ForEach(HGRimStrength.allCases) { Text($0.rawValue).tag($0.rawValue) }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("hg.rim.strength")
-            } header: { Text("菜单光圈（试验）") }
             .listRowBackground(HGTheme.surface)
             HGAboutSection()
             if signedIn {

@@ -98,8 +98,8 @@ final class DYAmbientFrameView: UIView {
     }
 
     fileprivate func tick() {
-        // 画面铺满时背景看不见，但桌面姿态的评论区 / 菜单环境光光圈还在等画面，照样取帧
-        guard !covered || DYDeskLightHub.wanted || HGRimLight.shared.wanted, let output, let item = player.currentItem, item.outputs.contains(output) else { return }
+        // 画面铺满时背景看不见，但桌面姿态的评论区还在等投光，照样取帧
+        guard !covered || DYDeskLightHub.wanted, let output, let item = player.currentItem, item.outputs.contains(output) else { return }
         let t = output.itemTime(forHostTime: CACurrentMediaTime())
         guard output.hasNewPixelBuffer(forItemTime: t),
               let pb = output.copyPixelBuffer(forItemTime: t, itemTimeForDisplay: nil) else { return }
@@ -110,8 +110,6 @@ final class DYAmbientFrameView: UIView {
             .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.85])
         guard let cg = Self.ci.createCGImage(blurred, from: small.extent) else { return }
         imageView.image = UIImage(cgImage: cg)
-        // 菜单光圈取色（环境光光圈在屏幕上才发）
-        if HGRimLight.shared.wanted { HGRimLight.shared.publish(cg) }
         // 桌面投影（只有投影视图在屏幕上时才算）
         if DYDeskLightHub.wanted, let proj = DYDeskProjection.render(src, ci: Self.ci) {
             DYDeskLightHub.publish(proj.image, glow: proj.glow, aspect: src.extent.width / max(src.extent.height, 1))
