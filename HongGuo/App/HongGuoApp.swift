@@ -108,7 +108,8 @@ extension EnvironmentValues {
 
 enum HGRootTab: String, CaseIterable, Hashable {
     // 搜索并进发现页顶部的搜索框（2026-11-24 老板：菜单栏的搜索去掉）
-    case feed = "推荐", discover = "发现", mine = "我的"
+    // 顺序同奈飞：首页 / 推荐（片段）/ 我的
+    case discover = "发现", feed = "推荐", mine = "我的"
     var icon: String {
         switch self {
         case .feed: "play.rectangle"
@@ -127,18 +128,20 @@ struct HGRootView: View {
     @State private var storageDemo = false
     /// 启动检查到的新版本（DouDuo 同款：关掉 / 去更新后这个版本不再自动弹）
     @State private var launchUpdate: HGUpdate?
+    /// 首页样式：奈飞式（默认）/ 旧版发现页（「我的 → 设置」切）
+    @AppStorage(HGHomeStyle.key) private var homeStyle = HGHomeStyle.netflix.rawValue
     var body: some View {
         GeometryReader { geo in
-            let full = CGSize(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
-                              height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
             // 横屏大屏：系统标签栏换成右侧液态玻璃竖栏（图标 + 文字，宽度对齐右上信号栏），内容让出位置不被遮
             // Duo（外屏 / 内屏）也用：系统竖向标签栏只显示图标，老板要图标下面带文字（2026-11-25）
-            let sideRail = DYDuoMetrics.isDuoHardware || (full.width > full.height && full.width >= 700)
+            // 2026-11-25 老板：主菜单换回系统原生标签栏（Duo 上系统竖栏、只出图标，自带液态玻璃透光）；自绘胶囊停用
+            let sideRail = false
             let reserve = HGSideTabRail.reserve(trailingSafeArea: geo.safeAreaInsets.trailing)
             TabView(selection: $tab) {
                 ForEach(HGRootTab.allCases, id: \.self) { t in
-                    Tab(t.rawValue, systemImage: t.icon, value: t) {
+                    Tab(tabTitle(t), systemImage: tabIcon(t), value: t) {
                         stack { page(t) }
+                            .tint(HGTheme.accent)
                             // 推荐页横屏不显示主菜单胶囊（视频右侧是点赞那排 + 返回键）
                             .environment(\.hgSideRail, sideRail && t != .feed)
                             .environment(\.hgFeedFront, tab == .feed)
@@ -151,6 +154,8 @@ struct HGRootView: View {
                     }
                 }
             }
+            // 标签栏选中项白色（奈飞同款）；各页内容在上面单独恢复主题红
+            .tint(.white)
             // 推荐页（含竖屏半折叠）整个 TabView 层也压住系统标签栏，不只靠单个 Tab 内容上的修饰
             .toolbarVisibility(tab == .feed ? .hidden : .automatic, for: .tabBar)
             // 系统会把上次选中的标签恢复回来（DouDuo 也踩过）：冷启动固定回发现页
@@ -236,9 +241,17 @@ struct HGRootView: View {
     @ViewBuilder private func page(_ t: HGRootTab) -> some View {
         switch t {
         case .feed: HGFeedView()
-        case .discover: HGDiscoverView()
+        case .discover: if homeStyle == HGHomeStyle.classic.rawValue { HGDiscoverView() } else { HGHomeView() }
         case .mine: HGMineView()
         }
+    }
+
+    private func tabTitle(_ t: HGRootTab) -> String {
+        t == .discover && homeStyle != HGHomeStyle.classic.rawValue ? "首页" : t.rawValue
+    }
+
+    private func tabIcon(_ t: HGRootTab) -> String {
+        t == .discover && homeStyle != HGHomeStyle.classic.rawValue ? "house" : t.icon
     }
 
     private func stack<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

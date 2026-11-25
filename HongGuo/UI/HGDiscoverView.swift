@@ -531,6 +531,8 @@ struct HGRankScreen: View {
     var fixedBoard: String? = nil
     /// 从推荐榜卡「查看全部」进来：落到该分区的推荐榜
     var initialZone: String? = nil
+    /// 首页某一行「查看全部」：落到这个榜
+    var initialBoard: String? = nil
     @State private var appliedInitial = false
     @AppStorage("hg.rank.zone") private var zone = "all"
     @AppStorage("hg.rank.board") private var board = "ranklist_hot_play_sc"
@@ -583,7 +585,8 @@ struct HGRankScreen: View {
         .task(id: key) {
             if let z = initialZone, !appliedInitial {
                 appliedInitial = true
-                if zone != z { zone = z; board = ""; return }   // 换分区触发重新加载；榜由服务端目录落到第一个（推荐榜）
+                if zone != z { zone = z; board = initialBoard ?? ""; return }   // 换分区触发重新加载；没指定榜就落到第一个（推荐榜）
+                if let b = initialBoard, board != b { board = b; return }
             }
             await reload()
         }

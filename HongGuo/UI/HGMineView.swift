@@ -745,8 +745,17 @@ struct HGMineSettings: View {
     let signedIn: Bool
     let onLogout: () -> Void
     @AppStorage("hg.bgPlay.v2") private var bgPlay = false
+    @AppStorage(HGHomeStyle.key) private var homeStyle = HGHomeStyle.netflix.rawValue
     var body: some View {
         List {
+            Section {
+                Picker("首页样式", selection: $homeStyle) {
+                    Text("新版（奈飞式）").tag(HGHomeStyle.netflix.rawValue)
+                    Text("旧版发现页").tag(HGHomeStyle.classic.rawValue)
+                }
+                .accessibilityIdentifier("hg.home.style")
+            } header: { Text("首页") }
+            .listRowBackground(HGTheme.surface)
             Section {
                 NavigationLink { DYStorageScreen() } label: { Label("储存空间", systemImage: "internaldrive") }
                 Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
