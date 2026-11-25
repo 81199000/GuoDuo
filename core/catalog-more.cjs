@@ -228,14 +228,15 @@ async function reviews({ sid, offset = 0, signal } = {}) {
 function avatarUrl(value) {
   try {
     const u = new URL(String(value || ''));
-    if (!/(^|\.)(fqnovelpic\.com|byteimg\.com)$/i.test(u.hostname)) return /^https:/.test(u.href) ? u.href : '';
+    if (!/(^|\.)(fqnovelpic\.com|byteimg\.com)$/i.test(u.hostname)) return /^https?:/.test(u.href) ? u.href.replace(/^http:/, 'https:') : '';
     for (const seg of ['/novel-static/', '/novel-pic/']) {
       const i = u.pathname.indexOf(seg);
       if (i < 0) continue;
       const id = u.pathname.slice(i + seg.length).split(/[~.]/)[0];
       if (/^[0-9a-f]{32}$/i.test(id)) return `https://p3-novel.byteimg.com/img${seg}${id}~tplv-noop.jpeg`;
     }
-    return /\.heic$/i.test(u.pathname) ? '' : u.href.replace(/^http:/, 'https:');
+    // 其余（含 p3-reading-sign 的带签名 HEIC，接口给的是 http://）：iOS 能直接解 HEIC，只把 http 升成 https（ATS 拦明文；实测 https 同样 200）
+    return u.href.replace(/^http:/, 'https:');
   } catch (_) { return ''; }
 }
 
