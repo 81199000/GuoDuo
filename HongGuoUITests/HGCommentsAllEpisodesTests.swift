@@ -30,15 +30,6 @@ final class HGCommentsAllEpisodesTests: XCTestCase {
         print("CMTROWS \(labels)")
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "comments"; shot.lifetime = .keepAlways; add(shot)
         XCTAssertGreaterThan(rows, 6, "第 10 集评论没出来")
-        // 底部发评论栏：没登录时输入框禁用、提示去登录；评论 / 弹幕能切
-        let box0 = app.descendants(matching: .any)["hg.comments.field"]
-        XCTAssertTrue(box0.waitForExistence(timeout: 5), "没有发评论输入框")
-        XCTAssertTrue(app.buttons["hg.comments.send"].exists, "没有发送键")
-        let mode = app.buttons["hg.comments.mode"]
-        XCTAssertTrue(mode.exists, "没有评论/弹幕切换")
-        print("CMTBOX enabled=\(box0.isEnabled) placeholder=\(box0.placeholderValue ?? "") value=\(box0.value ?? "")")
-        mode.tap(); sleep(1)
-        print("CMTBOX after-mode label=\(mode.label) placeholder=\(box0.placeholderValue ?? "")")
-        let box = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); box.name = "composer"; box.lifetime = .keepAlways; add(box)
+        XCTAssertFalse(app.descendants(matching: .any)["hg.comments.field"].exists, "发评论栏应已关掉")
     }
 }

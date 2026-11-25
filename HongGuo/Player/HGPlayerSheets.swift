@@ -12,7 +12,7 @@ struct HGCommentPanel: View {
     let series: HGSeries
     let episode: HGEpisode
     var total: Int?
-    /// 发弹幕要当前播放进度、发完插进屏幕弹幕；nil = 只能发评论
+    /// 2026-11-26 老板：发评论关掉（红果把非官方客户端发的评论降成「仅自己可见」）；参数先留着
     var session: HGPlaybackSession? = nil
     let onClose: (() -> Void)?
     var fillsPane = false
@@ -22,14 +22,6 @@ struct HGCommentPanel: View {
     var swipeRightClosesAnywhere = false
     @State private var data: HGComments?
     @State private var error: String?
-    // 发评论 / 弹幕
-    @State private var draft = ""
-    @State private var asDanmaku = false
-    @State private var sending = false
-    @State private var sendNote: String?
-    @State private var signedIn: Bool?
-    @State private var me: HGAccountInfo?
-    @FocusState private var composing: Bool
 
     private var count: Int? { total ?? data?.total }
 
@@ -58,8 +50,6 @@ struct HGCommentPanel: View {
                 .padding(.vertical, 16)
             }
             .accessibilityIdentifier("hg.comments.list")
-            .scrollDismissesKeyboard(.interactively)
-            composer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(fillsPane ? Color(uiColor: .secondarySystemBackground) : .clear)
@@ -70,109 +60,8 @@ struct HGCommentPanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("hg.comments.panel")
         .task(id: episode.vid) { await load() }
-        .task {
-            signedIn = (try? await HGAPI.accountStatus())?.signedIn ?? false
-            if signedIn == true { me = try? await HGAPI.accountInfo() }
-        }
     }
 
-    // MARK: 发评论 / 弹幕
-    private var composer: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let sendNote {
-                Text(sendNote).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    .accessibilityIdentifier("hg.comments.sendNote")
-            }
-            HStack(spacing: 8) {
-                if session != nil {
-                    // 评论 ⇄ 弹幕
-                    Button { asDanmaku.toggle(); sendNote = nil } label: {
-                        Text(asDanmaku ? "弹幕" : "评论").font(.caption.weight(.semibold))
-                            .padding(.horizontal, 10).frame(height: 32)
-                            .background(Capsule().fill(asDanmaku ? HGTheme.accent.opacity(0.85) : Color.primary.opacity(0.12)))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(asDanmaku ? "切到发评论" : "切到发弹幕")
-                    .accessibilityIdentifier("hg.comments.mode")
-                }
-                TextField(placeholder, text: $draft, axis: .vertical)
-                    .lineLimit(1...4)
-                    .font(.subheadline)
-                    .focused($composing)
-                    .submitLabel(.send)
-                    .onSubmit { Task { await send() } }
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.primary.opacity(0.08)))
-                    .disabled(signedIn != true || sending)
-                    .accessibilityIdentifier("hg.comments.field")
-                Button { Task { await send() } } label: {
-                    if sending { ProgressView().frame(width: 32, height: 32) }
-                    else {
-                        Image(systemName: "arrow.up.circle.fill").font(.system(size: 30))
-                            .foregroundStyle(canSend ? HGTheme.accent : Color.secondary.opacity(0.5))
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .accessibilityLabel("发送")
-                .accessibilityIdentifier("hg.comments.send")
-            }
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .padding(.trailing, trailingInset)
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
-    }
-
-    private var placeholder: String {
-        if signedIn == false { return "登录红果账号后可发评论（我的 → 登录）" }
-        if asDanmaku, let s = session { return "在 \(Self.clock(s.position)) 发一条弹幕" }
-        return "说说你对这部剧的看法"
-    }
-    private var canSend: Bool { signedIn == true && !sending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-    private func send() async {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard canSend else { return }
-        sending = true; sendNote = nil
-        defer { sending = false }
-        do {
-            if asDanmaku, let s = session {
-                let at = s.position
-                try await HGAPI.postDanmaku(series: series.series_id, vid: episode.vid, text: text, offsetMs: Int(at * 1000))
-                // 发出的弹幕立刻在画面上飘一次（接口那边审核后别人才看得到）
-                s.danmaku.append(DYDanmaku(id: "mine-\(Int(Date().timeIntervalSince1970 * 1000))", text: text, offset: at + 0.3))
-                s.danmaku.sort { $0.offset < $1.offset }
-                sendNote = "弹幕已发出"
-            } else {
-                let r = try await HGAPI.postComment(series: series.series_id, vid: episode.vid, text: text)
-                guard r.verified != false else {
-                    // 红果回了成功但评论区里读不到 = 没真正发出去（老板实测：官方看不到）；不往列表里塞假的
-                    sendNote = "红果没有收录这条评论（评论区里找不到），没发出去"
-                    HGTrace.log("发评论：红果回成功但回读找不到 id=\(r.commentId ?? "")")
-                    return
-                }
-                // 用自己账号的头像 / 昵称（「我的」页同一份资料）
-                let mine = HGReview(author: me?.name ?? "我", avatar: me?.avatar, content: text,
-                                    created_at: Date().timeIntervalSince1970 * 1000, likes: 0)
-                if data != nil { data?.items.insert(mine, at: 0) } else { data = HGComments(total: nil, items: [mine]) }
-                // 红果评论状态（7.4.5.32 UgcCommentStatus）：1 所有人可见、2 仅自己可见
-                switch r.status {
-                case 1: sendNote = "评论已发出，所有人可见"
-                case 2: sendNote = "红果把这条设成了「仅自己可见」，别人看不到（关掉评论再打开也会消失）"
-                default: sendNote = r.verified == true ? "评论已发出" : "评论已提交（暂时没法确认是否公开）"
-                }
-            }
-            draft = ""; composing = false
-        } catch {
-            sendNote = error.localizedDescription
-            HGTrace.log("发\(asDanmaku ? "弹幕" : "评论")失败: \(error.localizedDescription)")
-        }
-    }
-
-    static func clock(_ t: Double) -> String {
-        let s = max(0, Int(t)); return String(format: "%d:%02d", s / 60, s % 60)
-    }
 
     private var title: some View {
         Text(count.map { $0 > 0 ? "\(DDMedia.count($0)) 条评论" : "评论" } ?? "评论")
