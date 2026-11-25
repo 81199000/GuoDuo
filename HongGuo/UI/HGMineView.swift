@@ -799,6 +799,15 @@ struct HGMineSettings: View {
             } header: { Text("存储") }
             .listRowBackground(HGTheme.surface)
 
+            // 乌力 wuli-tv-install：手机经 ADB 把电视版 APK 推到家里的安卓电视
+            Section {
+                NavigationLink { HGTVInstallView() } label: {
+                    HGSettingRow(icon: "tv.fill", tint: .teal, title: "安装到电视", subtitle: "局域网找安卓电视，一键装 GuoDuo TV") { EmptyView() }
+                }
+                .accessibilityIdentifier("hg.mine.tvInstall")
+            } header: { Text("设备") }
+            .listRowBackground(HGTheme.surface)
+
             HGAboutSection()
 
             if signedIn {

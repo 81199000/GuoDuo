@@ -36,6 +36,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: GuoDuo 需要访问本地网络，才能找到并安装到你家里的安卓电视。
     info:
       path: HongGuo/Info.plist
       properties:
@@ -43,6 +44,7 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UIBackgroundModes: [audio]
         CADisableMinimumFrameDurationOnPhone: true
+        NSBonjourServices: ["_adb._tcp"]
   HongGuoUITests:
     type: bundle.ui-testing
     platform: iOS
