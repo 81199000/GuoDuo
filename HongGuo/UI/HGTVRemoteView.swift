@@ -14,13 +14,15 @@ struct HGTVRemoteView: View {
     @State private var password = ""
     @State private var busy = false
     @State private var open: HGRemoteTV?
+    /// 我的电视在不在线（逐台探 /api/pair/info）
+    @State private var online: [String: Bool] = [:]
 
     var body: some View {
         List {
             Section {
                 Button { scanning = true } label: {
                     HGSettingRow(icon: "qrcode.viewfinder", tint: HGTheme.accent, title: "扫电视上的二维码",
-                                 subtitle: "电视：设置 → 手机遥控 → 显示二维码") { EmptyView() }
+                                 subtitle: "电视首页右上角「手机遥控」，或 设置 → 遥控 → 连接手机") { EmptyView() }
                 }
                 .accessibilityIdentifier("hg.tvr.scan")
             } footer: { Text("手机和电视要在同一个 Wi‑Fi。电视上要先装好 GuoDuo TV（我的 → 设置 → 安装到电视）。") }
@@ -30,7 +32,9 @@ struct HGTVRemoteView: View {
                 Section("我的电视") {
                     ForEach(store.devices) { tv in
                         Button { open = tv } label: {
-                            HGSettingRow(icon: "tv.fill", tint: .teal, title: tv.name, subtitle: "\(tv.host):\(tv.port)") {
+                            HGSettingRow(icon: "tv.fill", tint: .teal, title: tv.name,
+                                         subtitle: online[tv.id] == true ? "在线 · 点开遥控" : online[tv.id] == false ? "离线：电视没开 GuoDuo TV 或不在同一 Wi‑Fi" : "\(tv.host):\(tv.port)") {
+                                Circle().fill(online[tv.id] == true ? Color.green : Color.gray.opacity(0.5)).frame(width: 8, height: 8)
                                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(HGTheme.textTertiary)
                             }
                         }
@@ -50,9 +54,10 @@ struct HGTVRemoteView: View {
                     .accessibilityIdentifier("hg.tvr.found")
                 }
                 if fresh.isEmpty {
+                    let knownHere = browser.found.contains { f in store.devices.contains { $0.id == f.id } }
                     HStack(spacing: 8) {
-                        if browser.scanning { ProgressView().controlSize(.small) }
-                        Text(browser.scanning ? "正在找局域网里的 GuoDuo TV…" : "没找到新电视")
+                        if browser.scanning && !knownHere { ProgressView().controlSize(.small) }
+                        Text(knownHere ? "只找到上面「我的电视」那台" : browser.scanning ? "正在找局域网里的 GuoDuo TV…" : "没找到别的电视")
                             .font(.subheadline).foregroundStyle(HGTheme.textSecondary)
                         Spacer()
                         if !browser.scanning { Button("重新找") { browser.start() }.font(.subheadline) }
@@ -69,7 +74,7 @@ struct HGTVRemoteView: View {
                     Button("连接") { Task { await connectAddress(manual) } }.disabled(manual.isEmpty || busy)
                 }
                 if let error { Text(error).font(.footnote).foregroundStyle(HGTheme.accent) }
-            } header: { Text("手动输入") } footer: { Text("地址在电视「手机遥控」页二维码下面。") }
+            } header: { Text("手动输入") } footer: { Text("地址在电视「手机遥控」二维码下面，如 192.168.1.20:8765。") }
             .listRowBackground(HGTheme.surface)
         }
         .scrollContentBackground(.hidden)
@@ -77,6 +82,12 @@ struct HGTVRemoteView: View {
         .navigationTitle("电视遥控")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { browser.start() }
+        .task(id: store.devices.map(\.id)) {
+            for tv in store.devices {
+                let ok = (try? await HGTVClient(tv: tv).info()) != nil
+                online[tv.id] = ok
+            }
+        }
         .onDisappear { browser.stop() }
         .overlay { if busy { ProgressView().padding(24).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)) } }
         .sheet(isPresented: $scanning) {
@@ -105,7 +116,7 @@ struct HGTVRemoteView: View {
         do {
             let info = try await HGTVClient(tv: guess).info()
             guard info.app == nil || info.app == "guoduo-tv" else { error = "这个地址不是 GuoDuo TV"; return }
-            if info.remoteOn == false { error = "电视上关掉了手机遥控（电视：设置 → 手机遥控）"; return }
+            if info.remoteOn == false { error = "电视上关掉了手机遥控（电视：设置 → 遥控 → 手机遥控 打开）"; return }
             let tv = HGRemoteTV(id: info.id, name: info.name, host: guess.host, port: info.port ?? guess.port, model: info.model)
             if info.needPassword == true && !store.isPaired(tv.id) { password = ""; pairing = tv; return }
             await bind(tv, password: nil)
