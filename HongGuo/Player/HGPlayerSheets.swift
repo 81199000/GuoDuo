@@ -156,7 +156,12 @@ struct HGCommentPanel: View {
                 let mine = HGReview(author: me?.name ?? "我", avatar: me?.avatar, content: text,
                                     created_at: Date().timeIntervalSince1970 * 1000, likes: 0)
                 if data != nil { data?.items.insert(mine, at: 0) } else { data = HGComments(total: nil, items: [mine]) }
-                sendNote = r.verified == true ? "评论已发出" : "评论已提交（暂时没法确认是否公开）"
+                // 红果评论状态（7.4.5.32 UgcCommentStatus）：1 所有人可见、2 仅自己可见
+                switch r.status {
+                case 1: sendNote = "评论已发出，所有人可见"
+                case 2: sendNote = "红果把这条设成了「仅自己可见」，别人看不到（关掉评论再打开也会消失）"
+                default: sendNote = r.verified == true ? "评论已发出" : "评论已提交（暂时没法确认是否公开）"
+                }
             }
             draft = ""; composing = false
         } catch {
