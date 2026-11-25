@@ -26,6 +26,8 @@ final class HGCommentsAllEpisodesTests: XCTestCase {
         let title = app.staticTexts["hg.comments.title"].label
         let rows = app.descendants(matching: .any)["hg.comments.list"].staticTexts.count
         print("CMT10 title=\(title) texts=\(rows)")
+        let labels = app.descendants(matching: .any)["hg.comments.list"].staticTexts.allElementsBoundByIndex.prefix(9).map(\.label)
+        print("CMTROWS \(labels)")
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "comments"; shot.lifetime = .keepAlways; add(shot)
         XCTAssertGreaterThan(rows, 6, "第 10 集评论没出来")
         // 底部发评论栏：没登录时输入框禁用、提示去登录；评论 / 弹幕能切

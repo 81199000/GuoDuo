@@ -227,11 +227,12 @@ const COMMENT_ADD = '/novel/commentapi/comment/add/v1/';
 const { signRaw } = require('./upstream/app-source.js');
 const WRITE_UA = 'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
 
-async function signedPost(cookie, apiPath, payload, signal) {
+async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
   const axios = require('axios');
   const id = loginIdentity || await getPlaybackDevice(requestJson, { signal });
-  const body = Buffer.from(JSON.stringify(payload));
-  const values = { ac: 'wifi', aid: '8662', app_name: 'novelread', channel: 'update_64', device_brand: 'Redmi', device_id: id.device_id,
+  const { __tag, ...clean } = payload;
+  const body = Buffer.from(JSON.stringify(clean));
+  const values = { ac: 'wifi', aid, app_name: 'novelread', channel: 'update_64', device_brand: 'Redmi', device_id: id.device_id,
     device_platform: 'android', device_type: '25053RT47C', dpi: '520', iid: id.iid, language: 'zh', manifest_version_code: '73532',
     os: 'android', os_api: '36', os_version: '16', resolution: '1280*2772', ssmix: 'a', update_version_code: '73532',
     version_code: '73532', version_name: '7.3.5.32', cdid: id.cdid, compliance_status: '0' };
@@ -258,11 +259,11 @@ async function signedPost(cookie, apiPath, payload, signal) {
   if (r.status !== 200 || !j) throw fail(`红果没有接收（HTTP ${r.status}）`, 'HTTP');
   const code = Number(j.code ?? j.Code ?? 0), msg = String(j.message || j.prompts || j.data?.prompts || '');
   // 只记返回码 / 提示，不记 cookie、正文
-  Native.log?.(`comment/add code=${code} msg=${msg.slice(0, 60)} id=${j.data?.comment_info?.comment_id || j.data?.comment_id || ''}`);
+  Native.log?.(`comment/add ${payload.__tag || ''} aid=${aid} code=${code} msg=${msg.slice(0, 60)} id=${j.data?.comment_info?.comment_id || j.data?.comment_id || ''}`);
   if (code === 100004 || /session_expired/i.test(msg)) throw fail('登录已失效，请重新登录', 'SESSION_EXPIRED');
   // 有评论 id 就算发出去了（老板实测：提示失败但其实发布了）
   if (j.data?.comment_info?.comment_id || j.data?.comment_id) return j.data;
-  if (code !== 0) throw fail(msg && !/^success$/i.test(msg) ? `发送失败：${msg}（${code}）` : `发送失败（${code}）`, 'APP_BUSINESS');
+  if (code !== 0) throw Object.assign(fail(msg && !/^success$/i.test(msg) ? `发送失败：${msg}（${code}）` : `发送失败（${code}）`, 'APP_BUSINESS'), { upstreamCode: code });
   return j.data || {};
 }
 
@@ -274,9 +275,22 @@ async function addComment({ cookie, sid, vid, text, signal } = {}) {
   if (t.length > 500) throw fail('评论最多 500 字', 'APP_INPUT');
   const id = idOf(sid), v = idOf(vid);
   if (!id) throw fail('剧集编号无效', 'APP_INPUT');
-  const d = await signedPost(cookie, COMMENT_ADD, { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12,
-    data_type: 2, group_id: id, group_type: 1, text: t, ...(v ? { vid: v } : {}) }, signal);
-  return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || '') };
+  // 第一版（novel-sound 照番茄短剧编辑器）在红果上回「参数错误」。评论区里的评论 app_id 都是 1967（番茄评论服务），
+  // 单集评论 group_id=vid、group_type=30 —— 依次试，只在 103001 参数错误时换下一种（服务端没收下，不会重复发）
+  const variants = [
+    { tag: 'item30', aid: '8662', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 30, group_id: v || id, group_type: 30, text: t } },
+    { tag: 'book1', aid: '8662', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 2, group_id: id, group_type: 1, text: t } },
+    { tag: 'book1-1967', aid: '1967', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 2, group_id: id, group_type: 1, text: t } },
+    { tag: 'item30-1967', aid: '1967', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 30, group_id: v || id, group_type: 30, text: t } },
+  ].filter(x => v || x.body.group_type !== 30);
+  let last;
+  for (const x of variants) {
+    try {
+      const d = await signedPost(cookie, COMMENT_ADD, { ...x.body, __tag: x.tag }, signal, x.aid);
+      return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || ''), via: x.tag };
+    } catch (e) { last = e; if (e.upstreamCode !== 103001) throw e; }
+  }
+  throw last;
 }
 
 /** 发弹幕：挂在这一集的这个时间点上 */
