@@ -291,6 +291,14 @@ enum HGAPI {
         try core.decode(HGComments.self, try await core.call("comments", [series, vid, offset]))
     }
 
+    /// 发评论（挂整部剧，带当前集）/ 发弹幕（这一集这个时间点）；要登录
+    static func postComment(series: String, vid: String, text: String) async throws {
+        _ = try await core.call("postComment", [series, vid, text])
+    }
+    static func postDanmaku(series: String, vid: String, text: String, offsetMs: Int) async throws {
+        _ = try await core.call("postDanmaku", [series, vid, text, offsetMs])
+    }
+
     static func stats(series: String) async throws -> HGSeriesStats {
         try core.decode(HGSeriesStats.self, try await core.call("stats", [series]))
     }

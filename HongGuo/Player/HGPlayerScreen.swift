@@ -136,6 +136,7 @@ struct HGPlayerScreen: View {
                 } else if layout.resident && layout.sideBySide && showsComments {
                     // 书本姿态点了评论：右半屏临时换成评论，关掉回选集
                     HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
+                                   session: session,
                                    onClose: { showComments = false },
                                    fillsPane: true, trailingInset: layout.trailingInset,
                                    horizontalStatus: true, swipeRightClosesAnywhere: true)
@@ -160,6 +161,7 @@ struct HGPlayerScreen: View {
                         .accessibilityIdentifier("hg.episodes.resident")
                 } else if layout.showsPane {
                     HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
+                                   session: session,
                                    onClose: { showComments = false },
                                    fillsPane: true, trailingInset: layout.trailingInset,
                                    horizontalStatus: true, swipeRightClosesAnywhere: true)
@@ -186,6 +188,7 @@ struct HGPlayerScreen: View {
                 set: { if !layout.sideBySide && !layout.resident { showComments = $0 } }
             ), kind: .comments) {
                 HGCommentPanel(series: session.series, episode: session.episode, total: session.episodeStat?.comments,
+                                   session: session,
                                onClose: { showComments = false })
             }
         }

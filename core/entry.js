@@ -287,6 +287,15 @@ globalThis.HG = {
     if (!cookie) return { signedIn: false, results: [] };
     return { signedIn: true, results: await accountFeed.favorites({ cookie }) };
   }); },
+  // 发评论 / 弹幕（登录账号身份；文字只发给红果）
+  postComment(callId, sid, vid, text) { wrap(callId, async () => {
+    const cookie = await accountCookie();
+    return accountFeed.addComment({ cookie, sid, vid, text });
+  }); },
+  postDanmaku(callId, sid, vid, text, offsetMs) { wrap(callId, async () => {
+    const cookie = await accountCookie();
+    return accountFeed.addDanmaku({ cookie, sid, vid, text, offsetMs });
+  }); },
   cancel(callId) { controllers.get(callId)?.abort(); },
 };
 globalThis.Buffer = Buffer;

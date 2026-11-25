@@ -218,4 +218,74 @@ async function keepAlive({ cookie } = {}) {
   return { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') };
 }
 
-module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity };
+// ── 发评论 / 发弹幕（要登录）─────────────────────────────────────────────
+// 接口与请求体照 ch6vip/novel-sound（GPL-3.0）rust/src/endpoints/comments.rs：反编译番茄 APK 里的短剧模块
+// （AddCommentRequest / playlet/editor/p0.java / hy1/l.java）。红果同一套 fqnovel 后端，aid 换成 8662。
+//   剧评：group_id=剧 id、group_type=1(Book)、data_type=2、commit_source=12(NovelPlayletCommentAdd)、带 vid
+//   弹幕：group_id=vid、group_type=30(SeriesVideo)、data_type=20、commit_source=1500、business_param.offset 毫秒
+const COMMENT_ADD = '/novel/commentapi/comment/add/v1/';
+const { signRaw } = require('./upstream/app-source.js');
+const WRITE_UA = 'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
+
+async function signedPost(cookie, apiPath, payload, signal) {
+  const axios = require('axios');
+  const id = loginIdentity || await getPlaybackDevice(requestJson, { signal });
+  const body = Buffer.from(JSON.stringify(payload));
+  const values = { ac: 'wifi', aid: '8662', app_name: 'novelread', channel: 'update_64', device_brand: 'Redmi', device_id: id.device_id,
+    device_platform: 'android', device_type: '25053RT47C', dpi: '520', iid: id.iid, language: 'zh', manifest_version_code: '73532',
+    os: 'android', os_api: '36', os_version: '16', resolution: '1280*2772', ssmix: 'a', update_version_code: '73532',
+    version_code: '73532', version_name: '7.3.5.32', cdid: id.cdid, compliance_status: '0' };
+  const khronos = Math.floor(Date.now() / 1000), base = Date.now();
+  let raw, url, ticket;
+  for (let n = 0; n < 128; n++) {
+    ticket = base + n;
+    raw = signRaw.pythonUrlEncode({ ...values, ts: String(khronos), _rticket: String(ticket) });
+    url = `https://api5-normal-sinfonlineb.fqnovel.com${apiPath}?${raw}`;
+    if (signRaw.branchOf(url, body, khronos) === 0) break;
+    if (n === 127) throw fail('请求签名失败', 'SIGN');
+  }
+  const headers = {
+    'User-Agent': WRITE_UA, Accept: 'application/json', 'X-XS-From-Web': '0', 'Sdk-Version': '2', 'X-SS-DP': '8662',
+    'X-Tt-Store-Region': 'cn', 'X-Tt-Store-Region-Src': 'did', 'Content-Type': 'application/json; charset=utf-8',
+    'X-Khronos': String(khronos), 'X-SS-Req-Ticket': String(ticket), 'X-Helios': signRaw.helios(khronos),
+    'X-Medusa': signRaw.buildMedusa(url, body, khronos, { device_id: id.device_id, version_name: '7.3.5.32' }),
+    'X-Gorgon': signRaw.xGorgon(raw, body, khronos, Math.floor(Math.random() * 65536)), 'X-SS-STUB': signRaw.md5(body),
+    Cookie: cookie,
+  };
+  const r = await axios({ url, method: 'POST', data: body, headers, timeout: 15000, maxRedirects: 0, responseType: 'text',
+    transformResponse: [d => d], validateStatus: () => true, signal }).catch(() => { throw fail('网络连接失败，请稍后重试', 'NETWORK'); });
+  let j = null; try { j = JSON.parse(r.data); } catch (_) {}
+  if (r.status !== 200 || !j) throw fail(`红果没有接收（HTTP ${r.status}）`, 'HTTP');
+  const code = Number(j.code ?? j.Code ?? 0), msg = String(j.message || j.prompts || j.data?.prompts || '');
+  if (code === 100004 || /session_expired/i.test(msg)) throw fail('登录已失效，请重新登录', 'SESSION_EXPIRED');
+  if (code !== 0) throw fail(msg && !/^success$/i.test(msg) ? `发送失败：${msg}` : `发送失败（${code}）`, 'APP_BUSINESS');
+  return j.data || {};
+}
+
+/** 发评论：挂在整部剧上（官方短剧评论编辑器同款），带上当前集 vid */
+async function addComment({ cookie, sid, vid, text, signal } = {}) {
+  if (!cookie) throw fail('登录后才能发评论', 'NOT_SIGNED_IN');
+  const t = String(text || '').trim();
+  if (!t) throw fail('写点什么再发', 'APP_INPUT');
+  if (t.length > 500) throw fail('评论最多 500 字', 'APP_INPUT');
+  const id = idOf(sid), v = idOf(vid);
+  if (!id) throw fail('剧集编号无效', 'APP_INPUT');
+  const d = await signedPost(cookie, COMMENT_ADD, { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12,
+    data_type: 2, group_id: id, group_type: 1, text: t, ...(v ? { vid: v } : {}) }, signal);
+  return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || '') };
+}
+
+/** 发弹幕：挂在这一集的这个时间点上 */
+async function addDanmaku({ cookie, sid, vid, text, offsetMs, signal } = {}) {
+  if (!cookie) throw fail('登录后才能发弹幕', 'NOT_SIGNED_IN');
+  const t = String(text || '').trim();
+  if (!t) throw fail('写点什么再发', 'APP_INPUT');
+  if (t.length > 100) throw fail('弹幕最多 100 字', 'APP_INPUT');
+  const id = idOf(sid), v = idOf(vid);
+  if (!id || !v) throw fail('剧集编号无效', 'APP_INPUT');
+  const d = await signedPost(cookie, COMMENT_ADD, { business_param: { book_id: id, score: 0, offset: Math.max(1, Math.round(Number(offsetMs) || 0)),
+    shark_param: { type: 'short_play' } }, comment_type: 0, commit_source: 1500, data_type: 20, group_id: v, group_type: 30, text: t }, signal);
+  return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || '') };
+}
+
+module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity, addComment, addDanmaku };
