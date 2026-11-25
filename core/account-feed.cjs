@@ -227,7 +227,8 @@ const COMMENT_ADD = '/novel/commentapi/comment/add/v1/';
 const { signRaw } = require('./upstream/app-source.js');
 const WRITE_UA = 'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
 
-async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
+/** 带登录 cookie + 设备签名的 POST JSON，原样回 { status, json } */
+async function signedPostRaw(cookie, apiPath, payload, signal, aid = '8662', extraHeaders = {}) {
   const axios = require('axios');
   const id = loginIdentity || await getPlaybackDevice(requestJson, { signal });
   const { __tag, ...clean } = payload;
@@ -251,12 +252,17 @@ async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
     'X-Khronos': String(khronos), 'X-SS-Req-Ticket': String(ticket), 'X-Helios': signRaw.helios(khronos),
     'X-Medusa': signRaw.buildMedusa(url, body, khronos, { device_id: id.device_id, version_name: '7.3.5.32' }),
     'X-Gorgon': signRaw.xGorgon(raw, body, khronos, Math.floor(Math.random() * 65536)), 'X-SS-STUB': signRaw.md5(body),
-    Cookie: cookie,
+    ...(cookie ? { Cookie: cookie } : {}), ...extraHeaders,
   };
   const r = await axios({ url, method: 'POST', data: body, headers, timeout: 15000, maxRedirects: 0, responseType: 'text',
     transformResponse: [d => d], validateStatus: () => true, signal }).catch(() => { throw fail('网络连接失败，请稍后重试', 'NETWORK'); });
   let j = null; try { j = JSON.parse(r.data); } catch (_) {}
-  if (r.status !== 200 || !j) throw fail(`红果没有接收（HTTP ${r.status}）`, 'HTTP');
+  return { status: r.status, json: j };
+}
+
+async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
+  const { status, json: j } = await signedPostRaw(cookie, apiPath, payload, signal, aid);
+  if (status !== 200 || !j) throw fail(`红果没有接收（HTTP ${status}）`, 'HTTP');
   const code = Number(j.code ?? j.Code ?? 0), msg = String(j.message || j.prompts || j.data?.prompts || '');
   // 只记返回码 / 提示，不记 cookie、正文
   Native.log?.(`comment/add ${payload.__tag || ''} aid=${aid} code=${code} msg=${msg.slice(0, 60)} id=${j.data?.comment_info?.comment_id || j.data?.comment_id || ''}`);
@@ -265,6 +271,33 @@ async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
   if (j.data?.comment_info?.comment_id || j.data?.comment_id) return j.data;
   if (code !== 0) throw Object.assign(fail(msg && !/^success$/i.test(msg) ? `发送失败：${msg}（${code}）` : `发送失败（${code}）`, 'APP_BUSINESS'), { upstreamCode: code });
   return j.data || {};
+}
+
+// ── 单集评论（新接口，官方 App 同源：真昵称、真头像、回复数）──────────────────
+// POST /novel/commentapi/comment/list/{vid}/v1/：comment_source=4(NovelItemComment)、comment_type=4、group_type=30
+// （novel-sound comments.rs playlet_hot_comment_body）。匿名设备请求只回总数不给列表 → 带登录 cookie 试；
+// 拿不到列表就回 null，调用方退回旧接口（「用户+数字」那版）。
+async function itemComments({ cookie, vid, cursor = '', signal } = {}) {
+  const v = idOf(vid);
+  if (!cookie || !v) return null;
+  const { status, json: j } = await signedPostRaw(cookie, `/novel/commentapi/comment/list/${v}/v1/`, {
+    business_param: { book_id: v, need_count: true }, comment_source: 4, comment_type: 4, count: 20, group_id: v, group_type: 30,
+    server_channel: 17, sort: 1, ...(cursor ? { cursor } : {}) }, signal, '8662', { 'Comment-Source': '4', 'Server-Channel': '17' });
+  const d = j?.data, list = Array.isArray(d?.data_list) ? d.data_list : [];
+  const info = d?.common_list_info || {};
+  Native.log?.(`comment/list status=${status} code=${j?.code} n=${list.length} total=${info.total ?? ''}`);
+  if (status !== 200 || Number(j?.code) !== 0 || !list.length) return null;
+  const items = list.flatMap(e => {
+    const c = e?.comment, common = c?.common || {}, base = common.user_info?.base_info || {}, stat = c?.stat || {};
+    const text = cleanTitle(common.content?.text);
+    if (!text) return [];
+    let ts = Number(common.create_timestamp) || 0; if (ts > 0 && ts < 1e11) ts *= 1000;
+    return [{ author: cleanTitle(base.user_name) || '红果用户', avatar: avatarUrl(base.user_avatar) || String(base.user_avatar || '') || undefined,
+      content: text, created_at: ts, likes: Number(stat.digg_count) || 0, replies: Number(stat.reply_count) || 0 }];
+  });
+  if (!items.length) return null;
+  const next = String(info.cursor || '');
+  return { items, total: Number(info.total) || null, cursor: next, hasMore: info.has_more === true && !!next };
 }
 
 /** 发评论：挂在整部剧上（官方短剧评论编辑器同款），带上当前集 vid */
@@ -306,4 +339,4 @@ async function addDanmaku({ cookie, sid, vid, text, offsetMs, signal } = {}) {
   return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || '') };
 }
 
-module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity, addComment, addDanmaku };
+module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity, addComment, addDanmaku, itemComments };

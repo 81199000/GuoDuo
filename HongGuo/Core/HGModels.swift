@@ -115,6 +115,8 @@ struct HGComments: Codable {
     /// App 接口才有：翻页
     var next: Int? = nil
     var hasMore: Bool? = nil
+    /// 新接口（登录后，真昵称）的翻页游标
+    var cursor: String? = nil
 }
 
 struct HGEpisodeStat: Codable, Hashable { let vid: String; let comments: Int?; let likes: Int? }
@@ -287,8 +289,8 @@ enum HGAPI {
         return (items, r.next)
     }
 
-    static func comments(series: String, vid: String, offset: Int = 0) async throws -> HGComments {
-        try core.decode(HGComments.self, try await core.call("comments", [series, vid, offset]))
+    static func comments(series: String, vid: String, offset: Int = 0, cursor: String? = nil) async throws -> HGComments {
+        try core.decode(HGComments.self, try await core.call("comments", [series, vid, offset, cursor ?? ""]))
     }
 
     /// 发评论（挂整部剧，带当前集）/ 发弹幕（这一集这个时间点）；要登录

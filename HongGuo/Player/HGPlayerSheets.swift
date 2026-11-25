@@ -45,7 +45,7 @@ struct HGCommentPanel: View {
                         } else if data.hasMore == true {
                             // 滑到底自动加载下一页
                             ProgressView().frame(maxWidth: .infinity)
-                                .task(id: data.next) { await loadMore() }
+                                .task(id: "\(data.next ?? 0)|\(data.cursor ?? "")") { await loadMore() }
                         }
                     } else if let error {
                         Text(error).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
@@ -212,10 +212,12 @@ struct HGCommentPanel: View {
 
     private func loadMore() async {
         guard let cur = data, cur.hasMore == true, let next = cur.next else { return }
-        guard let page = try? await HGAPI.comments(series: series.series_id, vid: episode.vid, offset: next) else {
+        let cursor = cur.cursor.flatMap { $0.isEmpty ? nil : $0 }
+        guard let page = try? await HGAPI.comments(series: series.series_id, vid: episode.vid, offset: next, cursor: cursor) else {
             data?.hasMore = false; return
         }
-        guard data?.next == next else { return }   // 换集了
+        guard data?.next == next, data?.cursor == cur.cursor else { return }   // 换集了
+        data?.cursor = page.cursor
         let seen = Set(cur.items.map(\.id))
         data?.items += page.items.filter { !seen.contains($0.id) }
         data?.next = page.next

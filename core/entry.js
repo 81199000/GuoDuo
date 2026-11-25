@@ -218,7 +218,16 @@ globalThis.HG = {
       episodes: (vd.video_list || []).map(e => ({ vid: String(e.vid), comments: n(e.comment_count), likes: n(e.digged_count) })) };
   }); },
   // 本集评论：App 接口（每集都能看、可翻页，同绿果TV）；App 接口失败再退官网公开页（只有前 5 集、最多 15 条）
-  comments(callId, sid, vid, offset) { wrap(callId, async () => {
+  // 单集评论：登录了先走新接口（真昵称 / 头像，同官方 App）；拿不到退回旧接口。cursor 以 "c:" 开头 = 新接口的翻页
+  comments(callId, sid, vid, offset, cursor) { wrap(callId, async () => {
+    const cookie = await accountCookie().catch(() => '');
+    if (cookie && (!Number(offset) || cursor)) {
+      try {
+        const r = await accountFeed.itemComments({ cookie, vid, cursor: cursor || '' });
+        if (r) return { total: r.total, items: r.items, next: r.hasMore ? 1 : 0, hasMore: r.hasMore, cursor: r.cursor, source: 'app-v2' };
+      } catch (e) { Native.log(`comment/list err ${e.code || ''}`); }
+      if (cursor) return { total: null, items: [], hasMore: false };
+    }
     try { return await catalogMore.episodeComments({ sid, vid, offset }); } catch (e) { if (Number(offset) > 0) throw e; }
     const d = unwrap(await fetchPublicDetails(String(sid), String(vid), { reviewsLimit: 15 }));
     return { total: d.episode_reviews?.total ?? null, items: (d.episode_reviews?.items || []).slice(0, 15),
