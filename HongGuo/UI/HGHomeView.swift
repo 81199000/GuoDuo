@@ -68,6 +68,14 @@ struct HGHomeView: View {
     @State private var find: FindRoute?
     @State private var openSeries: HGSeries?
 
+    /// Duo 顶栏离屏幕上沿（顶部安全区已忽略）：
+    /// - 展开（宽 ≥ 600）：logo 行中线对齐右上角时间那一行（真机截图实测时间行中线约 76～87pt，奈飞同样对齐）
+    /// - 外屏：安全区本来就是 0，保持原位（老板没意见的那版）
+    static func duoTop(width: CGFloat) -> CGFloat {
+        guard DYDuoMetrics.isDuoHardware else { return 0 }
+        return width >= 600 ? 62 : 0
+    }
+
     private var zoneName: String? { Self.zoneChips.first { $0.id == zone }?.name }
     private var genre: String { Self.zoneChips.first { $0.id == zone }?.genre ?? "short_play" }
 
@@ -93,7 +101,10 @@ struct HGHomeView: View {
             .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 12 } action: { _, v in
                 withAnimation(.easeOut(duration: 0.2)) { scrolled = v }
             }
-            .safeAreaInset(edge: .top, spacing: 0) { header }
+            .safeAreaInset(edge: .top, spacing: 0) { header(top: Self.duoTop(width: w)) }
+            // Duo：信号 / 时间在右上角（展开竖屏）或右侧竖列（横屏），左上是空的 → 顶栏不让顶部安全区，
+            // logo 那行跟信号同一行（老板 2026-11-25：展开竖屏 logo 掉到第二行；横屏贴着上沿被切）
+            .ignoresSafeArea(.container, edges: DYDuoMetrics.isDuoHardware ? .top : [])
             .refreshable { await refresh() }
             .background {
                 ZStack {
@@ -122,7 +133,7 @@ struct HGHomeView: View {
 
     // MARK: 顶部
 
-    private var header: some View {
+    private func header(top: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Image("AppLogo").resizable().scaledToFit().frame(height: 30)
@@ -151,6 +162,7 @@ struct HGHomeView: View {
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }
         .padding(.horizontal, 16)
+        .padding(.top, top)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
