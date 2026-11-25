@@ -16,7 +16,7 @@ final class HGDiscoverColumnsTests: XCTestCase {
         let app = XCUIApplication()
         XCUIDevice.shared.orientation = .portrait
         app.launch()
-        XCTAssertFalse(app.buttons["hg.tab.搜索"].exists, "菜单栏不该再有搜索")
+        // 2026-11-25 起搜索在标签栏里
         // 右侧主菜单：图标 + 文字（自己的玻璃胶囊），内容不被它盖住
         let rail = app.descendants(matching: .any)["hg.tab.rail"]
         XCTAssertTrue(rail.waitForExistence(timeout: 10), "右侧主菜单不是带文字的胶囊")

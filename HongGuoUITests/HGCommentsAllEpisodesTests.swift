@@ -8,12 +8,12 @@ final class HGCommentsAllEpisodesTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app.launch()
         // 《归墟》（12 集，第 10 集有 48 条评论）：走粘贴分享链接入口
-        let share = app.buttons["hg.share"].waitForExistence(timeout: 20) ? app.buttons["hg.share"] : app.buttons["hg.tab.share"]
-        XCTAssertTrue(share.waitForExistence(timeout: 5)); share.tap()
-        let field = app.textFields["hg.share.field"].exists ? app.textFields["hg.share.field"] : app.textViews["hg.share.field"]
+        // 搜索框直接粘分享链接打开
+        let tab = app.buttons["搜索"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 20)); tab.tap()
+        let field = app.textFields["hg.search.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap()
-        field.typeText("https://hongguoduanju.com/player/7708882670633094206")
-        app.buttons["hg.share.open"].tap()
+        field.typeText("https://hongguoduanju.com/player/7708882670633094206\n")
         let ep = app.buttons["hg.episode.10"]
         XCTAssertTrue(app.buttons["hg.episode.1"].waitForExistence(timeout: 25))
         for _ in 0..<6 where !ep.isHittable { app.swipeUp() }

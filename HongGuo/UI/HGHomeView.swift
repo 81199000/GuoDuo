@@ -58,7 +58,6 @@ struct HGHomeView: View {
 
     @State private var model = HGHomeModel.shared
     @State private var library = HGLibrary.shared
-    @State private var router = HGRootRouter.shared
     @AppStorage("hg.home.zone") private var zone = ""
     @State private var themes: [String: [HGFindOption]] = [:]
     @State private var heroTint: Color = .black
@@ -67,7 +66,6 @@ struct HGHomeView: View {
     @State private var cloudFavorites: [HGSeries] = []
     @State private var playing: HGPlayerRequest?
     @State private var find: FindRoute?
-    @State private var showShare = false
     @State private var openSeries: HGSeries?
 
     private var zoneName: String? { Self.zoneChips.first { $0.id == zone }?.name }
@@ -108,17 +106,8 @@ struct HGHomeView: View {
                 .ignoresSafeArea()
             }
         }
-        .toolbar {
-            // 标题自己画（logo + 首页）；系统导航栏只放工具键：Duo 上自动进右侧竖栏（奈飞投屏 / 下载 / 通知那组）
-            ToolbarItem(placement: .principal) { Text("") }
-            ToolbarItemGroup(placement: .primaryAction) {
-                NavigationLink { HGSearchView() } label: { Label("搜索", systemImage: "magnifyingglass") }
-                    .accessibilityIdentifier("hg.home.search")
-                Button { showShare = true } label: { Label("链接", systemImage: "link") }
-                    .accessibilityIdentifier("hg.home.share")
-            }
-        }
-        .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+        // 标题自己画（logo + 首页）；搜索在标签栏胶囊里，导航栏整条不要
+        .toolbarVisibility(.hidden, for: .navigationBar)
         // 工具键（搜索 / 链接）白色，同奈飞投屏 / 下载 / 通知那组；页面里的红色角标是写死的主题色，不受影响
         .tint(.white)
         .navigationTitle("首页")
@@ -126,8 +115,6 @@ struct HGHomeView: View {
         .task(id: zone) { await loadHero() }
         .task(id: genre) { await loadThemes() }
         .task { await loadAccountShelves() }
-        .onChange(of: router.shareTick) { _, _ in showShare = true }
-        .sheet(isPresented: $showShare) { HGShareLinkSheet { openSeries = $0; showShare = false }.presentationDetents([.height(240)]) }
         .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
         .navigationDestination(item: $find) { HGFindScreen(title: $0.title, preset: $0.preset) }
         .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }

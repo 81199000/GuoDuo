@@ -47,19 +47,6 @@ struct HGSideTabRail: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            // 粘贴链接并进胶囊最上面（横屏时导航栏上那颗圆键收起）
-            Button { HGRootRouter.shared.requestShare(); selection = .discover } label: {
-                VStack(spacing: 3) {
-                    Image(systemName: "link").font(.system(size: 21, weight: .medium)).frame(height: 24)
-                    Text("链接").font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
-                }
-                .foregroundStyle(Color.white.opacity(0.85))
-                .frame(width: Self.width, height: 54)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("hg.tab.share")
-            Capsule().fill(.white.opacity(0.15)).frame(width: 24, height: 1)
             ForEach(HGRootTab.allCases, id: \.self) { t in
                 let on = t == selection
                 let locked = false
@@ -92,8 +79,6 @@ struct HGSideTabRail: View {
 /// 根级小路由：右侧胶囊里的「链接」键 → 发现页弹粘贴链接面板
 @MainActor @Observable final class HGRootRouter {
     static let shared = HGRootRouter()
-    var shareTick = 0
-    func requestShare() { shareTick += 1 }
     /// 推荐页横屏返回键 → 切到发现
     var tabRequest: HGRootTab?
     func go(_ t: HGRootTab) { tabRequest = t }
@@ -109,11 +94,13 @@ extension EnvironmentValues {
 enum HGRootTab: String, CaseIterable, Hashable {
     // 搜索并进发现页顶部的搜索框（2026-11-24 老板：菜单栏的搜索去掉）
     // 顺序同奈飞：首页 / 推荐（片段）/ 我的
-    case discover = "发现", feed = "推荐", mine = "我的"
+    // 2026-11-25 老板：搜索收进标签栏胶囊（奈飞同款：首页 / 推荐 / 搜索 / 我的）
+    case discover = "发现", feed = "推荐", search = "搜索", mine = "我的"
     var icon: String {
         switch self {
         case .feed: "play.rectangle"
         case .discover: "square.grid.2x2"
+        case .search: "magnifyingglass"
         case .mine: "person"
         }
     }
@@ -242,6 +229,7 @@ struct HGRootView: View {
         switch t {
         case .feed: HGFeedView()
         case .discover: if homeStyle == HGHomeStyle.classic.rawValue { HGDiscoverView() } else { HGHomeView() }
+        case .search: HGSearchView(isTab: true)
         case .mine: HGMineView()
         }
     }

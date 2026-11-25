@@ -43,12 +43,10 @@ struct HGDiscoverView: View {
     @State private var hasMore = true
     @State private var loading = false
     @State private var error: String?
-    @State private var showShare = false
     @State private var openSeries: HGSeries?
     @State private var entry: Entry?
     @State private var tabletop = false
     @Environment(\.hgSideRail) private var sideRail
-    @State private var router = HGRootRouter.shared
     @State private var loadedKey = ""
     /// 真人剧 / 漫剧 / AI剧：当前选的分类（nil = 推荐）、各类型的分类标签、展开全部分类
     @State private var chip: Chip?
@@ -86,8 +84,6 @@ struct HGDiscoverView: View {
         .toolbarVisibility(tabletop ? .automatic : .hidden, for: .navigationBar)
         .navigationTitle("发现")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: router.shareTick) { _, _ in showShare = true }
-        .sheet(isPresented: $showShare) { HGShareLinkSheet { openSeries = $0; showShare = false }.presentationDetents([.height(240)]) }
         .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
         .navigationDestination(item: $entry) { e in
             switch e {
@@ -118,13 +114,6 @@ struct HGDiscoverView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("hg.discover.search")
-            if !sideRail {
-                Button { showShare = true } label: {
-                    Image(systemName: "link").font(.subheadline.weight(.semibold)).foregroundStyle(HGTheme.textSecondary)
-                        .frame(width: 40, height: 40).background(HGTheme.surface, in: Circle())
-                }
-                .accessibilityIdentifier("hg.share")
-            }
         }
         .padding(.horizontal, 16)
     }
@@ -755,41 +744,9 @@ struct HGChips: View {
 }
 
 /// 粘贴红果分享链接（或整段分享口令）→ 打开剧集。
-struct HGShareLinkSheet: View {
-    let open: (HGSeries) -> Void
-    @State private var text = ""
-    @State private var busy = false
-    @State private var error: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("粘贴红果分享链接").font(.headline)
-            TextField("https://… 或整段分享文字", text: $text, axis: .vertical)
-                .lineLimit(2...3).textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("hg.share.field")
-            if let error { Text(error).font(.footnote).foregroundStyle(HGTheme.accent) }
-            HStack {
-                Button("从剪贴板粘贴") { text = UIPasteboard.general.string ?? "" }
-                Spacer()
-                Button { Task { await go() } } label: { if busy { ProgressView() } else { Text("打开") } }
-                    .buttonStyle(.borderedProminent).tint(HGTheme.accent).disabled(text.isEmpty || busy)
-                    .accessibilityIdentifier("hg.share.open")
-            }
-        }
-        .padding(20)
-    }
-
-    private func go() async {
-        busy = true; error = nil; defer { busy = false }
-        do {
-            let sid = try await HGAPI.resolveShare(text)
-            let detail = try await HGAPI.detail(sid)
-            open(HGSeries(series_id: sid, series_title: detail.series_title, cover: detail.cover, episode_count: detail.episodes.count, description: detail.description))
-        } catch { self.error = error.localizedDescription }
-    }
-}
-
 struct HGSearchView: View {
+    /// 在标签栏里当根页：不自动弹键盘
+    var isTab = false
     @State private var query = ""
     @State private var submitted = ""
     @State private var source: HGSourceKind = .hongguo
@@ -802,6 +759,7 @@ struct HGSearchView: View {
     /// 边打字边出的剧名联想（红果官方搜索联想）
     @State private var suggestions: [String] = []
     @FocusState private var focused: Bool
+    @State private var linked: HGSeries?
 
     var body: some View {
         GeometryReader { geo in
@@ -809,7 +767,7 @@ struct HGSearchView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass").foregroundStyle(HGTheme.textTertiary)
-                        TextField("剧名 / 演员 / 题材", text: $query)
+                        TextField("剧名 / 演员 / 题材 / 分享链接", text: $query)
                             .textFieldStyle(.plain).foregroundStyle(HGTheme.textPrimary)
                             .focused($focused).submitLabel(.search)
                             .onSubmit { submit(query) }
@@ -865,7 +823,8 @@ struct HGSearchView: View {
         .navigationTitle("搜索")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.visible, for: .navigationBar)
-        .onAppear { if submitted.isEmpty { focused = true } }
+        .onAppear { if submitted.isEmpty && !isTab { focused = true } }
+        .navigationDestination(item: $linked) { HGDetailView(series: $0) }
         .task(id: query) {
             // 联想：停手 0.25 秒再请求；只有红果有联想
             let q = query.trimmingCharacters(in: .whitespaces)
@@ -880,6 +839,19 @@ struct HGSearchView: View {
     private func submit(_ text: String) {
         submitted = text.trimmingCharacters(in: .whitespaces)
         suggestions = []; focused = false
+        // 粘的是红果分享链接 / 口令：直接打开那部剧（原来单独的「链接」按钮并进搜索框）
+        if submitted.contains("http") || submitted.contains("hongguo") || submitted.contains("红果") {
+            let t = submitted
+            Task {
+                if let id = try? await HGAPI.resolveShare(t), let d = try? await HGAPI.detail(id) {
+                    linked = HGSeries(series_id: d.series_id, series_title: d.series_title, cover: d.cover,
+                                      episode_count: d.episodes.count, description: d.description)
+                } else {
+                    await load(more: false)
+                }
+            }
+            return
+        }
         Task { await load(more: false) }
     }
 

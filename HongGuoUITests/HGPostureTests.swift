@@ -13,11 +13,11 @@ final class HGPostureTests: XCTestCase {
         }
         if let sid = ProcessInfo.processInfo.environment["TEST_RUNNER_HG_SERIES"] {
             // 指定剧（弹幕多的），走粘贴分享链接入口
-            XCTAssertTrue(app.buttons["hg.share"].waitForExistence(timeout: 15))
-            app.buttons["hg.share"].tap()
-            let field = app.textFields["hg.share.field"].exists ? app.textFields["hg.share.field"] : app.textViews["hg.share.field"]
-            field.tap(); field.typeText("https://hongguoduanju.com/player/\(sid)")
-            app.buttons["hg.share.open"].tap()
+            let tab = app.buttons["搜索"].firstMatch
+            XCTAssertTrue(tab.waitForExistence(timeout: 15)); tab.tap()
+            let field = app.textFields["hg.search.field"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap()
+            field.typeText("https://hongguoduanju.com/player/\(sid)\n")
         } else {
             let card = app.buttons.matching(NSPredicate(format: "label CONTAINS '集'")).element(boundBy: 0)
             XCTAssertTrue(card.waitForExistence(timeout: 25))
