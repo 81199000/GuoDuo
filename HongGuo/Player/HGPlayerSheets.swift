@@ -145,13 +145,18 @@ struct HGCommentPanel: View {
                 s.danmaku.sort { $0.offset < $1.offset }
                 sendNote = "弹幕已发出"
             } else {
-                try await HGAPI.postComment(series: series.series_id, vid: episode.vid, text: text)
-                // 先插到列表最上面；红果那边审核通过后刷新才会出现在公开列表里
+                let r = try await HGAPI.postComment(series: series.series_id, vid: episode.vid, text: text)
+                guard r.verified != false else {
+                    // 红果回了成功但评论区里读不到 = 没真正发出去（老板实测：官方看不到）；不往列表里塞假的
+                    sendNote = "红果没有收录这条评论（评论区里找不到），没发出去"
+                    HGTrace.log("发评论：红果回成功但回读找不到 id=\(r.commentId ?? "")")
+                    return
+                }
                 // 用自己账号的头像 / 昵称（「我的」页同一份资料）
                 let mine = HGReview(author: me?.name ?? "我", avatar: me?.avatar, content: text,
                                     created_at: Date().timeIntervalSince1970 * 1000, likes: 0)
                 if data != nil { data?.items.insert(mine, at: 0) } else { data = HGComments(total: nil, items: [mine]) }
-                sendNote = "评论已发出，红果审核后公开显示"
+                sendNote = r.verified == true ? "评论已发出" : "评论已提交（暂时没法确认是否公开）"
             }
             draft = ""; composing = false
         } catch {
