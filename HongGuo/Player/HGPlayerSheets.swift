@@ -4,8 +4,8 @@ import SwiftUI
 /// 头像 32 / 昵称 caption 次要色 / 正文 subheadline / 时间 caption2 / 右侧点赞列。
 /// 内容只放官网公开的前 15 条热评（老板定）；总数取 App 详情接口的本集评论数。
 enum HGCommentPolicy {
-    /// 官网只公开每部剧前 5 集的分集页（第 6 集起 302 到 pc_locked_episode），热评只有这几集拿得到
-    static let publicEpisodes = 5
+    /// 以前走官网公开页只有前 5 集有评论；现在走 App 分集评论接口（同绿果TV），每一集都能看
+    static let publicEpisodes = Int.max
 }
 
 struct HGCommentPanel: View {
@@ -31,9 +31,11 @@ struct HGCommentPanel: View {
                     if let data {
                         ForEach(data.items) { HGReviewRow(review: $0) }
                         if data.items.isEmpty {
-                            Text("官网暂无本集评论").font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity)
-                        } else {
-                            Text("官网只公开每集前 15 条热评").font(.caption2).foregroundStyle(.tertiary).frame(maxWidth: .infinity)
+                            Text("本集还没有评论").font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                        } else if data.hasMore == true {
+                            // 滑到底自动加载下一页
+                            ProgressView().frame(maxWidth: .infinity)
+                                .task(id: data.next) { await loadMore() }
                         }
                     } else if let error {
                         Text(error).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
@@ -101,7 +103,19 @@ struct HGCommentPanel: View {
     private func load() async {
         error = nil; data = nil
         do { data = try await HGAPI.comments(series: series.series_id, vid: episode.vid) }
-        catch { self.error = "官网暂无本集评论" }
+        catch { self.error = "评论暂时打不开，稍后再试" }
+    }
+
+    private func loadMore() async {
+        guard let cur = data, cur.hasMore == true, let next = cur.next else { return }
+        guard let page = try? await HGAPI.comments(series: series.series_id, vid: episode.vid, offset: next) else {
+            data?.hasMore = false; return
+        }
+        guard data?.next == next else { return }   // 换集了
+        let seen = Set(cur.items.map(\.id))
+        data?.items += page.items.filter { !seen.contains($0.id) }
+        data?.next = page.next
+        data?.hasMore = page.hasMore == true && !page.items.isEmpty
     }
 }
 

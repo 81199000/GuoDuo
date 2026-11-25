@@ -222,4 +222,23 @@ async function reviews({ sid, offset = 0, signal } = {}) {
   return { items, total: Number(d.comment_cnt) || 0, next, hasMore: d.has_more === true && next > offset };
 }
 
-module.exports = { rank, find, parseBoards, parseFilters, meta, suggest, info, seasons, reviews };
+/** 分集评论（App 接口 /reading/ugc/novel_comment/item/v1/，同绿果TV）：每一集都能看，20 条一页往下翻 */
+async function episodeComments({ sid, vid, offset = 0, signal } = {}) {
+  const id = idOf(sid), v = idOf(vid);
+  if (!id || !v) throw fail('分集编号无效', 'APP_INPUT');
+  offset = Math.max(0, Number(offset) || 0);
+  const j = await call('/reading/ugc/novel_comment/item/v1/', { book_id: id, group_id: v, item_id: v, offset: String(offset), count: '20', sort: '1' }, null, signal);
+  const d = j?.data;
+  if (Number(j?.code) !== 0 || !d) throw fail('评论暂时打不开', 'APP_BUSINESS');
+  const items = (Array.isArray(d.comment) ? d.comment : []).flatMap(c => {
+    const text = cleanTitle(c?.text);
+    if (!text) return [];
+    const ts = Number(c.create_timestamp) || 0;
+    return [{ author: cleanTitle(c.user_info?.user_name) || '红果用户', avatar: catalogCover(c.user_info?.user_avatar || '') || undefined,
+      content: text, created_at: ts, likes: Number(c.digg_count) || 0, replies: Number(c.reply_count) || 0 }];
+  });
+  const next = Number(d.next_offset) || 0;
+  return { items, total: Number(d.comment_cnt) || null, next, hasMore: d.has_more === true && next > offset };
+}
+
+module.exports = { rank, find, parseBoards, parseFilters, meta, suggest, info, seasons, reviews, episodeComments };

@@ -48,8 +48,8 @@ FILES = {
 PATCHES = [
     ("app-source.js",
      "    if (!['/reading/distribution/category/landpage/v/', '/reading/bookapi/bookmall/cell/change/v'].includes(apiPath)) {",
-     "    if (!['/reading/distribution/category/landpage/v/', '/reading/bookapi/bookmall/cell/change/v', '/novel/player/video_detail/v1/', '/reading/bookapi/bookmall/tab/v1/', '/reading/bookapi/search/suggest/v1/', '/api/novel/origin/album/get_video_list/v1/', '/reading/ugc/novel_comment/book/v1/'].includes(apiPath)) {",
-     "放行剧集详情（每集评论/点赞）+ 首页频道 + 搜索联想 + 系列剧选季 + 整部剧评"),
+     "    if (!['/reading/distribution/category/landpage/v/', '/reading/bookapi/bookmall/cell/change/v', '/novel/player/video_detail/v1/', '/reading/bookapi/bookmall/tab/v1/', '/reading/bookapi/search/suggest/v1/', '/api/novel/origin/album/get_video_list/v1/', '/reading/ugc/novel_comment/book/v1/', '/reading/ugc/novel_comment/item/v1/'].includes(apiPath)) {",
+     "放行剧集详情（每集评论/点赞）+ 首页频道 + 搜索联想 + 系列剧选季 + 整部剧评 + 分集评论"),
     ("app-source.js",
      "                        ...(requestedQuality === 'auto' ? {} : { width: selected.width, height: selected.height }) });",
      "                        width: selected.width, height: selected.height });  // GuoDuo：推荐缓存按横竖分桶，auto 也带上宽高",

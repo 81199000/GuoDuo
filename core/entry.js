@@ -217,8 +217,9 @@ globalThis.HG = {
     return { follows: n(vd.followed_cnt), plays: n(vd.series_play_cnt),
       episodes: (vd.video_list || []).map(e => ({ vid: String(e.vid), comments: n(e.comment_count), likes: n(e.digged_count) })) };
   }); },
-  // 官网公开页的本集热评（最多 15 条）+ 本集点赞、本剧收藏数。
-  comments(callId, sid, vid) { wrap(callId, async () => {
+  // 本集评论：App 接口（每集都能看、可翻页，同绿果TV）；App 接口失败再退官网公开页（只有前 5 集、最多 15 条）
+  comments(callId, sid, vid, offset) { wrap(callId, async () => {
+    try { return await catalogMore.episodeComments({ sid, vid, offset }); } catch (e) { if (Number(offset) > 0) throw e; }
     const d = unwrap(await fetchPublicDetails(String(sid), String(vid), { reviewsLimit: 15 }));
     return { total: d.episode_reviews?.total ?? null, items: (d.episode_reviews?.items || []).slice(0, 15),
       episodeLikes: d.episode_like_count ?? null, favorites: d.favorite_count ?? null };

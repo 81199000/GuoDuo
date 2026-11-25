@@ -109,9 +109,12 @@ struct HGReview: Codable, Hashable, Identifiable {
 
 struct HGComments: Codable {
     let total: Int?
-    let items: [HGReview]
-    let episodeLikes: Int?
-    let favorites: Int?
+    var items: [HGReview]
+    var episodeLikes: Int? = nil
+    var favorites: Int? = nil
+    /// App 接口才有：翻页
+    var next: Int? = nil
+    var hasMore: Bool? = nil
 }
 
 struct HGEpisodeStat: Codable, Hashable { let vid: String; let comments: Int?; let likes: Int? }
@@ -284,8 +287,8 @@ enum HGAPI {
         return (items, r.next)
     }
 
-    static func comments(series: String, vid: String) async throws -> HGComments {
-        try core.decode(HGComments.self, try await core.call("comments", [series, vid]))
+    static func comments(series: String, vid: String, offset: Int = 0) async throws -> HGComments {
+        try core.decode(HGComments.self, try await core.call("comments", [series, vid, offset]))
     }
 
     static func stats(series: String) async throws -> HGSeriesStats {

@@ -54,6 +54,7 @@
 		D1B5259E08CA48BB437AD799 /* HGDisableScrollToTop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C8DED3D743BCB5ECDD5301 /* HGDisableScrollToTop.swift */; };
 		D31128F45578A62D3EC54966 /* HGTabletop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20261A567433EA51E32A4681 /* HGTabletop.swift */; };
 		DCF13E9AB7B7A185875FFEBC /* HGMineSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA47B9473DF2D45CB2A814B9 /* HGMineSettingsTests.swift */; };
+		DD440166302E3D5853EF7C4F /* HGCommentsAllEpisodesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B3FBAE46973F4C5C666FD88 /* HGCommentsAllEpisodesTests.swift */; };
 		DD47001F0DF14EB50FF74A7C /* DYDanmakuSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */; };
 		E0D0C9987C1F9875D390EEC1 /* HGDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */; };
 		E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10360A81DE829C3660CD38CF /* HGTheme.swift */; };
@@ -92,6 +93,7 @@
 		4FB216E63F437213FB239626 /* HGNativeCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGNativeCrypto.swift; sourceTree = "<group>"; };
 		52A4CE402C763F5D26998ABC /* DYDanmakuSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDanmakuSupport.swift; sourceTree = "<group>"; };
 		536D20075F82248682811BB9 /* hgcore.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = hgcore.js; sourceTree = "<group>"; };
+		5B3FBAE46973F4C5C666FD88 /* HGCommentsAllEpisodesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCommentsAllEpisodesTests.swift; sourceTree = "<group>"; };
 		5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGLandscapeShot.swift; sourceTree = "<group>"; };
 		609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGUpdateViews.swift; sourceTree = "<group>"; };
 		60E079683201F11611AB8979 /* HGDiscoverBoardsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDiscoverBoardsTests.swift; sourceTree = "<group>"; };
@@ -183,6 +185,7 @@
 		730B1C74839A7D8397247142 /* HongGuoUITests */ = {
 			isa = PBXGroup;
 			children = (
+				5B3FBAE46973F4C5C666FD88 /* HGCommentsAllEpisodesTests.swift */,
 				200BD63EC01FC0B32F4C014B /* HGConsoleGestureTests.swift */,
 				60E079683201F11611AB8979 /* HGDiscoverBoardsTests.swift */,
 				6E3E44C02B343DF5B884F2B7 /* HGDiscoverColumnsTests.swift */,
@@ -384,6 +387,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DD440166302E3D5853EF7C4F /* HGCommentsAllEpisodesTests.swift in Sources */,
 				F41C678E3E73A4B45F05642D /* HGConsoleGestureTests.swift in Sources */,
 				66D6A1C40DECDC5AF75F6051 /* HGDiscoverBoardsTests.swift in Sources */,
 				74F271DE013ED4958FF0E588 /* HGDiscoverColumnsTests.swift in Sources */,
