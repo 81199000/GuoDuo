@@ -68,13 +68,18 @@ struct HGHomeView: View {
     @State private var find: FindRoute?
     @State private var openSeries: HGSeries?
 
-    /// Duo 顶栏离屏幕上沿（顶部安全区已忽略）：
-    /// - 展开（宽 ≥ 600）：logo 行中线对齐右上角时间那一行（真机截图实测时间行中线约 76～87pt，奈飞同样对齐）
-    /// - 外屏：安全区本来就是 0，保持原位（老板没意见的那版）
-    static func duoTop(width: CGFloat) -> CGFloat {
-        guard DYDuoMetrics.isDuoHardware else { return 0 }
-        return width >= 600 ? 62 : 0
+    /// 顶栏离屏幕上沿（整页忽略顶部安全区，自己算）。
+    /// Duo 展开：照老板 11-25 奈飞截图实测（截图短边 900px ≈ 内屏短边 1003pt）——N 标志竖屏 49～94pt、横屏 47～90pt，
+    /// 中线都在约 70pt，跟右上角时间同一行；我们 logo 行高约 34pt → 行顶 53pt，竖横屏一样（不跟系统安全区走）。
+    /// 外屏：保持原位（按系统安全区）；其它设备按系统安全区
+    static func topInset(width: CGFloat, safeTop: CGFloat) -> CGFloat {
+        guard DYDuoMetrics.isDuoHardware, width >= 600 else { return safeTop }
+        return 53
     }
+    /// 往下滑分类药丸那行弹上去收起，往上滑弹回来（奈飞同款）
+    @State private var chipsHidden = false
+    @State private var lastY: CGFloat = 0
+    @State private var headerH: CGFloat = 110
 
     private var zoneName: String? { Self.zoneChips.first { $0.id == zone }?.name }
     private var genre: String { Self.zoneChips.first { $0.id == zone }?.genre ?? "short_play" }
@@ -83,6 +88,8 @@ struct HGHomeView: View {
         GeometryReader { geo in
             let w = geo.size.width
             let posterW: CGFloat = w < 600 ? 110 : 132
+            let top = Self.topInset(width: w, safeTop: geo.safeAreaInsets.top)
+          ZStack(alignment: .top) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     hero(width: w < 600 ? min(w - 32, 520) : w - 32, wide: w >= 600)
@@ -95,17 +102,19 @@ struct HGHomeView: View {
                         HGHomeRowView(row: r, posterW: posterW, model: model)
                     }
                 }
-                .padding(.top, 4)
+                // 内容从顶栏（展开态）下面开始；顶栏收起时内容不跟着跳
+                .padding(.top, headerH + 4)
                 .padding(.bottom, 32)
             }
-            .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 12 } action: { _, v in
-                withAnimation(.easeOut(duration: 0.2)) { scrolled = v }
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+                scrollMoved(y)
             }
-            .safeAreaInset(edge: .top, spacing: 0) { header(top: Self.duoTop(width: w)) }
-            // Duo：信号 / 时间在右上角（展开竖屏）或右侧竖列（横屏），左上是空的 → 顶栏不让顶部安全区，
-            // logo 那行跟信号同一行（老板 2026-11-25：展开竖屏 logo 掉到第二行；横屏贴着上沿被切）
-            .ignoresSafeArea(.container, edges: DYDuoMetrics.isDuoHardware ? .top : [])
             .refreshable { await refresh() }
+            // 顶栏浮在内容上面（不占位）：药丸收起只是顶栏自己动
+            header(top: top)
+          }
+          // Duo：右上角 / 右侧是信号时间，左上是空的 → 整页不让顶部安全区，顶栏位置自己按 topInset 算
+          .ignoresSafeArea(.container, edges: .top)
             .background {
                 ZStack {
                     Color.black
@@ -134,7 +143,7 @@ struct HGHomeView: View {
     // MARK: 顶部
 
     private func header(top: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: chipsHidden ? 0 : 10) {
             HStack(spacing: 10) {
                 Image("AppLogo").resizable().scaledToFit().frame(height: 30)
                     .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -160,14 +169,44 @@ struct HGHomeView: View {
                 }
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            // 往下滑：整行往上弹进标题行后面、淡出，高度收成 0（顶栏底色跟着变矮）
+            .frame(height: chipsHidden ? 0 : 36, alignment: .top)
+            .offset(y: chipsHidden ? -24 : 0)
+            .opacity(chipsHidden ? 0 : 1)
+            .clipped()
+            .allowsHitTesting(!chipsHidden)
         }
         .padding(.horizontal, 16)
         .padding(.top, top)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+            // 只记药丸展开时的高度：内容顶边按它留，收起时内容不跳
+            if !chipsHidden { headerH = h }
+        }
         .background {
-            // 滚起来后顶栏垫一层磨砂，海报从底下穿过（奈飞同款）
-            Rectangle().fill(.ultraThinMaterial).opacity(scrolled ? 1 : 0).ignoresSafeArea(edges: [.top, .horizontal])
+            // 滚起来后顶栏垫深灰底（奈飞截图实测 RGB 35,35,35），海报从底下穿过
+            Rectangle().fill(Color(white: 0.137).opacity(0.97)).opacity(scrolled ? 1 : 0)
+                .ignoresSafeArea(edges: [.top, .horizontal])
+        }
+    }
+
+    /// 滚动方向判断：下滑超过 10pt 收药丸，上滑超过 10pt 弹回；回到顶部一定展开
+    private func scrollMoved(_ y: CGFloat) {
+        let bounce = Animation.spring(response: 0.34, dampingFraction: 0.62)
+        if (y > 12) != scrolled { withAnimation(.easeOut(duration: 0.2)) { scrolled = y > 12 } }
+        if y < 40 {
+            if chipsHidden { withAnimation(bounce) { chipsHidden = false } }
+            lastY = y
+            return
+        }
+        let d = y - lastY
+        if d > 10 {
+            if !chipsHidden { withAnimation(bounce) { chipsHidden = true } }
+            lastY = y
+        } else if d < -10 {
+            if chipsHidden { withAnimation(bounce) { chipsHidden = false } }
+            lastY = y
         }
     }
 
