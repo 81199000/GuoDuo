@@ -139,46 +139,120 @@ struct HGMarkdownView: View {
     }
 }
 
-/// 「我的 → 关于」：当前版本、检查更新、开源仓库、上游致谢
+/// 「设置」里的「关于」：只留一行入口（右边显示版本号），点进去是详情页（2026-11-26 老板）
 struct HGAboutSection: View {
+    var body: some View {
+        Section {
+            NavigationLink { HGAboutScreen() } label: {
+                HGSettingRow(icon: "info.circle.fill", tint: .gray, title: "关于 GuoDuo") {
+                    Text("v\(HGUpdateChecker.currentVersion)").font(.subheadline.monospacedDigit()).foregroundStyle(HGTheme.textSecondary)
+                }
+            }
+            .accessibilityIdentifier("hg.about.entry")
+        } header: { Text("关于") }
+        .listRowBackground(HGTheme.surface)
+    }
+}
+
+/// 关于详情：版本 / 检查更新、开源仓库、开源致谢（取源核心 hongguo-drama + 参考实现绿果TV + DouDuo）、协议
+struct HGAboutScreen: View {
     private enum CheckState: Equatable { case idle, checking, upToDate(String), failed(String) }
     @State private var state: CheckState = .idle
     @State private var found: HGUpdate?
     @Environment(\.openURL) private var openURL
 
+    /// 开源致谢：名称、仓库、协议、用在哪
+    private struct Credit: Identifiable { let name: String; let repo: String; let license: String; let use: String; var id: String { repo } }
+    private let credits: [Credit] = [
+        Credit(name: "hongguo-drama", repo: HGUpdateChecker.upstreamRepo, license: "GPL-3.0",
+               use: "取源核心：签名、取片源、解密、搜索、分类、弹幕（core/upstream 原样搬运）"),
+        Credit(name: "绿果TV", repo: "Amor5207/lvguo-tv", license: "GPL-3.0",
+               use: "参考实现：账号推荐流、云端历史 / 收藏、手机号登录、分集评论、头像地址、写接口签名"),
+        Credit(name: "DouDuo", repo: "81199000/DouDuo", license: "MIT",
+               use: "播放器、手势、弹幕引擎、右侧栏、缓存管理界面"),
+    ]
+
     var body: some View {
-        Section {
-            LabeledContent("当前版本", value: "\(HGUpdateChecker.currentVersion) (\(HGUpdateChecker.currentBuild))")
-                .accessibilityIdentifier("hg.about.version")
-            Button { Task { await check() } } label: {
-                HStack {
-                    Label("检查更新", systemImage: "arrow.triangle.2.circlepath")
-                    Spacer()
-                    switch state {
-                    case .idle: EmptyView()
-                    case .checking: ProgressView().controlSize(.small)
-                    case .upToDate(let v): Text("已是最新 v\(v)").font(.footnote).foregroundStyle(HGTheme.textSecondary)
-                    case .failed(let m): Text(m).font(.footnote).foregroundStyle(HGTheme.accent).lineLimit(2).multilineTextAlignment(.trailing)
+        List {
+            Section {
+                VStack(spacing: 8) {
+                    Image(systemName: "play.rectangle.on.rectangle.fill")
+                        .font(.system(size: 34, weight: .semibold)).foregroundStyle(.white)
+                        .frame(width: 72, height: 72)
+                        .background(HGTheme.accent.gradient, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    Text("GuoDuo").font(.title2.weight(.bold)).foregroundStyle(HGTheme.textPrimary)
+                    Text("版本 \(HGUpdateChecker.currentVersion)（\(HGUpdateChecker.currentBuild)）")
+                        .font(.footnote.monospacedDigit()).foregroundStyle(HGTheme.textSecondary)
+                        .accessibilityIdentifier("hg.about.version")
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 8)
+                .listRowBackground(Color.clear)
+            }
+
+            Section {
+                Button { Task { await check() } } label: {
+                    HGSettingRow(icon: "arrow.triangle.2.circlepath", tint: .blue, title: "检查更新") {
+                        switch state {
+                        case .idle: EmptyView()
+                        case .checking: ProgressView().controlSize(.small)
+                        case .upToDate(let v): Text("已是最新 v\(v)").font(.footnote).foregroundStyle(HGTheme.textSecondary)
+                        case .failed(let m): Text(m).font(.footnote).foregroundStyle(HGTheme.accent).lineLimit(2).multilineTextAlignment(.trailing)
+                        }
                     }
                 }
+                .disabled(state == .checking)
+                .accessibilityIdentifier("hg.about.check")
+                Button { openURL(HGUpdateChecker.releasesURL) } label: {
+                    HGSettingRow(icon: "list.bullet.rectangle.fill", tint: .indigo, title: "历史版本与更新说明") { link }
+                }
+                .accessibilityIdentifier("hg.about.releases")
+                Button { openURL(HGUpdateChecker.repoURL) } label: {
+                    HGSettingRow(icon: "chevron.left.forwardslash.chevron.right", tint: Color(white: 0.32), title: "GuoDuo 开源仓库",
+                                 subtitle: HGUpdateChecker.repo) { link }
+                }
+                .accessibilityIdentifier("hg.about.repo")
+            } header: { Text("版本") }
+            .listRowBackground(HGTheme.surface)
+
+            Section {
+                ForEach(credits) { c in
+                    Button { if let u = URL(string: "https://github.com/\(c.repo)") { openURL(u) } } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(c.name).font(.body.weight(.semibold)).foregroundStyle(HGTheme.textPrimary)
+                                Text(c.license).font(.caption2.weight(.semibold)).foregroundStyle(HGTheme.textSecondary)
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background(HGTheme.surfaceHigh, in: Capsule())
+                                Spacer(minLength: 4)
+                                link
+                            }
+                            Text(c.repo).font(.caption.monospaced()).foregroundStyle(HGTheme.textTertiary)
+                            Text(c.use).font(.footnote).foregroundStyle(HGTheme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .accessibilityIdentifier("hg.about.credit.\(c.name)")
+                }
+            } header: { Text("开源致谢") } footer: {
+                Text("感谢以上项目的原作者，以及他们致谢的上游贡献者（woshishiq1/drpys、N3urda/hongguoTV、tsukiyo-zero/hongguoTV、charlie901208/HGTV 等）。")
             }
-            .disabled(state == .checking)
-            .accessibilityIdentifier("hg.about.check")
-            Button { openURL(HGUpdateChecker.repoURL) } label: {
-                Label("开源仓库", systemImage: "chevron.left.forwardslash.chevron.right")
-            }
-            .accessibilityIdentifier("hg.about.repo")
-            Button { openURL(HGUpdateChecker.releasesURL) } label: {
-                Label("历史版本与更新说明", systemImage: "list.bullet.rectangle")
-            }
-            .accessibilityIdentifier("hg.about.releases")
-        } header: {
-            Text("关于")
-        } footer: {
-            Text("GuoDuo 以 GPL-3.0 协议开源。取源核心来自 \(HGUpdateChecker.upstreamRepo)（GPL-3.0），感谢原作者及其上游贡献者。")
+            .listRowBackground(HGTheme.surface)
+
+            Section {
+                Text("GuoDuo 以 GPL-3.0 协议开源。本 App 只做第三方播放，内容版权归红果短剧及原作者所有。")
+                    .font(.footnote).foregroundStyle(HGTheme.textSecondary)
+            } header: { Text("协议") }
+            .listRowBackground(HGTheme.surface)
         }
-        .listRowBackground(HGTheme.surface)
+        .scrollContentBackground(.hidden)
+        .background(HGTheme.background)
+        .navigationTitle("关于")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $found) { HGUpdateSheet(update: $0) }
+    }
+
+    private var link: some View {
+        Image(systemName: "arrow.up.right").font(.caption.weight(.semibold)).foregroundStyle(HGTheme.textTertiary)
     }
 
     private func check() async {

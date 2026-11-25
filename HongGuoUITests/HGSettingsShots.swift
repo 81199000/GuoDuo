@@ -13,11 +13,21 @@ final class HGSettingsShots: XCTestCase {
         XCTAssertTrue(entry.waitForExistence(timeout: 20)); entry.tap()
         XCTAssertTrue(app.segmentedControls["hg.home.style"].waitForExistence(timeout: 5) || app.otherElements["hg.home.style"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["奈飞"].exists && app.buttons["红果"].exists, "首页主题没有奈飞/红果")
-        sleep(3); shot("settings")
+        sleep(3); app.swipeUp(); sleep(1); shot("settings")
         let cache = app.buttons["hg.settings.cache"]
         XCTAssertTrue(cache.waitForExistence(timeout: 5)); cache.tap()
         XCTAssertTrue(app.navigationBars["缓存管理"].waitForExistence(timeout: 10), "缓存管理标题不对")
         sleep(4); shot("cache")
+        let back = app.navigationBars["缓存管理"].buttons.firstMatch
+        if back.exists { back.tap() } else { app.swipeRight() }
+        sleep(1)
+        let about = app.buttons["hg.about.entry"]
+        app.swipeUp()
+        XCTAssertTrue(about.waitForExistence(timeout: 5), "没有关于入口"); about.tap()
+        XCTAssertTrue(app.navigationBars["关于"].waitForExistence(timeout: 5))
+        sleep(1); shot("about")
+        app.swipeUp(); sleep(1); shot("about2")
+        XCTAssertTrue(app.buttons["hg.about.credit.绿果TV"].exists, "关于里没有绿果TV")
     }
 
     /// 首页两次冷启动：第二次封面直接从磁盘出（记录首屏多少张封面已出图）

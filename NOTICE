@@ -27,6 +27,14 @@ core/upstream/  (GPL-3.0-only)
 core/shims/
   Follow the Native bridge conventions of upstream android/web/.
 
+Reference implementation (no files copied verbatim):
+  Amor5207/lvguo-tv (绿果TV, GPL-3.0)
+  https://github.com/Amor5207/lvguo-tv
+  core/account-feed.cjs, core/phone-login.cjs and core/catalog-more.cjs follow its
+  request shapes (account feed, cloud history / favorites, phone login, episode
+  comments, avatar URLs, signed write requests). Attribution comments are kept at
+  each adapted function.
+
 Player, gesture, danmaku and storage components under HongGuo/Player and
 HongGuo/Storage are adapted from DouDuo (https://github.com/81199000/DouDuo,
 MIT License, Copyright (c) 2026 DouDuo contributors) and are distributed here
