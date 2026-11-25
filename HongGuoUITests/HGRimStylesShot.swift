@@ -3,7 +3,8 @@ import XCTest
 /// 菜单光圈四种样式各拍一张（推荐页，视频在播）：看效果用
 final class HGRimStylesShot: XCTestCase {
     func testShots() throws {
-        for style in ["环境光 + 扫光", "环境光（静止）", "奈飞配方原样", "关（只有系统玻璃）"] {
+        let only = ProcessInfo.processInfo.environment["HG_RIM_STYLES"]?.split(separator: "|").map(String.init)
+        for style in only ?? ["环境光 + 扫光", "环境光（静止）", "奈飞配方原样", "关（只有系统玻璃）"] {
             let app = XCUIApplication()
             app.launchEnvironment["HG_START_TAB"] = "feed"
             app.launchArguments += ["-hg.rim.style.v1", style, "-hg.rim.strength.v1", "强"]

@@ -7,6 +7,9 @@ import UIKit
 // 四种样式 + 三档强度都能在「我的 → 设置 → 菜单光圈」里切，推荐页上直接对比；定了再删掉不要的。
 
 enum HGRimStyle: String, CaseIterable, Identifiable {
+    // 系统原生（苹果 HIG：浮在照片 / 视频上的控件用 clear 款）：边缘透光是玻璃自己折射背后画面，背景动光才动；不叠任何自绘光圈
+    case systemClear = "系统透明玻璃"
+    case systemClearDim = "系统透明玻璃 + 压暗"
     case ambientSweep = "环境光 + 扫光"
     case ambient = "环境光（静止）"
     case netflix = "奈飞配方原样"
@@ -46,6 +49,8 @@ struct HGMediaGlass<S: InsettableShape>: ViewModifier {
         let style = HGRimStyle(rawValue: styleRaw) ?? .ambientSweep
         let k = (HGRimStrength(rawValue: strengthRaw) ?? .highlight).factor
         glass(content.foregroundStyle(.primary), style: style)
+            // 压暗层（HIG：clear 玻璃背后画面亮时垫 35% 黑；强度档按比例减）
+            .background { if style == .systemClearDim { shape.fill(.black.opacity(0.35 * k)) } }
             .overlay { HGRimRing(shape: shape, style: style, k: k) }
             // 奈飞配方：外圈白色柔光
             .shadow(color: style == .netflix ? .white.opacity(0.25 * k) : .clear, radius: 6)
@@ -54,8 +59,10 @@ struct HGMediaGlass<S: InsettableShape>: ViewModifier {
 
     @ViewBuilder private func glass(_ v: some View, style: HGRimStyle) -> some View {
         if #available(iOS 26.0, *) {
-            let base: Glass = tint.map { .regular.tint($0.opacity(0.22)) }
-                ?? (style == .netflix ? .regular.tint(.white.opacity(0.1)) : .regular)
+            let system = style == .systemClear || style == .systemClearDim
+            let kind: Glass = system ? .clear : .regular
+            let base: Glass = tint.map { kind.tint($0.opacity(0.22)) }
+                ?? (style == .netflix ? .regular.tint(.white.opacity(0.1)) : kind)
             v.glassEffect(base.interactive(), in: shape)
         } else {
             v.background(tint.map { $0.opacity(0.22) } ?? .clear, in: shape)
@@ -72,7 +79,7 @@ private struct HGRimRing<S: InsettableShape>: View {
     var body: some View {
         Group {
             switch style {
-            case .off:
+            case .off, .systemClear, .systemClearDim:
                 EmptyView()
             case .netflix:
                 // 奈飞配方原样：白色锥形渐变描边，3 秒转一圈，screen 混合
