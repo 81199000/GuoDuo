@@ -47,10 +47,9 @@ struct HGMineView: View {
         .sheet(isPresented: $showLogin, onDismiss: { Task { await refreshAccount() } }) {
             HGLoginSheet { showLogin = false }.presentationDetents([.large])
         }
-        // 设置：液态玻璃弹窗（2026-11-26 老板），里面各页不铺实底
         .sheet(isPresented: $showSettings) { NavigationStack { HGMineSettings(signedIn: signedIn, onLogout: {
             Task { await logout() }
-        }) }.presentationDetents([.large]).hgGlassSheet() }
+        }) }.presentationDetents([.large]) }
         .fullScreenCover(item: $resume) { HGPlayerScreen(request: $0) }
         .navigationDestination(item: $openDetail) { HGDetailView(series: $0) }
     }
@@ -766,7 +765,7 @@ struct HGMineSettings: View {
             } header: { Text("外观") } footer: {
                 Text(homeStyle == HGHomeStyle.classic.rawValue ? "红果：两列瀑布流、榜单按分区排，跟红果 App 一样。" : "奈飞：大海报 + 一行一个榜单，横着滑。")
             }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
 
             Section {
                 HGSettingRow(icon: "sun.max.fill", tint: .orange, title: "环境光") {
@@ -783,7 +782,7 @@ struct HGMineSettings: View {
                     Toggle("听书模式", isOn: $bgPlay).labelsHidden().tint(HGTheme.accent)
                 }
             } header: { Text("播放") }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
 
             Section {
                 NavigationLink { DYStorageScreen() } label: {
@@ -798,7 +797,7 @@ struct HGMineSettings: View {
                 }
                 .accessibilityIdentifier("hg.settings.cache")
             } header: { Text("存储") }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
 
             // 乌力 wuli-tv-install：手机经 ADB 把电视版 APK 推到家里的安卓电视
             Section {
@@ -807,7 +806,7 @@ struct HGMineSettings: View {
                 }
                 .accessibilityIdentifier("hg.mine.tvInstall")
             } header: { Text("设备") }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
 
             HGAboutSection()
 
@@ -818,11 +817,11 @@ struct HGMineSettings: View {
                     }
                     .accessibilityIdentifier("hg.mine.logout")
                 }
-                .hgRowBackground()
+                .listRowBackground(HGTheme.surface)
             }
         }
         .scrollContentBackground(.hidden)
-        .hgPageBackground()
+        .background(HGTheme.background)
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadCacheSize() }

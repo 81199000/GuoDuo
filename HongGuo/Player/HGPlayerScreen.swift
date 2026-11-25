@@ -201,10 +201,11 @@ struct HGPlayerScreen: View {
         .persistentSystemOverlays(clean ? .hidden : .automatic)
         .overlay(alignment: .top) { toastView }
         .sheet(isPresented: $showMore) {
+            // 2026-11-26 老板：更多面板做液态玻璃——底透出视频，按钮 / 选项是玻璃小块
             moreSheet
                 .presentationDetents([.height(moreSheetHeight), .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(HGTheme.surface)
+                .hgGlassPanelBackground()
         }
         .sheet(isPresented: $showEpisodes) {
             HGEpisodeSheet(session: session) { showEpisodes = false }
@@ -791,7 +792,7 @@ struct HGPlayerScreen: View {
         .scrollBounceBehavior(.basedOnSize)
         }
         .ignoresSafeArea(.container, edges: .horizontal)
-        .background(HGTheme.surface)
+        .environment(\.colorScheme, .dark)
         .accessibilityIdentifier("hg.more.sheet")
     }
 
@@ -811,7 +812,7 @@ struct HGPlayerScreen: View {
             Text(title).font(.footnote.weight(on ? .semibold : .regular).monospacedDigit())
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, minHeight: 34)
-                .background(on ? HGTheme.accent : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radiusSmall, style: .continuous))
+                .hgGlassTile(on: on, radius: HGTheme.radiusSmall, solidWhenOn: true)
                 .foregroundStyle(on ? Color.white : HGTheme.textPrimary)
         }
         .buttonStyle(.plain)
@@ -850,7 +851,7 @@ struct HGPlayerScreen: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: icon).font(.title3).frame(width: 52, height: 52)
-                    .background(on ? HGTheme.accent.opacity(0.2) : HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
+                    .hgGlassTile(on: on, radius: HGTheme.radius, solidWhenOn: false)
                     .foregroundStyle(on ? HGTheme.accent : HGTheme.textPrimary)
                 Text(title).font(.caption).foregroundStyle(HGTheme.textSecondary).lineLimit(1).minimumScaleFactor(0.8)
             }
@@ -1137,6 +1138,33 @@ struct HGRailMorphEffect: ViewModifier {
             guard let t = enterAt, Date().timeIntervalSince(t) < 1.5 else { return }
             own = 0
             withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) { own = 1 }
+        }
+    }
+}
+
+
+// MARK: - 更多面板液态玻璃
+
+extension View {
+    /// 面板底：iOS 26 液态玻璃（透出后面的视频），老系统退到 ultraThinMaterial
+    @ViewBuilder func hgGlassPanelBackground() -> some View {
+        if #available(iOS 26.0, *) {
+            self.presentationBackground { Color.clear.glassEffect(.regular, in: .rect) }
+        } else {
+            self.presentationBackground(.ultraThinMaterial)
+        }
+    }
+
+    /// 面板里的按钮 / 选项块：未选是白 10% 薄片（玻璃上再垫一层亮），选中按原来的主题红（倍速 / 密度那种实心，功能格那种淡红）
+    func hgGlassTile(on: Bool, radius: CGFloat, solidWhenOn: Bool) -> some View {
+        background {
+            let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+            if on {
+                shape.fill(solidWhenOn ? HGTheme.accent : HGTheme.accent.opacity(0.32))
+            } else {
+                shape.fill(Color.white.opacity(0.10))
+                    .overlay(shape.strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
+            }
         }
     }
 }

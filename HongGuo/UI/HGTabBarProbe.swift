@@ -39,37 +39,3 @@ struct HGTabBarProbe: UIViewRepresentable {
     }
 }
 
-
-// MARK: - 设置弹窗液态玻璃（2026-11-26 老板）
-
-/// 在玻璃弹窗里：页面底透明、行底半透明白，透出后面的液态玻璃；不在弹窗里照旧实底
-struct HGPageBackground: ViewModifier {
-    @Environment(\.hgGlassSheet) private var glass
-    func body(content: Content) -> some View {
-        if glass {
-            content.scrollContentBackground(.hidden).background(Color.clear).containerBackground(.clear, for: .navigation)
-        } else {
-            content.background(HGTheme.background)
-        }
-    }
-}
-struct HGRowBackground: ViewModifier {
-    @Environment(\.hgGlassSheet) private var glass
-    func body(content: Content) -> some View {
-        content.listRowBackground(glass ? Color.white.opacity(0.08) : HGTheme.surface)
-    }
-}
-extension View {
-    func hgPageBackground() -> some View { modifier(HGPageBackground()) }
-    func hgRowBackground() -> some View { modifier(HGRowBackground()) }
-
-    /// 液态玻璃弹窗：系统 sheet 底换成玻璃（iOS 26），里面的页面不再铺实底
-    @ViewBuilder func hgGlassSheet() -> some View {
-        if #available(iOS 26.0, *) {
-            self.environment(\.hgGlassSheet, true)
-                .presentationBackground { Color.clear.glassEffect(.regular, in: .rect) }
-        } else {
-            self.environment(\.hgGlassSheet, true).presentationBackground(.ultraThinMaterial)
-        }
-    }
-}

@@ -48,7 +48,6 @@ struct DYStorageScreen: View {
                 } footer: {
                     Text("文稿与数据 \(size(usage.data))。App 内估算包含缓存和临时文件，iOS 储存空间可能采用不同的统计范围。")
                 }
-                .hgRowBackground()
             } else if !scanFailed {
                 ProgressView("正在统计缓存")
             }
@@ -62,7 +61,7 @@ struct DYStorageScreen: View {
         }
         .scrollContentBackground(.hidden)
         .modifier(HGHideBottomEdgeEffect())
-        .hgPageBackground()
+        .background(HGTheme.background)
         .safeAreaInset(edge: .bottom, spacing: 0) { cleanupBar }
         .navigationTitle("缓存管理")
         .navigationBarTitleDisplayMode(.inline)

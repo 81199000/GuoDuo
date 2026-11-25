@@ -93,8 +93,6 @@ extension EnvironmentValues {
     @Entry var hgRailMorph: CGFloat = 1
     /// 刚进推荐的时刻：这之后 1.5 秒内才出现的右侧栏（会话晚建好）自己播一遍长出来的动画
     @Entry var hgRailEnterAt: Date? = nil
-    /// 在「设置」液态玻璃弹窗里：页面 / 行不铺实底，透出玻璃
-    @Entry var hgGlassSheet = false
     /// 推荐是不是当前选中的 tab（TabView 会把没选中的页也挂着，不能靠 onAppear 判断）
     @Entry var hgFeedFront = false
 }

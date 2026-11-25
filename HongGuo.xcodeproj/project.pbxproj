@@ -44,6 +44,7 @@
 		9BBD61815E1592F7C5DC00E1 /* HGUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */; };
 		9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */; };
 		A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */; };
+		A8711E556B42B35E2939A432 /* HGMoreGlassTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A417B22183D09F0AD9E5EFF /* HGMoreGlassTests.swift */; };
 		B0116EABCA9E2FF8F0C64EEC /* HGHomeCategoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE05E75195FC6C5FCBFF8634 /* HGHomeCategoryTests.swift */; };
 		B29309B9BDD3AA149E241A30 /* HGAmbientShots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF37E1CDF8569857A3FD01E /* HGAmbientShots.swift */; };
 		B3A4C4C7609655B90A4D537D /* DYDeskLight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC264E72C0F41CF058F2ABF /* DYDeskLight.swift */; };
@@ -90,6 +91,7 @@
 /* Begin PBXFileReference section */
 		0090B4685D32319D9E2379CC /* HGMediaCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMediaCache.swift; sourceTree = "<group>"; };
 		048C67C1934CE5DEC810E132 /* HGTVInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTVInstall.swift; sourceTree = "<group>"; };
+		0A417B22183D09F0AD9E5EFF /* HGMoreGlassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMoreGlassTests.swift; sourceTree = "<group>"; };
 		0E813099B823B24A7FCD9179 /* HGTVInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTVInstallTests.swift; sourceTree = "<group>"; };
 		10360A81DE829C3660CD38CF /* HGTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTheme.swift; sourceTree = "<group>"; };
 		124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYPictureInPicture.swift; sourceTree = "<group>"; };
@@ -228,6 +230,7 @@
 				1FDB66150233E1A33BA3F29F /* HGMenuMorphTests.swift */,
 				DA47B9473DF2D45CB2A814B9 /* HGMineSettingsTests.swift */,
 				94E0D00CA110AAFF7DF6B466 /* HGMineShelfTests.swift */,
+				0A417B22183D09F0AD9E5EFF /* HGMoreGlassTests.swift */,
 				DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */,
 				734656AB064DDD880E3510F9 /* HGPostureTests.swift */,
 				AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */,
@@ -444,6 +447,7 @@
 				111AA87902E28A790F918A60 /* HGMenuMorphTests.swift in Sources */,
 				DCF13E9AB7B7A185875FFEBC /* HGMineSettingsTests.swift in Sources */,
 				B561F5F63197372870E0DA18 /* HGMineShelfTests.swift in Sources */,
+				A8711E556B42B35E2939A432 /* HGMoreGlassTests.swift in Sources */,
 				A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,
 				19FC9B42D5463244E12BAF0A /* HGRailMeasure.swift in Sources */,

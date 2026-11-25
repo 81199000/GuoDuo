@@ -150,7 +150,7 @@ struct HGAboutSection: View {
             }
             .accessibilityIdentifier("hg.about.entry")
         } header: { Text("关于") }
-        .hgRowBackground()
+        .listRowBackground(HGTheme.surface)
     }
 }
 
@@ -212,7 +212,7 @@ struct HGAboutScreen: View {
                 }
                 .accessibilityIdentifier("hg.about.repo")
             } header: { Text("版本") }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
 
             Section {
                 ForEach(credits) { c in
@@ -236,16 +236,16 @@ struct HGAboutScreen: View {
             } header: { Text("开源致谢") } footer: {
                 Text("感谢以上项目的原作者，以及他们致谢的上游贡献者（woshishiq1/drpys、N3urda/hongguoTV、tsukiyo-zero/hongguoTV、charlie901208/HGTV 等）。")
             }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
 
             Section {
                 Text("GuoDuo 以 GPL-3.0 协议开源。本 App 只做第三方播放，内容版权归红果短剧及原作者所有。")
                     .font(.footnote).foregroundStyle(HGTheme.textSecondary)
             } header: { Text("协议") }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
         }
         .scrollContentBackground(.hidden)
-        .hgPageBackground()
+        .background(HGTheme.background)
         .navigationTitle("关于")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $found) { HGUpdateSheet(update: $0) }

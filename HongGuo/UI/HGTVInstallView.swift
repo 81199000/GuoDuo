@@ -21,13 +21,12 @@ struct HGTVInstallView: View {
             } footer: {
                 Text("手机和电视需要连同一个 Wi‑Fi。电视版是 GuoDuo 的安卓电视客户端，用遥控器看剧。")
             }
-            .hgRowBackground()
+            .listRowBackground(HGTheme.surface)
 
             if let picked, installer.phase != .idle { progressSection(picked) }
             else { deviceSections }
         }
         .scrollContentBackground(.hidden)
-        .hgPageBackground()
         .navigationTitle("安装到电视")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { if !tutorialSeen { showTutorial = true; tutorialSeen = true }; scanner.start() }
@@ -49,11 +48,11 @@ struct HGTVInstallView: View {
         } header: {
             HStack { Text("附近的电视"); Spacer(); Button("重新扫描") { scanner.start() }.font(.footnote).disabled(scanner.scanning) }
         }
-        .hgRowBackground()
+        .listRowBackground(HGTheme.surface)
 
         let extra = recent.filter { r in !scanner.devices.contains { $0.id == r.id } }
         if !extra.isEmpty {
-            Section("最近连过") { ForEach(extra) { tvRow($0) } }.hgRowBackground()
+            Section("最近连过") { ForEach(extra) { tvRow($0) } }.listRowBackground(HGTheme.surface)
         }
 
         Section {
@@ -67,7 +66,7 @@ struct HGTVInstallView: View {
             if let manualError { Text(manualError).font(.caption).foregroundStyle(HGTheme.accent) }
         } header: { Text("找不到？手动输入电视 IP") }
         footer: { Text("在电视「设置 → 网络 → 当前网络」里能看到 IP 地址（如 192.168.1.20）。端口默认 5555，不用填。") }
-        .hgRowBackground()
+        .listRowBackground(HGTheme.surface)
     }
 
     private func tvRow(_ tv: HGTVDevice) -> some View {
@@ -110,7 +109,7 @@ struct HGTVInstallView: View {
             .padding(.vertical, 6)
             .accessibilityIdentifier("hg.tv.status")
         }
-        .hgRowBackground()
+        .listRowBackground(HGTheme.surface)
     }
 
     @ViewBuilder private var statusBody: some View {
