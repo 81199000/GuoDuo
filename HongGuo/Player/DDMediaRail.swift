@@ -51,9 +51,13 @@ extension View {
         }
     }
 
-    /// 视频上的玻璃控件始终按暗色渲染
-    func ddMediaGlassCircle(_ tint: Color? = nil) -> some View { ddGlassCircle(tint).environment(\.colorScheme, .dark) }
-    func ddMediaGlassCapsule() -> some View { ddGlassCapsule().environment(\.colorScheme, .dark) }
+    /// 视频上的玻璃控件始终按暗色渲染；外圈加奈飞式流光高光边（HGEdgeHighlight）
+    func ddMediaGlassCircle(_ tint: Color? = nil) -> some View {
+        ddGlassCircle(tint).modifier(HGEdgeHighlight(shape: Circle())).environment(\.colorScheme, .dark)
+    }
+    func ddMediaGlassCapsule() -> some View {
+        ddGlassCapsule().modifier(HGEdgeHighlight(shape: Capsule())).environment(\.colorScheme, .dark)
+    }
 
     /// DouDuo themeShadow(.mediaLabel)
     func ddMediaLabelShadow() -> some View { shadow(color: .black.opacity(0.45), radius: 3, y: 1) }

@@ -19,6 +19,11 @@ final class HGRailMeasure: XCTestCase {
             print(line)
             let shot = XCUIScreen.main.screenshot()
             let a = XCTAttachment(screenshot: shot); a.lifetime = .keepAlways; add(a)
+            if o == .portrait {
+                // 高光边是动的：隔 1.5 秒再拍一张，对比边缘亮度位置
+                usleep(1_500_000)
+                let b = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); b.lifetime = .keepAlways; add(b)
+            }
         }
     }
 }
