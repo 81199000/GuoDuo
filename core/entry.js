@@ -70,6 +70,39 @@ async function requestWindowWithCursor({ vid, bookId, start, duration, cursor, s
   return j;
 }
 
+// 单集评论新接口（官方 App 同源：真昵称、真头像、回复数）。红果 7.4.5.32 反编译实证
+// （kmp_video_comment/presenter/i0 initRequest + ku2/v）：comment_source=NovelItemComment(4)、server_channel=NovelItemList(18)、
+// group_id=vid、group_type=SeriesVideo(30)、comment_type=NewItem(4)、sort=SmartHot(1)、count=10、
+// business_param{need_count, book_id=剧 id, sort:"video_innerflow", …}。匿名设备 + 评论签名（同弹幕）就能拿到列表。
+let cmtIdentity = null;
+async function itemCommentsV2({ sid, vid, cursor = '', signal }) {
+  const id = dmDevice() || (cmtIdentity ||= newIdentity());
+  const stampMs = Date.now(), stamp = Math.floor(stampMs / 1000);
+  const nonce = Buffer.from(Native.random(dmSign.NONCE_BYTES), 'base64');
+  const rawQuery = dmSign.buildQuery({ stampMs, deviceId: id.deviceId, installId: id.installId });
+  const body = { comment_source: 4, server_channel: 18, group_id: String(vid), group_type: 30, comment_type: 4, sort: 1, count: 20,
+    aid: 8662, compliance_status: 0, ...(cursor ? { cursor } : {}),
+    business_param: { need_count: true, book_id: String(sid), req_type: 0, sort: 'video_innerflow', is_last_episode: false } };
+  const r = await axios({ url: `${BASE_URL}/novel/commentapi/comment/list/${encodeURIComponent(vid)}/v1/?${rawQuery}`, method: 'POST',
+    data: JSON.stringify(body), signal, timeout: 15000, responseType: 'text', transformResponse: [d => d], maxRedirects: 0,
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', 'X-XS-From-Web': '0', 'Sdk-Version': '2',
+      'Content-Type': 'application/json; charset=utf-8', ...dmSign.signCommentHeaders({ rawQuery, stamp, nonce }) } });
+  const j = JSON.parse(r.data), d = j?.data || {}, info = d.common_list_info || {};
+  const list = Array.isArray(d.data_list) ? d.data_list : [];
+  Native.log(`comment/list v2 code=${j?.code} n=${list.length} total=${info.total ?? ''}`);
+  if (String(j?.code) !== '0') throw new Error('评论接口响应无效');
+  const items = list.flatMap(e => {
+    const c = e?.comment, common = c?.common || {}, base = common.user_info?.base_info || {}, stat = c?.stat || {};
+    const text = cleanControl(common.content?.text || '');
+    if (!text) return [];
+    let ts = Number(common.create_timestamp) || 0; if (ts > 0 && ts < 1e11) ts *= 1000;
+    return [{ author: cleanControl(base.user_name || '') || '红果用户', avatar: catalogMore.avatarUrl(base.user_avatar) || undefined,
+      content: text, created_at: ts, likes: Number(stat.digg_count) || 0, replies: Number(stat.reply_count) || 0 }];
+  });
+  const next = typeof info.cursor === 'string' ? info.cursor : '';
+  return { items, total: Number(info.total) || null, cursor: next, hasMore: info.has_more === true && !!next };
+}
+
 // 弹幕匿名标识需跨重启复用；钥匙串一条。
 setDeviceIdentityFile('hg.danmaku.identity');
 // 钥匙串本身加密，safeStorage 只做透传。
@@ -220,13 +253,11 @@ globalThis.HG = {
   // 本集评论：App 接口（每集都能看、可翻页，同绿果TV）；App 接口失败再退官网公开页（只有前 5 集、最多 15 条）
   // 单集评论：登录了先走新接口（真昵称 / 头像，同官方 App）；拿不到退回旧接口。cursor 以 "c:" 开头 = 新接口的翻页
   comments(callId, sid, vid, offset, cursor) { wrap(callId, async () => {
-    const cookie = await accountCookie().catch(() => '');
-    if (cookie && (!Number(offset) || cursor)) {
+    if (!Number(offset) || cursor) {
       try {
-        const r = await accountFeed.itemComments({ cookie, vid, cursor: cursor || '' });
-        if (r) return { total: r.total, items: r.items, next: r.hasMore ? 1 : 0, hasMore: r.hasMore, cursor: r.cursor, source: 'app-v2' };
-      } catch (e) { Native.log(`comment/list err ${e.code || ''}`); }
-      if (cursor) return { total: null, items: [], hasMore: false };
+        const r = await itemCommentsV2({ sid, vid, cursor: cursor || '' });
+        if (r.items.length || cursor) return { total: r.total, items: r.items, next: r.hasMore ? 1 : 0, hasMore: r.hasMore, cursor: r.cursor, source: 'app-v2' };
+      } catch (e) { Native.log(`comment/list v2 err ${String(e.message || '').slice(0, 40)}`); if (cursor) return { total: null, items: [], hasMore: false }; }
     }
     try { return await catalogMore.episodeComments({ sid, vid, offset }); } catch (e) { if (Number(offset) > 0) throw e; }
     const d = unwrap(await fetchPublicDetails(String(sid), String(vid), { reviewsLimit: 15 }));

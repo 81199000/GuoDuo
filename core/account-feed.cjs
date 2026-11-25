@@ -273,33 +273,6 @@ async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
   return j.data || {};
 }
 
-// ── 单集评论（新接口，官方 App 同源：真昵称、真头像、回复数）──────────────────
-// POST /novel/commentapi/comment/list/{vid}/v1/：comment_source=4(NovelItemComment)、comment_type=4、group_type=30
-// （novel-sound comments.rs playlet_hot_comment_body）。匿名设备请求只回总数不给列表 → 带登录 cookie 试；
-// 拿不到列表就回 null，调用方退回旧接口（「用户+数字」那版）。
-async function itemComments({ cookie, vid, cursor = '', signal } = {}) {
-  const v = idOf(vid);
-  if (!cookie || !v) return null;
-  const { status, json: j } = await signedPostRaw(cookie, `/novel/commentapi/comment/list/${v}/v1/`, {
-    business_param: { book_id: v, need_count: true }, comment_source: 4, comment_type: 4, count: 20, group_id: v, group_type: 30,
-    server_channel: 17, sort: 1, ...(cursor ? { cursor } : {}) }, signal, '8662', { 'Comment-Source': '4', 'Server-Channel': '17' });
-  const d = j?.data, list = Array.isArray(d?.data_list) ? d.data_list : [];
-  const info = d?.common_list_info || {};
-  Native.log?.(`comment/list status=${status} code=${j?.code} n=${list.length} total=${info.total ?? ''}`);
-  if (status !== 200 || Number(j?.code) !== 0 || !list.length) return null;
-  const items = list.flatMap(e => {
-    const c = e?.comment, common = c?.common || {}, base = common.user_info?.base_info || {}, stat = c?.stat || {};
-    const text = cleanTitle(common.content?.text);
-    if (!text) return [];
-    let ts = Number(common.create_timestamp) || 0; if (ts > 0 && ts < 1e11) ts *= 1000;
-    return [{ author: cleanTitle(base.user_name) || '红果用户', avatar: avatarUrl(base.user_avatar) || String(base.user_avatar || '') || undefined,
-      content: text, created_at: ts, likes: Number(stat.digg_count) || 0, replies: Number(stat.reply_count) || 0 }];
-  });
-  if (!items.length) return null;
-  const next = String(info.cursor || '');
-  return { items, total: Number(info.total) || null, cursor: next, hasMore: info.has_more === true && !!next };
-}
-
 /** 发评论：挂在整部剧上（官方短剧评论编辑器同款），带上当前集 vid */
 async function addComment({ cookie, sid, vid, text, signal } = {}) {
   if (!cookie) throw fail('登录后才能发评论', 'NOT_SIGNED_IN');
@@ -308,19 +281,15 @@ async function addComment({ cookie, sid, vid, text, signal } = {}) {
   if (t.length > 500) throw fail('评论最多 500 字', 'APP_INPUT');
   const id = idOf(sid), v = idOf(vid);
   if (!id) throw fail('剧集编号无效', 'APP_INPUT');
-  // 第一版（novel-sound 照番茄短剧编辑器）在红果上回「参数错误」。评论区里的评论 app_id 都是 1967（番茄评论服务），
-  // 单集评论 group_id=vid、group_type=30 —— 依次试，只在 103001 参数错误时换下一种（服务端没收下，不会重复发）
-  const variants = [
-    { tag: 'item30', aid: '8662', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 30, group_id: v || id, group_type: 30, text: t } },
-    { tag: 'book1', aid: '8662', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 2, group_id: id, group_type: 1, text: t } },
-    { tag: 'book1-1967', aid: '1967', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 2, group_id: id, group_type: 1, text: t } },
-    { tag: 'item30-1967', aid: '1967', body: { business_param: { book_id: id, score: 0 }, comment_type: 0, commit_source: 12, data_type: 30, group_id: v || id, group_type: 30, text: t } },
-  ].filter(x => v || x.body.group_type !== 30);
+  // 红果 7.4.5.32 反编译实证（kmp_video_comment/publish/VideoCommentContentPublishRepo + CommentContentPublishRepo）：
+  //   单集评论 commit_source=NovelItemCommentAdd(3)、group_id=vid、group_type=SeriesVideo(30)、data_type=NewItem(4)、
+  //   business_param.book_id=剧 id；aid 取 App 的 appId（拿不到时官方兜底 1967）→ 先 8662 再 1967，只在 103001 时换
+  const body = { business_param: { book_id: id }, commit_source: 3, data_type: 4, group_id: v || id, group_type: 30, text: t };
   let last;
-  for (const x of variants) {
+  for (const aid of ['8662', '1967']) {
     try {
-      const d = await signedPost(cookie, COMMENT_ADD, { ...x.body, __tag: x.tag }, signal, x.aid);
-      return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || ''), via: x.tag };
+      const d = await signedPost(cookie, COMMENT_ADD, { ...body, __tag: 'item' }, signal, aid);
+      return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || ''), via: 'item-' + aid };
     } catch (e) { last = e; if (e.upstreamCode !== 103001) throw e; }
   }
   throw last;
@@ -334,9 +303,17 @@ async function addDanmaku({ cookie, sid, vid, text, offsetMs, signal } = {}) {
   if (t.length > 100) throw fail('弹幕最多 100 字', 'APP_INPUT');
   const id = idOf(sid), v = idOf(vid);
   if (!id || !v) throw fail('剧集编号无效', 'APP_INPUT');
-  const d = await signedPost(cookie, COMMENT_ADD, { business_param: { book_id: id, score: 0, offset: Math.max(1, Math.round(Number(offsetMs) || 0)),
-    shark_param: { type: 'short_play' } }, comment_type: 0, commit_source: 1500, data_type: 20, group_id: v, group_type: 30, text: t }, signal);
-  return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || '') };
+  // 反编译实证（kmp_video_danmaku/publish/data/VideoDanmakuPublishRepo）：commit_source=NovelItemDanmakuAdd(1500)、group_type=30、
+  // data_type=Danmaku(20)、business_param.offset=毫秒、shark_param={type:short_play, aid}
+  let last;
+  for (const aid of ['8662', '1967']) {
+    try {
+      const d = await signedPost(cookie, COMMENT_ADD, { business_param: { book_id: id, offset: Math.max(1, Math.round(Number(offsetMs) || 0)),
+        shark_param: { type: 'short_play', aid } }, commit_source: 1500, data_type: 20, group_id: v, group_type: 30, text: t, __tag: 'danmaku' }, signal, aid);
+      return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || '') };
+    } catch (e) { last = e; if (e.upstreamCode !== 103001) throw e; }
+  }
+  throw last;
 }
 
-module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity, addComment, addDanmaku, itemComments };
+module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity, addComment, addDanmaku };
