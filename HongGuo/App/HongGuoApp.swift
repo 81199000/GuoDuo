@@ -89,6 +89,12 @@ struct HGSideTabRail: View {
 extension EnvironmentValues {
     /// 横屏右侧胶囊在：导航栏上的链接圆键收起（已并进胶囊）
     @Entry var hgSideRail = false
+    /// 推荐页右侧栏进出动画：0 = 缩在首页标签栏胶囊的位置，1 = 在自己位置（完整播放页恒为 1）
+    @Entry var hgRailMorph: CGFloat = 1
+    /// 刚进推荐的时刻：这之后 1.5 秒内才出现的右侧栏（会话晚建好）自己播一遍长出来的动画
+    @Entry var hgRailEnterAt: Date? = nil
+    /// 在「设置」液态玻璃弹窗里：页面 / 行不铺实底，透出玻璃
+    @Entry var hgGlassSheet = false
     /// 推荐是不是当前选中的 tab（TabView 会把没选中的页也挂着，不能靠 onAppear 判断）
     @Entry var hgFeedFront = false
 }
@@ -145,6 +151,7 @@ struct HGRootView: View {
             }
             // 标签栏选中项白色（奈飞同款）；各页内容在上面单独恢复主题红
             .tint(.white)
+            .background(HGTabBarProbe().allowsHitTesting(false))
             // 推荐页（含竖屏半折叠）整个 TabView 层也压住系统标签栏，不只靠单个 Tab 内容上的修饰
             .toolbarVisibility(tab == .feed ? .hidden : .automatic, for: .tabBar)
             // 系统会把上次选中的标签恢复回来（DouDuo 也踩过）：冷启动固定回发现页

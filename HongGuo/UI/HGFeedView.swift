@@ -342,6 +342,9 @@ struct HGFeedView: View {
     @State private var detailSeries: HGSeries?
     @State private var active = false
     @Environment(\.hgFeedFront) private var front
+    /// 右侧栏 / 顶部频道进场动画：0 → 1（从首页标签栏胶囊的位置长出来）
+    @State private var railMorph: CGFloat = 0
+    @State private var railEnterAt: Date?
     @Environment(\.scenePhase) private var scenePhase
     /// 横屏右侧标签胶囊在：整块推荐画面往左让出胶囊位置，胶囊不压视频、不跟视频右侧菜单栏叠在一起
     @Environment(\.hgSideRail) private var sideRail
@@ -393,12 +396,13 @@ struct HGFeedView: View {
             .frame(width: geo.width, height: geo.height)
             // 当前视频的菜单栏：固定层，不在滚动内容里（滑视频时不跟着跑、不跳）
             .overlayPreferenceValue(HGFeedChromeKey.self, alignment: .topLeading) { c in
-                if let c { c.view.frame(width: c.size.width, height: c.size.height).id(c.id) }
+                if let c { c.view.environment(\.hgRailMorph, railMorph).environment(\.hgRailEnterAt, railEnterAt).frame(width: c.size.width, height: c.size.height).id(c.id) }
             }
             .clipped()
             // 顶部频道：推荐 / 真人剧 / 漫剧（红果首页同款；登录了按账号推荐）
             .overlay(alignment: .top) {
-                HStack(spacing: 18) {
+                // 2026-11-26 老板：点不中 → 每个字四周加大点击区（横向各 9、竖向到 44 高），字间距不变
+                HStack(spacing: 0) {
                     ForEach(HGFeedModel.channels, id: \.0) { id, name in
                         let on = id == model.channel
                         Button {
@@ -411,13 +415,18 @@ struct HGFeedView: View {
                             Text(name).font(on ? .headline : .subheadline)
                                 .foregroundStyle(.white.opacity(on ? 1 : 0.6))
                                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
-                                .padding(.vertical, 6)
+                                .padding(.horizontal, 9)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("hg.feed.channel.\(name)")
+                        .accessibilityAddTraits(on ? .isSelected : [])
                     }
                 }
-                .padding(.top, max(outer.safeAreaInsets.top, 12) + 4)
+                .padding(.top, max(outer.safeAreaInsets.top, 12) - 9)
+                .opacity(Double(railMorph))
+                .offset(y: (1 - railMorph) * -12)
             }
             if sideRail { Color.black.frame(width: railReserve) }
           }
@@ -441,6 +450,9 @@ struct HGFeedView: View {
         // 只有推荐真的在前台才放：切到别的 tab 暂停，切回来接着放
         .onChange(of: front, initial: true) { _, f in
             active = f
+            // 首页标签栏胶囊收起 → 推荐右侧栏从它的位置长出来；离开时直接复位（标签栏自己会弹回来）
+            if f { railEnterAt = Date(); railMorph = 0; withAnimation(.spring(response: 0.45, dampingFraction: 0.82).delay(0.08)) { railMorph = 1 } }
+            else { railMorph = 0 }
             if f { if session == nil { focus(current) } else { session?.resumeIfSuspended() } }
             else { session?.suspend() }
         }
@@ -475,7 +487,7 @@ struct HGFeedView: View {
             HGPlayerScreen(feedSession: session, hooks: HGFeedHooks(
                 openSeries: { _ in openDetail() },
                 openEpisode: { i in openFull(item, episode: i, at: 0) },
-                back: { HGRootRouter.shared.go(.discover) },
+                back: { leave() },
                 next: { step(+1, from: item.id) },
                 previous: { step(-1, from: item.id) }))
                 .id(item.id)
@@ -495,6 +507,15 @@ struct HGFeedView: View {
             }
             .clipped()
             .allowsHitTesting(false)
+        }
+    }
+
+    /// 返回首页：右侧栏先缩回标签栏胶囊的位置（0.22 秒），再切标签，胶囊在原处接着出现，不突兀
+    private func leave() {
+        withAnimation(.easeIn(duration: 0.2)) { railMorph = 0 }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(200))
+            HGRootRouter.shared.go(.discover)
         }
     }
 

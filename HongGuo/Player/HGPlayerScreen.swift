@@ -440,6 +440,9 @@ struct HGPlayerScreen: View {
                     }
                     rail
                 }
+                // 中线对齐首页标签栏胶囊 + 推荐页进出（从胶囊的位置长出来 / 缩回去）。
+                // 放在下面各 offset 之内：几何代理读到的是它们都生效后的真实位置
+                .modifier(HGRailMorphEffect(capsule: tabCapsule))
                 // DouDuo 默认模式同款：先按系统右侧栏（横屏状态栏列）让位，再按遮挡区（外屏摄像头）微调
                 // DouDuo 默认模式同款（DouyinFeedView actions）：展开时栏中线对齐右侧系统栏列（信号圈）中线，再减 6pt 视觉修正；外屏不动
                 .offset(x: DYDuoMetrics.actionRailHorizontalOffset(
@@ -510,7 +513,12 @@ struct HGPlayerScreen: View {
     }
 
     /// 胶囊宽度（DDActionRail：外屏 50 / 展开 54）
-    private var railCapsuleWidth: CGFloat { hSize == .compact ? DDMedia.railWidthCompact : DDMedia.railWidthRegular }
+    private var railCapsuleWidth: CGFloat { tabCapsule?.width ?? (hSize == .compact ? DDMedia.railWidthCompact : DDMedia.railWidthRegular) }
+    /// 首页系统标签栏胶囊（同一窗口尺寸下量到的）：右侧栏照它的宽度和中线（2026-11-26 老板：两个菜单一样宽）
+    private var tabCapsule: CGRect? {
+        guard let w = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size else { return nil }
+        return HGTabBarMetrics.capsule(for: w)
+    }
 
     private var outerPortrait: Bool {
         guard DYDuoMetrics.isDuoHardware,
@@ -693,7 +701,7 @@ struct HGPlayerScreen: View {
                            text: HGRailMemo.text("favorite", session.stats?.follows.map { DDMedia.count($0 + (fav ? 1 : 0)) }),
                            tint: fav ? DDMedia.warning : .white, reservesText: true) { library.toggleFavorite(session.series) })
         // 2026-11-26 老板：铺满按钮从右侧栏挪进「更多」（hg.more.fill）；双指捏合照样能切
-        return DDActionRail(items: items) { showMore = true }
+        return DDActionRail(items: items, width: tabCapsule?.width) { showMore = true }
             .overlay(alignment: .topLeading) {
                 if commentTip {
                     // 宽 0 + 右对齐：气泡从栏左边缘往左长，不会出屏
@@ -1102,4 +1110,33 @@ final class HGPlayerLayerView: UIView {
 
 enum HGBackgroundPlayback {
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "hg.bgPlay.v2") }
+}
+
+
+/// 推荐页右侧栏进出：读渲染处的 hgRailMorph（栏是经 preference 交给推荐页画的，值要在那边取）。
+/// 0 = 压扁成首页标签栏胶囊的大小 / 位置、模糊透明；1 = 原位。visualEffect 不改布局。
+struct HGRailMorphEffect: ViewModifier {
+    let capsule: CGRect?
+    @Environment(\.hgRailMorph) private var morph
+    @Environment(\.hgRailEnterAt) private var enterAt
+    /// 动画进行中才插进来的视图拿不到中间值（直接是终值、整列蹦出来）→ 自己从 0 长到 1
+    @State private var own: CGFloat = 1
+    func body(content: Content) -> some View {
+        content.visualEffect { [cap = capsule, m = morph * own] c, proxy in
+            let f = proxy.frame(in: .global)
+            let dx = cap.map { $0.midX - f.midX } ?? 0
+            let target = cap ?? CGRect(x: f.minX, y: f.maxY - f.width * 4, width: f.width, height: f.width * 4)
+            let sy = max(0.2, min(1, target.height / max(f.height, 1)))
+            return c
+                .scaleEffect(x: 1, y: sy + (1 - sy) * m, anchor: .center)
+                .offset(x: dx, y: (target.midY - f.midY) * (1 - m))
+                .opacity(Double(min(1, m * 1.6)))
+                .blur(radius: (1 - m) * 6)
+        }
+        .onAppear {
+            guard let t = enterAt, Date().timeIntervalSince(t) < 1.5 else { return }
+            own = 0
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) { own = 1 }
+        }
+    }
 }

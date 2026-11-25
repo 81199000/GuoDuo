@@ -90,9 +90,12 @@ struct DDActionRail: View {
         let action: () -> Void
     }
     let items: [Item]
+    /// 指定宽度（对齐首页标签栏胶囊）；nil = DouDuo 默认 50 / 54
+    var width: CGFloat? = nil
     let onMore: () -> Void
     @Environment(\.horizontalSizeClass) private var hSize
-    private var railWidth: CGFloat { hSize == .compact ? DDMedia.railWidthCompact : DDMedia.railWidthRegular }
+    private var railWidth: CGFloat { width ?? (hSize == .compact ? DDMedia.railWidthCompact : DDMedia.railWidthRegular) }
+    private var column: CGFloat { max(DDMedia.actionColumnWidth, railWidth + 4) }
 
     var body: some View {
         VStack(spacing: DDMedia.actionGroupSpacing) {
@@ -102,15 +105,15 @@ struct DDActionRail: View {
             .padding(.vertical, 8)
             .frame(width: railWidth)
             .ddMediaGlassCapsule()
-            .frame(width: DDMedia.actionColumnWidth)
+            .frame(width: column)
             Button(action: onMore) {
                 Image(systemName: "ellipsis")
                     .font(.system(size: DDMedia.moreGlyphSize, weight: .regular, design: .rounded))
                     .foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
+                    .frame(width: railWidth, height: railWidth)
                     .contentShape(Circle())
                     .ddMediaGlassCircle()
-                    .frame(width: 54)
+                    .frame(width: column)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("更多")

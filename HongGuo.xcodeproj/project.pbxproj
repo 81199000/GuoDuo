@@ -12,6 +12,7 @@
 		07BDF6E2CDD207FB701FF6D5 /* HGDiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */; };
 		0B7BC8918EB3177B3DCE9342 /* HGSettingsShots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AD2E0E242EC2112B6AA43B1 /* HGSettingsShots.swift */; };
 		103F2DD6912F16EF4D488E1E /* HGFeedChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 384B996C591FDC9541415513 /* HGFeedChromeTests.swift */; };
+		111AA87902E28A790F918A60 /* HGMenuMorphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FDB66150233E1A33BA3F29F /* HGMenuMorphTests.swift */; };
 		115DE648C4BA61CAE4FB65FE /* HGPlayerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */; };
 		127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */; };
 		142E749D3D81D1304CC2CD02 /* HGUpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD247DF97A9973934B2B0BFF /* HGUpdateChecker.swift */; };
@@ -56,6 +57,7 @@
 		C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 734656AB064DDD880E3510F9 /* HGPostureTests.swift */; };
 		C3C5B73C5AC25203AEC42065 /* HGNativeCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB216E63F437213FB239626 /* HGNativeCrypto.swift */; };
 		C634513537027F4B3D33889C /* HGStorageScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4D0587E49A31FF6A753654 /* HGStorageScreen.swift */; };
+		C7C27F8FDEE3C9129078550C /* HGTabBarProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7741CBF83C35EB9F9195B286 /* HGTabBarProbe.swift */; };
 		CA0B3DA840DD40FB27A7AD21 /* HGImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BFA89D516CC5604083F9B0 /* HGImageCache.swift */; };
 		CC31E78C419C9013DC80ECC8 /* HGMineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA34D56203BB82C3E2F95C /* HGMineView.swift */; };
 		D1B5259E08CA48BB437AD799 /* HGDisableScrollToTop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C8DED3D743BCB5ECDD5301 /* HGDisableScrollToTop.swift */; };
@@ -94,6 +96,7 @@
 		13E90C0DB3E0CB3C06EBC423 /* HGConsolePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGConsolePane.swift; sourceTree = "<group>"; };
 		1C4D0587E49A31FF6A753654 /* HGStorageScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGStorageScreen.swift; sourceTree = "<group>"; };
 		1FCB4AE89C633049C3792826 /* HGModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGModels.swift; sourceTree = "<group>"; };
+		1FDB66150233E1A33BA3F29F /* HGMenuMorphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMenuMorphTests.swift; sourceTree = "<group>"; };
 		200BD63EC01FC0B32F4C014B /* HGConsoleGestureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGConsoleGestureTests.swift; sourceTree = "<group>"; };
 		20261A567433EA51E32A4681 /* HGTabletop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTabletop.swift; sourceTree = "<group>"; };
 		25929D23E827F51B444FF335 /* HGAdb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGAdb.swift; sourceTree = "<group>"; };
@@ -120,6 +123,7 @@
 		6E3E44C02B343DF5B884F2B7 /* HGDiscoverColumnsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDiscoverColumnsTests.swift; sourceTree = "<group>"; };
 		713E6EDFF2D60896235A2A32 /* DYDuoLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYDuoLayout.swift; sourceTree = "<group>"; };
 		734656AB064DDD880E3510F9 /* HGPostureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPostureTests.swift; sourceTree = "<group>"; };
+		7741CBF83C35EB9F9195B286 /* HGTabBarProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTabBarProbe.swift; sourceTree = "<group>"; };
 		788133021D40CA13E6BF8B34 /* HongGuoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HongGuoApp.swift; sourceTree = "<group>"; };
 		79C8DED3D743BCB5ECDD5301 /* HGDisableScrollToTop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGDisableScrollToTop.swift; sourceTree = "<group>"; };
 		7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCore.swift; sourceTree = "<group>"; };
@@ -221,6 +225,7 @@
 				5D9D94B0754D0A9004D09455 /* HGHomeShots.swift */,
 				5F40B9A2DB5105D3C008257E /* HGLandscapeShot.swift */,
 				4E3580BD644DA26273751BCE /* HGLoginSheetTests.swift */,
+				1FDB66150233E1A33BA3F29F /* HGMenuMorphTests.swift */,
 				DA47B9473DF2D45CB2A814B9 /* HGMineSettingsTests.swift */,
 				94E0D00CA110AAFF7DF6B466 /* HGMineShelfTests.swift */,
 				DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */,
@@ -264,6 +269,7 @@
 				A4678CF6F59364B77B55B578 /* HGFeedView.swift */,
 				346514085D78AF5C874C3F45 /* HGHomeView.swift */,
 				B7EA34D56203BB82C3E2F95C /* HGMineView.swift */,
+				7741CBF83C35EB9F9195B286 /* HGTabBarProbe.swift */,
 				20261A567433EA51E32A4681 /* HGTabletop.swift */,
 				10360A81DE829C3660CD38CF /* HGTheme.swift */,
 				634625D78E8B78169B5EE211 /* HGTVInstallView.swift */,
@@ -435,6 +441,7 @@
 				ECD4904CCAD3301E0616FA5D /* HGHomeShots.swift in Sources */,
 				E47899B4BDDC29D228EE4842 /* HGLandscapeShot.swift in Sources */,
 				04798BABCF852E798B5619A9 /* HGLoginSheetTests.swift in Sources */,
+				111AA87902E28A790F918A60 /* HGMenuMorphTests.swift in Sources */,
 				DCF13E9AB7B7A185875FFEBC /* HGMineSettingsTests.swift in Sources */,
 				B561F5F63197372870E0DA18 /* HGMineShelfTests.swift in Sources */,
 				A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */,
@@ -487,6 +494,7 @@
 				C634513537027F4B3D33889C /* HGStorageScreen.swift in Sources */,
 				8B1F4A352F1F2FC60D83C550 /* HGTVInstall.swift in Sources */,
 				EE22E40DC6D410C8FC661239 /* HGTVInstallView.swift in Sources */,
+				C7C27F8FDEE3C9129078550C /* HGTabBarProbe.swift in Sources */,
 				D31128F45578A62D3EC54966 /* HGTabletop.swift in Sources */,
 				E15EB4F70E6D8A1A01CC3C2B /* HGTheme.swift in Sources */,
 				43812D0C967124C6477C695F /* HGTrace.swift in Sources */,
