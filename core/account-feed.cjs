@@ -225,7 +225,7 @@ async function keepAlive({ cookie } = {}) {
 //   弹幕：group_id=vid、group_type=30(SeriesVideo)、data_type=20、commit_source=1500、business_param.offset 毫秒
 const COMMENT_ADD = '/novel/commentapi/comment/add/v1/';
 const { signRaw } = require('./upstream/app-source.js');
-const WRITE_UA = 'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
+const WRITE_UA = 'com.phoenix.read/73932 (Linux; U; Android 14; zh_CN; 23127PN0CC; Build/UKQ1.230804.001; Cronet/TTNetVersion:8d40f833 2026-03-03 QuicVersion:21ac1950 2025-11-18)';
 
 /** 带登录 cookie + 设备签名的 POST JSON，原样回 { status, json } */
 async function signedPostRaw(cookie, apiPath, payload, signal, aid = '8662', extraHeaders = {}) {
@@ -243,11 +243,13 @@ async function signedPostRaw(cookie, apiPath, payload, signal, aid = '8662', ext
     ticket = base + n;
     raw = signRaw.pythonUrlEncode({ ...values, ts: String(khronos), _rticket: String(ticket) });
     url = `https://api5-normal-sinfonlineb.fqnovel.com${apiPath}?${raw}`;
-    if (signRaw.branchOf(url, body, khronos) === 0) break;
+    // 绿果 lvguoplay/account_signed.go：写接口用分支 2 的完整签名，「旧手写签名在写接口上会被服务端静默丢弃（返回成功但不落库）」
+    if (signRaw.branchOf(url, body, khronos) === 2) break;
     if (n === 127) throw fail('请求签名失败', 'SIGN');
   }
   const headers = {
-    'User-Agent': WRITE_UA, Accept: 'application/json', 'X-XS-From-Web': '0', 'Sdk-Version': '2', 'X-SS-DP': '8662',
+    'User-Agent': WRITE_UA, 'Passport-Sdk-Version': '50561',
+    'X-Reading-Request': `${base}-${Math.floor(Math.random() * 0x7fffffff)}`, Accept: 'application/json', 'X-XS-From-Web': '0', 'Sdk-Version': '2', 'X-SS-DP': '8662',
     'X-Tt-Store-Region': 'cn', 'X-Tt-Store-Region-Src': 'did', 'Content-Type': 'application/json; charset=utf-8',
     'X-Khronos': String(khronos), 'X-SS-Req-Ticket': String(ticket), 'X-Helios': signRaw.helios(khronos),
     'X-Medusa': signRaw.buildMedusa(url, body, khronos, { device_id: id.device_id, version_name: '7.3.5.32' }),
@@ -273,6 +275,17 @@ async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
   return j.data || {};
 }
 
+/** 发完回读：带登录 cookie 拉这一集评论并要求置顶刚发的那条；能读到 = 真落库了。回 true / false */
+async function verifyComment({ cookie, sid, vid, commentId, signal }) {
+  await new Promise(r => setTimeout(r, 1200));
+  const { status, json: j } = await signedPostRaw(cookie, `/novel/commentapi/comment/list/${vid}/v1/`, {
+    business_param: { book_id: sid, need_count: true, req_type: 0, sort: 'video_innerflow', insert_comment_ids: [commentId] },
+    comment_source: 4, comment_type: 4, count: 10, group_id: vid, group_type: 30, server_channel: 18, sort: 1, aid: 8662, compliance_status: 0 }, signal);
+  const list = j?.data?.data_list || [];
+  Native.log?.(`comment/verify status=${status} code=${j?.code} n=${list.length}`);
+  return list.some(e => String(e?.comment?.comment_id) === commentId);
+}
+
 /** 发评论：挂在整部剧上（官方短剧评论编辑器同款），带上当前集 vid */
 async function addComment({ cookie, sid, vid, text, signal } = {}) {
   if (!cookie) throw fail('登录后才能发评论', 'NOT_SIGNED_IN');
@@ -289,7 +302,11 @@ async function addComment({ cookie, sid, vid, text, signal } = {}) {
   for (const aid of ['8662', '1967']) {
     try {
       const d = await signedPost(cookie, COMMENT_ADD, { ...body, __tag: 'item' }, signal, aid);
-      return { ok: true, commentId: String(d.comment_info?.comment_id || d.comment_id || ''), via: 'item-' + aid };
+      const commentId = String(d.comment_info?.comment_id || d.comment_id || '');
+      const status = d.comment_info?.common?.status;
+      const verified = v && commentId ? await verifyComment({ cookie, sid: id, vid: v, commentId, signal }).catch(() => null) : null;
+      Native.log?.(`comment/add verify status=${status ?? ''} found=${verified}`);
+      return { ok: true, commentId, status: status ?? null, verified, via: 'item-' + aid };
     } catch (e) { last = e; if (e.upstreamCode !== 103001) throw e; }
   }
   throw last;

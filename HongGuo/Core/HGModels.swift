@@ -294,8 +294,10 @@ enum HGAPI {
     }
 
     /// 发评论（挂整部剧，带当前集）/ 发弹幕（这一集这个时间点）；要登录
-    static func postComment(series: String, vid: String, text: String) async throws {
-        _ = try await core.call("postComment", [series, vid, text])
+    /// 回 verified：true = 发完回读在红果评论区里找到了；false = 红果收下但没落库（被静默丢弃）；nil = 没法确认
+    struct PostResult: Codable { let commentId: String?; let verified: Bool?; let status: Int? }
+    static func postComment(series: String, vid: String, text: String) async throws -> PostResult {
+        try core.decode(PostResult.self, try await core.call("postComment", [series, vid, text]))
     }
     static func postDanmaku(series: String, vid: String, text: String, offsetMs: Int) async throws {
         _ = try await core.call("postDanmaku", [series, vid, text, offsetMs])
