@@ -1,5 +1,5 @@
 import { Buffer } from 'buffer/';
-import { browseList } from './upstream/hongguo-app-catalog.js';
+import { browseList, catalogCover } from './upstream/hongguo-app-catalog.js';
 import { searchApp } from './upstream/hongguo-app-search.js';
 import { fetchAppPlayUrl, signedMetadataRequest, requestJson } from './upstream/app-source.js';
 import { website, parseDetail } from './upstream/public.js';
@@ -131,7 +131,7 @@ const normEpisodes = d => ({ series_id: String(d.series_id), series_title: Strin
 
 globalThis.HG = {
   browse(callId, category, page, genre) { wrap(callId, async () => {
-    if (category === 'xifan' || category === 'hema') return unwrap(await (category === 'xifan' ? xifan : hema).browseList({ page }));
+    if (category === 'xifan' || category === 'hema') return unwrap(await (category === 'xifan' ? xifan : hema).browseList({ page, genre: genre || '' }));
     return unwrap(await browseList({ category, page, genre: genre || '' }));
   }); },
   // 粘贴红果分享链接/口令里的链接 → 剧集编号。只认 URL 参数与 /player/ 路径，不跟随跳转。
@@ -155,8 +155,25 @@ globalThis.HG = {
   }); },
   search(callId, keyword, page, cursor, source) { wrap(callId, async () => {
     if (source === 'xifan' || source === 'hema') return unwrap(await (source === 'xifan' ? xifan : hema).search(keyword, page));
-    return searchApp(keyword, { page, cursor: cursor ? JSON.parse(cursor) : null });
+    return globalThis.HG.__searchCovered(keyword, page, cursor);
   }); },
+  async __searchCovered(keyword, page, cursor) {
+    // 搜索结果封面：上游 appCover 把 HEIC 封面直接丢成空串 → 这里截一份原始返回，按 series_id 补成公开 JPEG（不改上游文件）
+    const raw = new Map();
+    const res = await searchApp(keyword, { page, cursor: cursor ? JSON.parse(cursor) : null, request: async (signed, deadline) => {
+      const remaining = Math.max(1, deadline - Date.now());
+      let payload;
+      try { payload = await requestJson(signed.url, { method: 'GET', headers: signed.headers }, deadline, AbortSignal.timeout(remaining)); }
+      catch (e) { throw Object.assign(new Error(e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'App 搜索超时' : 'App 搜索暂不可用'), { code: e?.code || 'APP_NETWORK' }); }
+      const tabs = payload?.search_tabs || payload?.data?.search_tabs || [];
+      for (const t of tabs) for (const c of t?.data || []) for (const v of c?.video_data || []) {
+        if (v?.series_id && v?.cover && !raw.has(String(v.series_id))) raw.set(String(v.series_id), v.cover);
+      }
+      return payload;
+    } });
+    for (const r of res.results || []) if (!r.cover && raw.has(r.series_id)) r.cover = catalogCover(raw.get(r.series_id));
+    return res;
+  },
   episodes(callId, sid) { wrap(callId, async () => {
     const other = sourceOf(sid);
     if (other) return normEpisodes(await other.fetchEpisodeList(String(sid)));
@@ -280,6 +297,14 @@ globalThis.HG = {
   // 找剧：类型 / 排序（最新上架）/ 上新时间 / 题材 / 人设 / 背景 / 男女频；select 是 JSON 字符串
   find(callId, select, offset, session) { wrap(callId, () => catalogMore.find({ select: JSON.parse(select || '{}'), offset, session })); },
   suggest(callId, query) { wrap(callId, () => catalogMore.suggest({ query })); },
+  // 联想里没带封面的剧名：用这个剧名搜一次，取同名那部的编号 + 封面（UI 逐行懒加载、有缓存）
+  suggestCover(callId, title) { wrap(callId, async () => {
+    const t = String(title || '').trim();
+    const res = await globalThis.HG.__searchCovered(t, 1, '');
+    const norm = x => String(x || '').replace(/[\s《》“”"'、，,。.!！?？:：·（）()\[\]【】-]/g, '');
+    const hit = (res.results || []).find(r => norm(r.series_title) === norm(t)) || null;
+    return hit && hit.cover ? { series_id: hit.series_id, cover: hit.cover, episode_count: hit.episode_count || 0 } : {};
+  }); },
   seriesInfo(callId, sid) { wrap(callId, () => catalogMore.info({ sid })); },
   seasons(callId, sid, album) { wrap(callId, () => catalogMore.seasons({ sid, album })); },
   reviews(callId, sid, offset) { wrap(callId, () => catalogMore.reviews({ sid, offset })); },

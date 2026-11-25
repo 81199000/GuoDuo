@@ -353,6 +353,18 @@ enum HGAPI {
         struct R: Codable { let results: [String] }
         return try core.decode(R.self, try await core.call("suggest", [q])).results
     }
+    /// 联想（带类型 / 封面 / 小字）：剧名条有 series_id + 封面；演员条有「参演短剧·68部」
+    static func suggestItems(_ q: String) async throws -> [HGSuggestItem] {
+        struct R: Codable { let items: [HGSuggestItem]? }
+        return try core.decode(R.self, try await core.call("suggest", [q])).items ?? []
+    }
+    /// 联想里没带封面的剧名：按剧名搜一次取同名那部的编号和封面（没找到返回 nil）
+    static func suggestCover(_ title: String) async throws -> HGSeries? {
+        struct R: Codable { let series_id: String?; let cover: String?; let episode_count: Int? }
+        let r = try core.decode(R.self, try await core.call("suggestCover", [title]))
+        guard let id = r.series_id, let c = r.cover, !c.isEmpty else { return nil }
+        return HGSeries(series_id: id, series_title: title, cover: c, episode_count: r.episode_count)
+    }
     static func seriesInfo(_ sid: String) async throws -> HGSeriesInfo { try core.decode(HGSeriesInfo.self, try await core.call("seriesInfo", [sid])) }
     static func seasons(_ sid: String, album: String?) async throws -> HGSeasons {
         try core.decode(HGSeasons.self, try await core.call("seasons", [sid, album ?? ""]))
@@ -371,4 +383,17 @@ enum HGAPI {
     static func forYou(offset: Int, session: String, channel: String = "16") async throws -> HGForYouPage {
         try core.decode(HGForYouPage.self, try await core.call("forYou", [offset, session, channel]))
     }
+}
+
+
+/// 搜索联想一条（红果 query_result_v2）
+struct HGSuggestItem: Codable, Hashable, Identifiable {
+    let text: String
+    /// series（带封面的剧）/ title（剧名，没封面）/ actor（演员）/ query（普通搜索词）
+    let kind: String
+    var series_id: String?
+    var cover: String?
+    var abstract: String?
+    var episodes: Int?
+    var id: String { text }
 }

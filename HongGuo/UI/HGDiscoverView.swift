@@ -753,8 +753,11 @@ struct HGSearchView: View {
     @State private var hasMore = false
     @State private var loading = false
     @State private var error: String?
-    /// 边打字边出的剧名联想（红果官方搜索联想）
-    @State private var suggestions: [String] = []
+    /// 边打字边出的联想（红果官方搜索联想，剧名条带封面）
+    @State private var suggestions: [HGSuggestItem] = []
+    /// 没输入时：热门搜索 + 为你推荐（奈飞搜索页同款，2026-11-26 老板）
+    @State private var home = HGHomeModel.shared
+    @State private var playing: HGPlayerRequest?
     @FocusState private var focused: Bool
     @State private var linked: HGSeries?
 
@@ -784,26 +787,20 @@ struct HGSearchView: View {
                     .pickerStyle(.segmented).padding(.horizontal, 16)
                     if !suggestions.isEmpty && query != submitted {
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(suggestions, id: \.self) { t in
-                                Button { query = t; submit(t) } label: {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: "magnifyingglass").font(.caption).foregroundStyle(HGTheme.textTertiary)
-                                        Text(t).font(.subheadline).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
-                                        Spacer()
-                                        Image(systemName: "arrow.up.left").font(.caption).foregroundStyle(HGTheme.textTertiary)
-                                    }
-                                    .padding(.vertical, 11).contentShape(Rectangle())
+                            ForEach(suggestions) { t in
+                                HGSuggestRow(item: t) { picked in
+                                    if let picked { linked = picked } else { query = t.text; submit(t.text) }
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier("hg.search.suggest")
-                                Divider().overlay(HGTheme.surfaceHigh)
+                                Divider().overlay(HGTheme.surfaceHigh).padding(.leading, 62)
                             }
                         }
                         .padding(.horizontal, 16)
+                    } else if submitted.isEmpty && source == .hongguo {
+                        discoverIdle(width: geo.size.width)
                     } else {
                         if let error { Text(error).font(.footnote).foregroundStyle(HGTheme.textSecondary).padding(.horizontal, 16) }
                         if items.isEmpty && !loading && error == nil {
-                            ContentUnavailableView(submitted.isEmpty ? "搜索短剧" : "没有结果", systemImage: "magnifyingglass")
+                            ContentUnavailableView(submitted.isEmpty ? "搜索\(source.title)" : "没有结果", systemImage: "magnifyingglass")
                                 .foregroundStyle(HGTheme.textSecondary).padding(.top, 40)
                         }
                         HGWaterfall(items: items, width: geo.size.width - 32, loadMore: { Task { await load(more: true) } })
@@ -827,10 +824,88 @@ struct HGSearchView: View {
             let q = query.trimmingCharacters(in: .whitespaces)
             guard source == .hongguo, !q.isEmpty, q != submitted else { suggestions = []; return }
             try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled, let r = try? await HGAPI.suggest(q), q == query.trimmingCharacters(in: .whitespaces) else { return }
-            suggestions = r.filter { $0 != "热搜" }
+            guard !Task.isCancelled, let r = try? await HGAPI.suggestItems(q), q == query.trimmingCharacters(in: .whitespaces) else { return }
+            suggestions = r.filter { $0.text != "热搜" }
         }
+        .task {
+            await home.load("all", "ranklist_hot_search_sc")
+            await home.load("all", "ranklist_hot_sc")
+        }
+        .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }
         .onChange(of: source) { _, _ in Task { await load(more: false) } }
+    }
+
+    /// 没输入时：热门搜索（热搜榜前 10，点了直接搜）+ 为你推荐（推荐榜，左封面 / 中剧名 / 右播放，奈飞搜索页同款）
+    @ViewBuilder private func discoverIdle(width: CGFloat) -> some View {
+        let hot = Array((home.rows["all|ranklist_hot_search_sc"] ?? []).prefix(10))
+        let rec = home.rows["all|ranklist_hot_sc"] ?? []
+        if !hot.isEmpty {
+            Text("热门搜索").font(.headline).foregroundStyle(HGTheme.textPrimary).padding(.horizontal, 16).padding(.top, 6)
+            // 一行横滑（不占竖向空间，「为你推荐」留在首屏，奈飞搜索页同款）
+            ScrollView(.horizontal, showsIndicators: false) {
+              HStack(spacing: 8) {
+                ForEach(Array(hot.enumerated()), id: \.element.id) { i, s in
+                    Button { query = s.series_title; submit(s.series_title) } label: {
+                        HStack(spacing: 5) {
+                            Text("\(i + 1)").font(.caption.weight(.bold).monospacedDigit())
+                                .foregroundStyle(i < 3 ? HGTheme.accent : HGTheme.textTertiary)
+                            Text(s.series_title).font(.subheadline).foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                        }
+                        .padding(.horizontal, 12).frame(height: 32)
+                        .frame(maxWidth: 220, alignment: .leading)
+                        .background(HGTheme.surface, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("hg.search.hot")
+                }
+              }
+              .padding(.horizontal, 16)
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        }
+        Text("为你推荐").font(.title3.weight(.bold)).foregroundStyle(HGTheme.textPrimary).padding(.horizontal, 16).padding(.top, 10)
+        if rec.isEmpty {
+            ProgressView().tint(HGTheme.textSecondary).frame(maxWidth: .infinity).padding(.top, 30)
+        }
+        LazyVStack(alignment: .leading, spacing: 10) {
+            ForEach(rec) { s in
+                HStack(spacing: 14) {
+                    NavigationLink(value: s) {
+                        HStack(spacing: 14) {
+                            HGCachedImage(url: s.coverURL) { Rectangle().fill(HGTheme.surfaceHigh) }
+                                .frame(width: 66, height: 88)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(s.series_title).font(.body.weight(.medium)).foregroundStyle(HGTheme.textPrimary).lineLimit(2)
+                                if let h = s.heat ?? s.tags?.prefix(2).joined(separator: " · ") {
+                                    Text(h).font(.caption).foregroundStyle(HGTheme.textTertiary).lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Button { Task { await play(s) } } label: {
+                        Image(systemName: "play.circle").font(.system(size: 34, weight: .light)).foregroundStyle(HGTheme.textPrimary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("hg.search.play")
+                }
+                .accessibilityIdentifier("hg.search.rec")
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func play(_ s: HGSeries) async {
+        guard let d = try? await HGAPI.detail(s.id), !d.episodes.isEmpty else { linked = s; return }
+        let p = HGLibrary.shared.progress(for: s.id)
+        var series = s
+        series.episode_count = d.episodes.count
+        if (series.description ?? "").isEmpty { series.description = d.description }
+        let i = min(d.episodes.count - 1, p?.episodeIndex ?? 0)
+        playing = HGPlayerRequest(series: series, episodes: d.episodes, index: i, startAt: p?.position ?? 0)
     }
 
     private func submit(_ text: String) {
@@ -886,6 +961,72 @@ struct FlowLayout: Layout {
             if x > bounds.minX && x + s.width > bounds.maxX { y += rowH + spacing; x = bounds.minX; rowH = 0 }
             v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
             x += s.width + spacing; rowH = max(rowH, s.height)
+        }
+    }
+}
+
+
+/// 联想一行：左边封面（剧）/ 人像（演员）/ 放大镜（普通词），中间词 + 小字；剧名条没带封面就按剧名懒查一次
+struct HGSuggestRow: View {
+    let item: HGSuggestItem
+    /// 点了：传剧（直接打开详情）或 nil（按这个词搜）
+    let pick: (HGSeries?) -> Void
+    @State private var found: HGSeries?
+    @State private var looked = false
+    /// 同一个剧名查过就记住（打字时同一条会反复出现）
+    @MainActor static var memo: [String: HGSeries?] = [:]
+
+    private var series: HGSeries? {
+        if let id = item.series_id, let c = item.cover { return HGSeries(series_id: id, series_title: item.text, cover: c, episode_count: item.episodes) }
+        return found
+    }
+
+    var body: some View {
+        Button { pick(series) } label: {
+            HStack(spacing: 12) {
+                thumb.frame(width: 38, height: 50).clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.text).font(.subheadline.weight(series != nil ? .semibold : .regular))
+                        .foregroundStyle(HGTheme.textPrimary).lineLimit(1)
+                    if let sub = subtitle {
+                        Text(sub).font(.caption).foregroundStyle(HGTheme.textTertiary).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 4)
+                Image(systemName: series != nil ? "chevron.right" : "arrow.up.left")
+                    .font(.caption).foregroundStyle(HGTheme.textTertiary)
+            }
+            .padding(.vertical, 7).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("hg.search.suggest")
+        .task(id: item.text) {
+            guard item.kind == "title", item.cover == nil, !looked else { return }
+            looked = true
+            if let hit = Self.memo[item.text] { found = hit; return }
+            let r = try? await HGAPI.suggestCover(item.text)
+            Self.memo[item.text] = r
+            if !Task.isCancelled { withAnimation(.easeOut(duration: 0.2)) { found = r } }
+        }
+    }
+
+    private var subtitle: String? {
+        if let a = item.abstract { return a }
+        switch item.kind {
+        case "actor": return "演员"
+        case "series", "title": return series?.episode_count.map { $0 > 0 ? "共 \($0) 集" : "短剧" } ?? (series != nil ? "短剧" : nil)
+        default: return nil
+        }
+    }
+
+    @ViewBuilder private var thumb: some View {
+        if let s = series {
+            HGCachedImage(url: s.coverURL) { Rectangle().fill(HGTheme.surfaceHigh) }
+        } else {
+            Rectangle().fill(HGTheme.surface).overlay {
+                Image(systemName: item.kind == "actor" ? "person.fill" : "magnifyingglass")
+                    .font(.footnote).foregroundStyle(HGTheme.textTertiary)
+            }
         }
     }
 }

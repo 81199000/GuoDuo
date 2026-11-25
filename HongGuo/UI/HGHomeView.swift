@@ -28,6 +28,8 @@ struct HGHomeRow: Identifiable, Hashable {
     var zones: [HGRankZone] = []
     var rows: [String: [HGSeries]] = [:]
     var failed: Set<String> = []
+    /// 西饭 / 河马的题材（browse 带回来），它们没有红果的榜单目录，首页按题材一行一行排
+    var sourceGenres: [String: [HGGenre]] = [:]
     @ObservationIgnored private var inflight: Set<String> = []
 
     func load(_ zone: String, _ board: String, force: Bool = false) async {
@@ -35,6 +37,14 @@ struct HGHomeRow: Identifiable, Hashable {
         guard force || rows[k] == nil, !inflight.contains(k) else { return }
         inflight.insert(k); defer { inflight.remove(k) }
         do {
+            if let src = HGHomeView.otherSource(zone) {
+                // 西饭 / 河马：board = 题材 slug（空 = 默认题材）
+                let r = try await HGAPI.browse(src, page: 1, genre: board)
+                if let g = r.genres, !g.isEmpty { sourceGenres[zone] = g }
+                rows[k] = r.results
+                failed.remove(k)
+                return
+            }
             let r = try await HGAPI.rank(zone: zone, board: board, offset: 0, session: "")
             if let z = r.zones, !z.isEmpty { zones = z }
             rows[k] = r.results
@@ -49,13 +59,39 @@ struct HGHomeRow: Identifiable, Hashable {
 }
 
 struct HGHomeView: View {
-    /// 分区（nil = 全部）。前两个是顶部药丸（红果 App 首页也只有真人剧 / 漫剧）；
-    /// AI剧 / 系列剧是榜单接口才有的分区，收进「类别」菜单最底下单独一组（老板 2026-11-25）
+    /// 分区（空 = 全部）。2026-11-26 老板：AI剧 / 系列剧放回顶部，再加西饭 / 河马；
+    /// 顶部按屏宽自适应——放得下几个摆几个，放不下的从后往前收进「类别」菜单最底下（`fittingPills`）
     static let zoneChips: [(id: String, name: String, genre: String)] = [
         ("human", "真人剧", "short_play"), ("comic_series_rank", "漫剧", "comic_series"),
         ("ai_playlet", "AI剧", "ai_series"), ("series_album", "系列剧", "short_play"),
+        ("xifan", "西饭", ""), ("hema", "河马", ""),
     ]
-    static let pillZones = 2
+    /// 西饭 / 河马是另外的片源（不走红果榜单）
+    static func otherSource(_ zone: String) -> HGCategory? { zone == "xifan" ? .xifan : zone == "hema" ? .hema : nil }
+    /// 菜单里收起来的分区的图标 / 说明
+    static func zoneInfo(_ id: String) -> (icon: String, note: String) {
+        switch id {
+        case "human": ("person.2.fill", "真人出演的短剧")
+        case "comic_series_rank": ("paintpalette.fill", "动画 / 漫画短剧")
+        case "ai_playlet": ("sparkles", "AI 生成的短剧")
+        case "series_album": ("square.stack.3d.up", "一部剧多季连播")
+        case "xifan": ("play.square.stack", "西饭短剧片源")
+        default: ("play.rectangle.on.rectangle", "河马短剧片源")
+        }
+    }
+    /// 顶部一行能放几个分区药丸：可用宽度 − 「类别」药丸，按字宽逐个累加，放不下的进菜单
+    static func fittingPills(width: CGFloat) -> Int {
+        let font = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: .subheadline).pointSize, weight: .medium)
+        let pill = { (t: String) -> CGFloat in ceil((t as NSString).size(withAttributes: [.font: font]).width) + 32 }
+        var used = pill("类别") + 16          // 类别 + 箭头
+        var n = 0
+        for c in zoneChips {
+            let w = pill(c.name) + 8
+            if used + w > width { break }
+            used += w; n += 1
+        }
+        return n
+    }
     struct FindRoute: Hashable { let title: String; let preset: [String: String] }
 
     @State private var model = HGHomeModel.shared
@@ -85,7 +121,9 @@ struct HGHomeView: View {
     @State private var headerH: CGFloat = 110
 
     private var zoneName: String? { Self.zoneChips.first { $0.id == zone }?.name }
-    private var genre: String { Self.zoneChips.first { $0.id == zone }?.genre ?? "short_play" }
+    private var genre: String { (Self.zoneChips.first { $0.id == zone }?.genre).flatMap { $0.isEmpty ? nil : $0 } ?? "short_play" }
+    @State private var pillCount = 2
+    @State private var sourceGenre: HGGenreRoute?
 
     var body: some View {
         GeometryReader { geo in
@@ -115,6 +153,8 @@ struct HGHomeView: View {
             .refreshable { await refresh() }
             // 顶栏浮在内容上面（不占位）：药丸收起只是顶栏自己动
             header(top: top)
+                .onAppear { pillCount = Self.fittingPills(width: w - 32) }
+                .onChange(of: w) { _, nw in withAnimation(.snappy) { pillCount = Self.fittingPills(width: nw - 32) } }
           }
           // Duo：右上角 / 右侧是信号时间，左上是空的 → 整页不让顶部安全区，顶栏位置自己按 topInset 算
           .ignoresSafeArea(.container, edges: .top)
@@ -140,6 +180,7 @@ struct HGHomeView: View {
         .task { await loadAccountShelves() }
         .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
         .navigationDestination(item: $find) { HGFindScreen(title: $0.title, preset: $0.preset) }
+        .navigationDestination(item: $sourceGenre) { HGSourceGenreScreen(route: $0) }
         .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }
     }
 
@@ -164,7 +205,7 @@ struct HGHomeView: View {
                         .accessibilityIdentifier("hg.home.chip.clear")
                         chip(name, on: true) {}
                     } else {
-                        ForEach(Self.zoneChips.prefix(Self.pillZones), id: \.id) { c in
+                        ForEach(Self.zoneChips.prefix(pillCount), id: \.id) { c in
                             chip(c.name, on: false) { withAnimation(.snappy) { zone = c.id } }
                         }
                     }
@@ -225,22 +266,35 @@ struct HGHomeView: View {
 
     private var categoryMenu: some View {
         Menu {
-            Section("题材") {
-                ForEach(themes[genre] ?? []) { t in
-                    Button(t.name) { find = FindRoute(title: t.name, preset: ["genre": genre, "category_dim_theme": t.id]) }
-                }
-                if (themes[genre] ?? []).isEmpty { Text("分类加载中…") }
-            }
-            // 跟题材不是一类：是单独的剧场分区（官方 App 首页没有）→ 放最底下，单独一组 + 图标 + 说明，一眼看出不一样
-            Section("更多剧场 · 红果榜单分区") {
-                ForEach(Self.zoneChips.dropFirst(Self.pillZones), id: \.id) { c in
-                    // 系统菜单：标签里第二个 Text 显示成副标题小字
-                    Button { withAnimation(.snappy) { zone = c.id } } label: {
-                        Image(systemName: c.id == "ai_playlet" ? "sparkles" : "square.stack.3d.up")
-                        Text(c.name)
-                        Text(c.id == "ai_playlet" ? "AI 生成的短剧" : "一部剧多季连播")
+            if let src = Self.otherSource(zone) {
+                // 西饭 / 河马：题材是它们自己的（点了进该片源该题材的列表）
+                Section("题材") {
+                    ForEach(model.sourceGenres[zone] ?? []) { g in
+                        Button(g.label) { sourceGenre = HGGenreRoute(source: src, genre: g) }
                     }
-                    .accessibilityIdentifier("hg.home.zone.\(c.name)")
+                    if (model.sourceGenres[zone] ?? []).isEmpty { Text("分类加载中…") }
+                }
+            } else {
+                Section("题材") {
+                    ForEach(themes[genre] ?? []) { t in
+                        Button(t.name) { find = FindRoute(title: t.name, preset: ["genre": genre, "category_dim_theme": t.id]) }
+                    }
+                    if (themes[genre] ?? []).isEmpty { Text("分类加载中…") }
+                }
+            }
+            // 顶部放不下的分区（按屏宽自适应）：放最底下，单独一组 + 图标 + 说明
+            let hidden = Array(Self.zoneChips.dropFirst(pillCount))
+            if !hidden.isEmpty {
+                Section("更多分区") {
+                    ForEach(hidden, id: \.id) { c in
+                        let info = Self.zoneInfo(c.id)
+                        Button { withAnimation(.snappy) { zone = c.id } } label: {
+                            Image(systemName: info.icon)
+                            Text(c.name)
+                            Text(info.note)
+                        }
+                        .accessibilityIdentifier("hg.home.zone.\(c.name)")
+                    }
                 }
             }
         } label: {
@@ -259,6 +313,7 @@ struct HGHomeView: View {
 
     private var heroBoard: String {
         if zone.isEmpty { return "ranklist_hot_sc" }
+        if Self.otherSource(zone) != nil { return "" }
         return model.zones.first { $0.id == zone }?.boards.first { $0.name == "推荐榜" }?.id
             ?? HGRankScreen.defaultBoard(zone)
     }
@@ -348,6 +403,12 @@ struct HGHomeView: View {
                 .init(zone: "all", board: "ranklist_prestige", title: "臻果精选", kind: .poster),
                 .init(zone: "all", board: "ranklist_subscribe", title: "即将上线", kind: .upcoming),
             ]
+        }
+        // 西饭 / 河马：第一行默认题材（大海报也取它），下面按它们自己的题材一行一个
+        if Self.otherSource(zone) != nil {
+            let gs = (model.sourceGenres[zone] ?? []).filter { $0.label != "都市" }.prefix(14)
+            return [.init(zone: zone, board: "", title: zone == "xifan" ? "都市热播" : "全部短剧", kind: .poster)]
+                + gs.map { .init(zone: zone, board: $0.slug, title: $0.label, kind: .poster) }
         }
         // 选了分区：按服务端目录排这个分区的各榜（热播做 Top 10 放最前，预约放最后）
         let name = zoneName ?? ""
@@ -493,6 +554,9 @@ struct HGHomeRowView: View {
 
     private var allScreen: () -> AnyView {
         let r = row
+        if let src = HGHomeView.otherSource(r.zone) {
+            return { AnyView(HGSourceGenreScreen(route: HGGenreRoute(source: src, genre: HGGenre(slug: r.board, label: r.title)))) }
+        }
         return {
             r.kind == .upcoming
                 ? AnyView(HGRankScreen(title: "即将上线", fixedBoard: r.board))
@@ -805,5 +869,51 @@ extension View {
         } else {
             self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
         }
+    }
+}
+
+
+struct HGGenreRoute: Hashable { let source: HGCategory; let genre: HGGenre }
+
+/// 西饭 / 河马某个题材的全部剧（两列瀑布流，滑到底翻页）
+struct HGSourceGenreScreen: View {
+    let route: HGGenreRoute
+    @State private var items: [HGSeries] = []
+    @State private var page = 1
+    @State private var hasMore = true
+    @State private var loading = false
+    @State private var error: String?
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: 12) {
+                    if let error, items.isEmpty {
+                        ContentUnavailableView(error, systemImage: "exclamationmark.triangle").foregroundStyle(HGTheme.textSecondary)
+                    }
+                    HGWaterfall(items: items, width: geo.size.width - 32, loadMore: { Task { await load() } })
+                        .padding(.horizontal, 16)
+                    if loading { ProgressView().tint(HGTheme.textSecondary).padding() }
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .background(HGTheme.background)
+        .navigationTitle("\(route.source.title) · \(route.genre.label)")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.visible, for: .navigationBar)
+        .task { if items.isEmpty { await load() } }
+    }
+
+    private func load() async {
+        guard hasMore, !loading else { return }
+        loading = true; defer { loading = false }
+        do {
+            let r = try await HGAPI.browse(route.source, page: page, genre: route.genre.slug)
+            let seen = Set(items.map(\.id))
+            items += r.results.filter { !seen.contains($0.id) }
+            hasMore = (r.hasMore ?? false) && !r.results.isEmpty
+            page += 1
+        } catch { self.error = error.localizedDescription; hasMore = false }
     }
 }

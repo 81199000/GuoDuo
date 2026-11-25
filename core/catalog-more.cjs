@@ -155,7 +155,21 @@ async function suggest({ query = '', signal } = {}) {
     if (text && text.length <= 40 && !seen.has(text) && (v.title || v.text)) { seen.add(text); out.push(text); }
     for (const k of Object.keys(v)) if (v[k] && typeof v[k] === 'object') walk(v[k], d + 1);
   })(j.data?.suggest_result || j.data, 0);
-  return { results: out };
+  // 2026-11-26 老板：打字联想要带封面。query_result_v2 每条带类型（剧名 / 演员 / 合集 / 普通词）、
+  // 剧名条带 video_data（series_id + HEIC 封面 → 转公开 JPEG）、演员条带「参演短剧·68部」小字
+  const items = [];
+  for (const r of Array.isArray(j.data?.query_result_v2) ? j.data.query_result_v2 : []) {
+    const text = cleanTitle(r?.name || r?.display_words?.[0] || '');
+    if (!text || text.length > 40 || items.some(x => x.text === text)) continue;
+    const v = r.video_data || null;
+    const kind = String(r.word_type_str || '');
+    items.push({ text, kind: /actor/.test(kind) ? 'actor' : v?.series_id ? 'series' : /short_play_name|title|album/.test(kind) ? 'title' : 'query',
+      series_id: idOf(v?.series_id) || undefined, cover: v?.cover ? catalogCover(v.cover) || undefined : undefined,
+      abstract: cleanTitle(r.sug_abstract || '').replace(/\|/g, ' · ') || undefined,
+      episodes: Number(v?.episode_cnt) || undefined });
+    if (items.length >= 10) break;
+  }
+  return { results: out, items };
 }
 
 const DETAIL_API = '/novel/player/video_detail/v1/';
