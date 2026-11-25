@@ -12,13 +12,13 @@ final class HGHomeHeaderTests: XCTestCase {
         let chip = app.buttons["hg.home.chip.真人剧"]
         XCTAssertTrue(chip.waitForExistence(timeout: 30))
         sleep(4)
-        let logoTop = app.staticTexts["首页"].firstMatch.frame
+        let logoTop = app.staticTexts["GuoDuo"].firstMatch.frame
         print("HDR start chip=\(chip.frame) title=\(logoTop) hittable=\(chip.isHittable)")
         shot("top")
         let w = app.windows.firstMatch
         w.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.8)).press(forDuration: 0.05, thenDragTo: w.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.35)))
         sleep(2)
-        print("HDR down chipHittable=\(chip.isHittable) title=\(app.staticTexts["首页"].firstMatch.frame)")
+        print("HDR down chipHittable=\(chip.isHittable) title=\(app.staticTexts["GuoDuo"].firstMatch.frame)")
         shot("down")
         XCTAssertFalse(chip.isHittable, "往下滑药丸没收起")
         w.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.4)).press(forDuration: 0.05, thenDragTo: w.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.6)))

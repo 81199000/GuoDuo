@@ -147,7 +147,7 @@ struct HGHomeView: View {
             HStack(spacing: 10) {
                 Image("AppLogo").resizable().scaledToFit().frame(height: 30)
                     .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                Text(zoneName ?? "首页").font(.system(size: 28, weight: .bold)).foregroundStyle(.white)
+                Text(zoneName ?? "GuoDuo").font(.system(size: 28, weight: .bold)).foregroundStyle(.white)
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
