@@ -51,12 +51,12 @@ extension View {
         }
     }
 
-    /// 视频上的玻璃控件始终按暗色渲染；外圈加奈飞式流光高光边（HGEdgeHighlight）
+    /// 视频上的玻璃控件始终按暗色渲染；系统玻璃 + 光圈（样式见 HGEdgeHighlight.swift，设置里可切）
     func ddMediaGlassCircle(_ tint: Color? = nil) -> some View {
-        ddGlassCircle(tint).modifier(HGEdgeHighlight(shape: Circle())).environment(\.colorScheme, .dark)
+        modifier(HGMediaGlass(shape: Circle(), tint: tint))
     }
     func ddMediaGlassCapsule() -> some View {
-        ddGlassCapsule().modifier(HGEdgeHighlight(shape: Capsule())).environment(\.colorScheme, .dark)
+        modifier(HGMediaGlass(shape: Capsule()))
     }
 
     /// DouDuo themeShadow(.mediaLabel)
