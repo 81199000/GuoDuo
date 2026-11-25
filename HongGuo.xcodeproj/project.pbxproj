@@ -41,6 +41,7 @@
 		9BBD61815E1592F7C5DC00E1 /* HGUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */; };
 		9EAB43EBE77FB15A001C8771 /* DYPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */; };
 		A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */; };
+		B29309B9BDD3AA149E241A30 /* HGAmbientShots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF37E1CDF8569857A3FD01E /* HGAmbientShots.swift */; };
 		B3A4C4C7609655B90A4D537D /* DYDeskLight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC264E72C0F41CF058F2ABF /* DYDeskLight.swift */; };
 		B561F5F63197372870E0DA18 /* HGMineShelfTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E0D00CA110AAFF7DF6B466 /* HGMineShelfTests.swift */; };
 		B674A141AB189E1F97DFF503 /* HGStorageRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705E7BBE3F47172EC57C783 /* HGStorageRing.swift */; };
@@ -137,6 +138,7 @@
 		E5077CA7284996E39E525152 /* HGFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFlowTests.swift; sourceTree = "<group>"; };
 		EAA57406A67917BE80FEAD71 /* HGPlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerSheets.swift; sourceTree = "<group>"; };
 		EC544D830B88BFE876EB5C83 /* DYVideoAmbient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYVideoAmbient.swift; sourceTree = "<group>"; };
+		EDF37E1CDF8569857A3FD01E /* HGAmbientShots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGAmbientShots.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -191,6 +193,7 @@
 		730B1C74839A7D8397247142 /* HongGuoUITests */ = {
 			isa = PBXGroup;
 			children = (
+				EDF37E1CDF8569857A3FD01E /* HGAmbientShots.swift */,
 				5B3FBAE46973F4C5C666FD88 /* HGCommentsAllEpisodesTests.swift */,
 				200BD63EC01FC0B32F4C014B /* HGConsoleGestureTests.swift */,
 				60E079683201F11611AB8979 /* HGDiscoverBoardsTests.swift */,
@@ -396,6 +399,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B29309B9BDD3AA149E241A30 /* HGAmbientShots.swift in Sources */,
 				DD440166302E3D5853EF7C4F /* HGCommentsAllEpisodesTests.swift in Sources */,
 				F41C678E3E73A4B45F05642D /* HGConsoleGestureTests.swift in Sources */,
 				66D6A1C40DECDC5AF75F6051 /* HGDiscoverBoardsTests.swift in Sources */,

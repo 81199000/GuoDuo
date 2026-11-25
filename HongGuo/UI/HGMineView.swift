@@ -745,6 +745,7 @@ struct HGMineSettings: View {
     let signedIn: Bool
     let onLogout: () -> Void
     @AppStorage("hg.bgPlay.v2") private var bgPlay = false
+    @AppStorage(DYVideoAmbient.key) private var ambientLevel = DYVideoAmbient.defaultLevel
     @AppStorage(HGHomeStyle.key) private var homeStyle = HGHomeStyle.netflix.rawValue
     var body: some View {
         List {
@@ -759,6 +760,10 @@ struct HGMineSettings: View {
             Section {
                 NavigationLink { DYStorageScreen() } label: { Label("储存空间", systemImage: "internaldrive") }
                 Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
+                Picker("环境光", selection: $ambientLevel) {
+                    ForEach(DYVideoAmbient.levels, id: \.self) { Text(DYVideoAmbient.title($0)).tag($0) }
+                }
+                .accessibilityIdentifier("hg.settings.ambient")
             }
             .listRowBackground(HGTheme.surface)
             HGAboutSection()

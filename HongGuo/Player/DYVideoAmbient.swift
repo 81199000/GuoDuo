@@ -46,6 +46,9 @@ final class DYAmbientFrameView: UIView {
     weak var output: AVPlayerItemVideoOutput?
     private var link: CADisplayLink?
     private static let ci = CIContext(options: [.cacheIntermediates: false])
+    private static let queue = DispatchQueue(label: "guoduo.ambient", qos: .utility)
+    /// 上一帧还没处理完就不取新帧（不堆积）
+    private var working = false
 
     init(player: AVPlayer) {
         self.player = player
@@ -77,11 +80,13 @@ final class DYAmbientFrameView: UIView {
     }
 
     private func updateLink() {
-        if active && window != nil {
+        // 发热（serious 及以上）停掉取帧：背景停在最后一帧（DouDuo 同款发热降载）
+        let hot = ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue
+        if active && window != nil && !hot {
             guard link == nil else { return }
             let l = CADisplayLink(target: DYAmbientTick(self), selector: #selector(DYAmbientTick.tick))
-            // 环境光不用 60 帧，12 帧左右看着就是连续的
-            l.preferredFrameRateRange = CAFrameRateRange(minimum: 8, maximum: 15, preferred: 12)
+            // 背景光变化慢，6 帧足够（DouDuo 实测 12 帧占主线程约 1 成）
+            l.preferredFrameRateRange = CAFrameRateRange(minimum: 4, maximum: 8, preferred: 6)
             l.add(to: .main, forMode: .common)
             link = l
         } else {
@@ -101,21 +106,30 @@ final class DYAmbientFrameView: UIView {
         // 画面铺满时背景看不见，但桌面姿态的评论区还在等投光，照样取帧
         guard !covered || DYDeskLightHub.wanted, let output, let item = player.currentItem, item.outputs.contains(output) else { return }
         let t = output.itemTime(forHostTime: CACurrentMediaTime())
-        guard output.hasNewPixelBuffer(forItemTime: t),
+        guard !working, output.hasNewPixelBuffer(forItemTime: t),
               let pb = output.copyPixelBuffer(forItemTime: t, itemTimeForDisplay: nil) else { return }
-        let src = CIImage(cvPixelBuffer: pb)
-        let scale = 48 / max(src.extent.width, 1)
-        let small = src.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        let blurred = small.clampedToExtent().applyingGaussianBlur(sigma: 3).cropped(to: small.extent)
-            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.85])
-        guard let cg = Self.ci.createCGImage(blurred, from: small.extent) else { return }
-        imageView.image = UIImage(cgImage: cg)
-        // 桌面投影（只有投影视图在屏幕上时才算）
-        if DYDeskLightHub.wanted, let proj = DYDeskProjection.render(src, ci: Self.ci) {
-            DYDeskLightHub.publish(proj.image, glow: proj.glow, aspect: src.extent.width / max(src.extent.height, 1))
-        }
-        if imageView.alpha == 0 {
-            UIView.animate(withDuration: 0.25) { self.imageView.alpha = 1; self.dimView.alpha = 1 }
+        // 缩图 + 模糊 + 生成图片放后台队列，主线程只换图（DouDuo 同款）
+        working = true
+        let desk = DYDeskLightHub.wanted
+        Self.queue.async { [weak self] in
+            let src = CIImage(cvPixelBuffer: pb)
+            let scale = 48 / max(src.extent.width, 1)
+            let small = src.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            let blurred = small.clampedToExtent().applyingGaussianBlur(sigma: 3).cropped(to: small.extent)
+                .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.85])
+            let cg = Self.ci.createCGImage(blurred, from: small.extent)
+            // 桌面投影（只有投影视图在屏幕上时才算）
+            let proj = desk ? DYDeskProjection.render(src, ci: Self.ci) : nil
+            let aspect = src.extent.width / max(src.extent.height, 1)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.working = false
+                if let cg { self.imageView.image = UIImage(cgImage: cg) }
+                if let proj { DYDeskLightHub.publish(proj.image, glow: proj.glow, aspect: aspect) }
+                if self.imageView.alpha == 0, cg != nil {
+                    UIView.animate(withDuration: 0.25) { self.imageView.alpha = 1; self.dimView.alpha = 1 }
+                }
+            }
         }
     }
 }

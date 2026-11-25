@@ -44,6 +44,7 @@ struct HGPlayerScreen: View {
     @AppStorage(DYDanmakuStyle.opacityKey) private var danmakuOpacity = 1.0
     @AppStorage(DYDanmakuStyle.fontKey) private var danmakuFont = 17.0
     @AppStorage("hg.fillWidth") private var fillWidth = true
+    @AppStorage(DYVideoAmbient.key) private var ambientLevel = DYVideoAmbient.defaultLevel
     /// 极简模式（DouDuo 同款）：不显示菜单栏和标题，只留右下一颗带进度外圈的返回圆键；
     /// 单击圆键弹菜单、按住看标题，点屏幕暂停时显示详情
     @AppStorage("hg.minimal") private var minimal = false
@@ -307,9 +308,14 @@ struct HGPlayerScreen: View {
         ZStack {
             Color.black
             if i == session.index {
-                DYAmbientBackdrop(player: session.player, output: session.videoOutput, active: true, dim: 0.6, fillWidth: fillWidth)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
+                // 环境光：跟随「设置 → 环境光」（关 / 亮 / 中 / 暗 / 很暗，DouDuo 同款）
+                if ambientLevel > 0 {
+                    DYAmbientBackdrop(player: session.player, output: session.videoOutput, active: true,
+                                      dim: Double(ambientLevel) / 100, fillWidth: fillWidth)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .accessibilityIdentifier("hg.player.ambient")
+                }
                 HGVideoLayer(player: session.player, fillWidth: fillWidth, pip: session.pip,
                              onReadyForDisplay: { [session] in session.setDisplayReady($0) })
                     .scaleEffect(userScale * pinchScale)
@@ -1015,7 +1021,9 @@ final class HGPlayerLayerView: UIView {
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = .black
+        // 透明：画面没铺满时露出下面的环境光（DouDuo 同款）；环境光关了下面是纯黑
+        backgroundColor = .clear
+        playerLayer.backgroundColor = UIColor.clear.cgColor
         playerLayer.videoGravity = .resizeAspect
         readyObs = playerLayer.observe(\.isReadyForDisplay, options: [.new]) { [weak self] l, _ in
             let r = l.isReadyForDisplay
