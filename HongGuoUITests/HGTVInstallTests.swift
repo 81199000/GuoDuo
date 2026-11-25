@@ -1,7 +1,7 @@
 import XCTest
 
 /// 「我的 → 安装到电视」：局域网找到电视 → 点安装 → 下载 → 推送 → 装完。
-/// 需要真电视在线（`TEST_RUNNER_HG_TV_IP` 指定其 IP，并用 `TEST_RUNNER_HG_TV_MANIFEST` 指向可访问的清单）；没给就跳过。
+/// 需要真电视在线：`TEST_RUNNER_HG_TV_IP` 指定其 IP；没给就跳过。默认走线上清单，调试可用 `TEST_RUNNER_HG_TV_MANIFEST` 覆盖。
 final class HGTVInstallTests: XCTestCase {
     private func shot(_ app: XCUIApplication, _ n: String) {
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = n; a.lifetime = .keepAlways; add(a)
@@ -29,10 +29,12 @@ final class HGTVInstallTests: XCTestCase {
 
     func testDiscoverAndInstall() throws {
         let env = ProcessInfo.processInfo.environment
-        guard let tvIP = env["HG_TV_IP"], let manifest = env["HG_TV_MANIFEST"] else { throw XCTSkip("没给 HG_TV_IP / HG_TV_MANIFEST") }
+        guard let tvIP = env["HG_TV_IP"] else { throw XCTSkip("没给 HG_TV_IP") }
+        let manifest = env["HG_TV_MANIFEST"]   // 不给就走线上清单（真实用户路径）
         let app = XCUIApplication()
         app.launchEnvironment["HG_START_TAB"] = "mine"
-        app.launchArguments += ["-hg.tv.manifest", manifest, "-hg.tv.tutorialSeen", "YES"]
+        app.launchArguments += ["-hg.tv.tutorialSeen", "YES"]
+        if let manifest { app.launchArguments += ["-hg.tv.manifest", manifest] }
         app.launch()
         openPage(app)
         // 局域网扫描应当自己找到这台电视（不靠手填）
