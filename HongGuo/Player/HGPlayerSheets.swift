@@ -129,7 +129,7 @@ private struct HGReviewRow: View {
     let review: HGReview
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            AsyncImage(url: review.avatar.flatMap(URL.init(string:))) { img in img.resizable().scaledToFill() } placeholder: { Color.primary.opacity(0.08) }
+            HGCachedImage(url: review.avatar.flatMap(URL.init(string:))) { Color.primary.opacity(0.08) }
                 .frame(width: 32, height: 32).clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(review.author.isEmpty ? "红果用户" : review.author).font(.caption.weight(.semibold)).foregroundStyle(.primary.opacity(0.72))

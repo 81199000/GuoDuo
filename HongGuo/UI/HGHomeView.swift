@@ -6,7 +6,7 @@ import UIKit
 // 顶部「logo + 首页」大标题 + 玻璃圆角药丸分类（真人剧 / 漫剧 / AI剧 / 系列剧 / 类别 ▾），滚动后顶栏垫磨砂；
 // 大海报卡（取封面主色给整页染底色）+ 播放 / 追剧；下面一行一类左右滑：继续观看、我的追剧、Top 10（描边大数字）、各榜单。
 // 纯黑底、海报小圆角、行标题加粗、海报底部红白角标、TOP 10 角标；数据全部来自红果榜单接口，滑到哪行才拉哪行。
-// 跟旧版发现页在「我的 → 设置 → 首页样式」里切换。
+// 跟红果版首页（旧发现页）在「我的 → 设置 → 首页主题」里切换。
 
 enum HGHomeStyle: String {
     case netflix, classic
@@ -781,7 +781,7 @@ struct HGWideHeroCard: View {
 /// 封面主色（整页染底色用）：CIAreaAverage 取平均色，压暗、略提饱和，避免太亮抢海报
 enum HGHeroTint {
     static func color(_ url: URL) async -> Color? {
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        guard let data = await HGImageCache.shared.data(url) else { return nil }
         return await Task.detached(priority: .utility) { () -> Color? in
             guard let ci = CIImage(data: data),
                   let out = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: ci, kCIInputExtentKey: CIVector(cgRect: ci.extent)])?.outputImage

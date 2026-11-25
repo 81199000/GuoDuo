@@ -24,7 +24,8 @@ struct DYStorageScreen: View {
             if let usage {
                 Section {
                     storageRow("App 大小", bytes: usage.app, total: usage.total, color: DYStorageRing.appColor)
-                    ForEach(DYStorageFiles.Category.allCases, id: \.self) { category in
+                    // 空的类别（如已下线的离线视频）不显示，免得一排「0 bytes」
+                    ForEach(DYStorageFiles.Category.allCases.filter { (usage.categories[$0] ?? 0) > 0 }, id: \.self) { category in
                         let row = storageRow(title(category), bytes: usage.categories[category, default: 0],
                                              total: usage.total, color: DYStorageRing.color(for: category))
                         if category == .other, !usage.otherAreas.isEmpty {
@@ -48,7 +49,7 @@ struct DYStorageScreen: View {
                     Text("文稿与数据 \(size(usage.data))。App 内估算包含缓存和临时文件，iOS 储存空间可能采用不同的统计范围。")
                 }
             } else if !scanFailed {
-                ProgressView("正在统计储存空间")
+                ProgressView("正在统计缓存")
             }
 
             if scanFailed {
@@ -62,7 +63,7 @@ struct DYStorageScreen: View {
         .modifier(HGHideBottomEdgeEffect())
         .background(HGTheme.background)
         .safeAreaInset(edge: .bottom, spacing: 0) { cleanupBar }
-        .navigationTitle("储存空间")
+        .navigationTitle("缓存管理")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await refresh()
@@ -80,7 +81,7 @@ struct DYStorageScreen: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("清除在线播放缓存和封面图片，保留离线下载的视频。")
+            Text("清除在线播放缓存和封面图片。封面清掉后会重新下载。")
         }
     }
 
@@ -201,13 +202,14 @@ struct DYStorageScreen: View {
 
         let videos = await HGMediaCache.shared.clearForStorage()
         URLCache.shared.removeAllCachedResponses()
+        let covers = HGImageCache.shared.removeAll()
         let images = DYStorageFiles.removeIfPresent(
             FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent(Bundle.main.bundleIdentifier ?? "", isDirectory: true)
                 .appendingPathComponent("fsCachedData", isDirectory: true))
 
         await updateUsage()
-        cleanupSucceeded = videos && images
+        cleanupSucceeded = videos && images && covers
     }
 
     private static let byteFormatter: ByteCountFormatter = {
@@ -233,7 +235,7 @@ struct DYStorageScreen: View {
         switch category {
         case .video: "播放缓存"
         case .offline: "离线视频"
-        case .images: "封面图片"
+        case .images: "封面 / 头像缓存"
         case .web: "网页数据"
         case .diagnostics: "诊断日志"
         case .other: "其他 App 数据"

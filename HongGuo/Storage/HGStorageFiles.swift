@@ -149,7 +149,7 @@ actor DYStorageFiles {
             return .video
         case ["Library", "Application Support", offlineDirectoryName]:
             return .offline
-        case ["Library", "Caches", "ImageCache"]:
+        case ["Library", "Caches", "ImageCache"], ["Library", "Caches", HGImageCache.directoryName]:
             return .images
         case let parts where parts.starts(with: ["Library", "WebKit"]):
             return .web

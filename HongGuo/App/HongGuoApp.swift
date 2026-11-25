@@ -21,6 +21,8 @@ struct HongGuoApp: App {
         DYStorageFiles.removeRetiredOfflineDownloads()
         // 封面 / 头像的图片缓存上限：内存 32MB、磁盘 200MB（系统默认磁盘只有 ~20MB，翻多了会反复重下）
         URLCache.shared = URLCache(memoryCapacity: 32 << 20, diskCapacity: 200 << 20)
+        // 封面 / 头像自己的磁盘缓存（HGImageCache）：超上限按最久没用的先删
+        HGImageCache.shared.trimIfNeeded()
     }
 
     var body: some Scene {
@@ -115,7 +117,7 @@ struct HGRootView: View {
     @State private var storageDemo = false
     /// 启动检查到的新版本（DouDuo 同款：关掉 / 去更新后这个版本不再自动弹）
     @State private var launchUpdate: HGUpdate?
-    /// 首页样式：奈飞式（默认）/ 旧版发现页（「我的 → 设置」切）
+    /// 首页主题：奈飞（默认）/ 红果（旧发现页）（「我的 → 设置」切）
     @AppStorage(HGHomeStyle.key) private var homeStyle = HGHomeStyle.netflix.rawValue
     var body: some View {
         GeometryReader { geo in

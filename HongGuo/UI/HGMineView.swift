@@ -49,7 +49,7 @@ struct HGMineView: View {
         }
         .sheet(isPresented: $showSettings) { NavigationStack { HGMineSettings(signedIn: signedIn, onLogout: {
             Task { await logout() }
-        }) }.presentationDetents([.medium, .large]) }
+        }) }.presentationDetents([.large]) }
         .fullScreenCover(item: $resume) { HGPlayerScreen(request: $0) }
         .navigationDestination(item: $openDetail) { HGDetailView(series: $0) }
     }
@@ -59,9 +59,8 @@ struct HGMineView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
-                AsyncImage(url: signedIn ? info?.avatar.flatMap(URL.init(string:)) : nil) { phase in
-                    if case .success(let img) = phase { img.resizable().scaledToFill() }
-                    else { Circle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "person.fill").font(.title).foregroundStyle(HGTheme.textTertiary)) }
+                HGCachedImage(url: signedIn ? info?.avatar.flatMap(URL.init(string:)) : nil) {
+                    Circle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "person.fill").font(.title).foregroundStyle(HGTheme.textTertiary))
                 }
                 .frame(width: 60, height: 60).clipShape(Circle())
                 VStack(alignment: .leading, spacing: 6) {
@@ -115,7 +114,7 @@ struct HGMineView: View {
                 quick("预约", sub: signedIn ? "\(reserved.filter { $0.upcoming == true }.count) 部待上线" : "登录后同步") { shelf = .reserve }
                 NavigationLink { DYStorageScreen() } label: { quickLabel("储存", sub: "清理缓存") }.buttonStyle(.plain)
                     .accessibilityIdentifier("hg.mine.storage")
-                quick("设置", sub: "听书 / 更新") { showSettings = true }
+                quick("设置", sub: "主题 / 缓存 / 更新") { showSettings = true }
                     .accessibilityIdentifier("hg.mine.settings")
             }
             .padding(.horizontal, 16)
@@ -740,41 +739,114 @@ extension HGCloudHistoryRow {
     }
 }
 
-/// 「我的」右上 ☰：账号 / 听书 / 版本更新 / 退出
+/// 设置（2026-11-26 老板：改美观一些）：iOS 设置同款——每行左边一个彩色圆角图标块，按「外观 / 播放 / 缓存 / 账号」分组，
+/// 首页样式改叫「首页主题」（奈飞 / 红果），储存空间改叫「缓存管理」并直接显示当前缓存占用
 struct HGMineSettings: View {
     let signedIn: Bool
     let onLogout: () -> Void
     @AppStorage("hg.bgPlay.v2") private var bgPlay = false
     @AppStorage(DYVideoAmbient.key) private var ambientLevel = DYVideoAmbient.defaultLevel
     @AppStorage(HGHomeStyle.key) private var homeStyle = HGHomeStyle.netflix.rawValue
+    @AppStorage("hg.danmaku.on") private var danmakuOn = true
+    @State private var cacheBytes: Int64?
+
     var body: some View {
         List {
             Section {
-                Picker("首页样式", selection: $homeStyle) {
-                    Text("新版（奈飞式）").tag(HGHomeStyle.netflix.rawValue)
-                    Text("旧版发现页").tag(HGHomeStyle.classic.rawValue)
+                HGSettingRow(icon: "rectangle.grid.1x2.fill", tint: HGTheme.accent, title: "首页主题") {
+                    Picker("首页主题", selection: $homeStyle) {
+                        Text("奈飞").tag(HGHomeStyle.netflix.rawValue)
+                        Text("红果").tag(HGHomeStyle.classic.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 132)
+                    .accessibilityIdentifier("hg.home.style")
                 }
-                .accessibilityIdentifier("hg.home.style")
-            } header: { Text("首页") }
-            .listRowBackground(HGTheme.surface)
-            Section {
-                NavigationLink { DYStorageScreen() } label: { Label("储存空间", systemImage: "internaldrive") }
-                Toggle("听书模式（退出后继续播放声音）", isOn: $bgPlay).tint(HGTheme.accent)
-                Picker("环境光", selection: $ambientLevel) {
-                    ForEach(DYVideoAmbient.levels, id: \.self) { Text(DYVideoAmbient.title($0)).tag($0) }
-                }
-                .accessibilityIdentifier("hg.settings.ambient")
+            } header: { Text("外观") } footer: {
+                Text(homeStyle == HGHomeStyle.classic.rawValue ? "红果：两列瀑布流、榜单按分区排，跟红果 App 一样。" : "奈飞：大海报 + 一行一个榜单，横着滑。")
             }
             .listRowBackground(HGTheme.surface)
+
+            Section {
+                HGSettingRow(icon: "sun.max.fill", tint: .orange, title: "环境光") {
+                    Picker("环境光", selection: $ambientLevel) {
+                        ForEach(DYVideoAmbient.levels, id: \.self) { Text(DYVideoAmbient.title($0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .accessibilityIdentifier("hg.settings.ambient")
+                }
+                HGSettingRow(icon: "text.bubble.fill", tint: .blue, title: "弹幕") {
+                    Toggle("弹幕", isOn: $danmakuOn).labelsHidden().tint(HGTheme.accent)
+                }
+                HGSettingRow(icon: "headphones", tint: .purple, title: "听书模式", subtitle: "退出 App 后继续播放声音") {
+                    Toggle("听书模式", isOn: $bgPlay).labelsHidden().tint(HGTheme.accent)
+                }
+            } header: { Text("播放") }
+            .listRowBackground(HGTheme.surface)
+
+            Section {
+                NavigationLink { DYStorageScreen() } label: {
+                    HGSettingRow(icon: "externaldrive.fill", tint: .green, title: "缓存管理", subtitle: "封面、播放缓存") {
+                        if let cacheBytes {
+                            Text(ByteCountFormatter.string(fromByteCount: cacheBytes, countStyle: .file))
+                                .font(.subheadline.monospacedDigit()).foregroundStyle(HGTheme.textSecondary)
+                        } else {
+                            ProgressView().controlSize(.small)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("hg.settings.cache")
+            } header: { Text("存储") }
+            .listRowBackground(HGTheme.surface)
+
             HGAboutSection()
+
             if signedIn {
-                Section { Button("退出红果账号", role: .destructive, action: onLogout).accessibilityIdentifier("hg.mine.logout") }
-                    .listRowBackground(HGTheme.surface)
+                Section {
+                    Button(role: .destructive, action: onLogout) {
+                        Text("退出红果账号").frame(maxWidth: .infinity)
+                    }
+                    .accessibilityIdentifier("hg.mine.logout")
+                }
+                .listRowBackground(HGTheme.surface)
             }
         }
         .scrollContentBackground(.hidden)
         .background(HGTheme.background)
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await loadCacheSize() }
+    }
+
+    /// 只算缓存（封面 + 播放缓存 + 半截下载），不含 App 本体
+    private func loadCacheSize() async {
+        guard let u = try? await DYStorageFiles.shared.scan() else { return }
+        cacheBytes = [.video, .images, .web].reduce(Int64(0)) { $0 + (u.categories[$1] ?? 0) }
+    }
+}
+
+/// 设置行：左彩色圆角图标块 + 标题 / 小字说明 + 右侧控件
+struct HGSettingRow<Trailing: View>: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    var subtitle: String? = nil
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 29, height: 29)
+                .background(tint.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body).foregroundStyle(HGTheme.textPrimary)
+                if let subtitle { Text(subtitle).font(.caption).foregroundStyle(HGTheme.textTertiary) }
+            }
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.vertical, 2)
     }
 }

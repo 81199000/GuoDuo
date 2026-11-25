@@ -233,9 +233,7 @@ struct HGSeriesReviewRow: View {
     var lines: Int? = nil
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            AsyncImage(url: review.avatar.flatMap(URL.init(string:))) { phase in
-                if case .success(let img) = phase { img.resizable().scaledToFill() } else { Circle().fill(HGTheme.surfaceHigh) }
-            }
+            HGCachedImage(url: review.avatar.flatMap(URL.init(string:))) { Circle().fill(HGTheme.surfaceHigh) }
             .frame(width: 30, height: 30).clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

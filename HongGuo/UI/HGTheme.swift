@@ -16,13 +16,10 @@ enum HGTheme {
 struct HGCover: View {
     let url: URL?
     var body: some View {
-        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
-            switch phase {
-            case .success(let image): image.resizable().scaledToFill()
-            default: Rectangle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "film").foregroundStyle(HGTheme.textTertiary))
-            }
-        }
-        .aspectRatio(3 / 4, contentMode: .fit)
+        // 本地缓存（HGImageCache）：翻回来 / 重开 App 不再重新加载
+        Color.clear
+            .overlay { HGCachedImage(url: url) { Rectangle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "film").foregroundStyle(HGTheme.textTertiary)) } }
+            .aspectRatio(3 / 4, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: HGTheme.radius, style: .continuous))
     }
 }

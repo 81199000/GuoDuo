@@ -494,10 +494,7 @@ struct HGBigCard: View {
 struct HGCoverFill: View {
     let url: URL?
     var body: some View {
-        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
-            if case .success(let image) = phase { image.resizable().scaledToFill() }
-            else { Rectangle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "film").foregroundStyle(HGTheme.textTertiary)) }
-        }
+        HGCachedImage(url: url) { Rectangle().fill(HGTheme.surfaceHigh).overlay(Image(systemName: "film").foregroundStyle(HGTheme.textTertiary)) }
     }
 }
 
