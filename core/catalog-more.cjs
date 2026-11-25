@@ -215,7 +215,7 @@ async function reviews({ sid, offset = 0, signal } = {}) {
     if (!text) return [];
     const ts = Number(c.create_timestamp) || 0;
     return [{ id: String(c.comment_id || `${ts}-${text.slice(0, 8)}`), author: cleanTitle(c.user_info?.user_name) || '红果用户',
-      avatar: catalogCover(c.user_info?.user_avatar || '') || undefined, content: text, created_at: ts, likes: Number(c.digg_count) || 0,
+      avatar: avatarUrl(c.user_info?.user_avatar) || undefined, content: text, created_at: ts, likes: Number(c.digg_count) || 0,
       score: Number(c.score) || 0 }];
   });
   const next = Number(d.next_offset) || 0;
@@ -223,6 +223,22 @@ async function reviews({ sid, offset = 0, signal } = {}) {
 }
 
 /** 分集评论（App 接口 /reading/ugc/novel_comment/item/v1/，同绿果TV）：每一集都能看，20 条一页往下翻 */
+// 头像接口给的是 HEIC（novel-static/…~tplv-obj.heic），catalogCover 只认 novel-pic 会丢掉 →
+// 换成同一张图的 JPEG 版（绿果 TV imgURL 同款：…~tplv-noop.jpeg，实测 200 image/jpeg）
+function avatarUrl(value) {
+  try {
+    const u = new URL(String(value || ''));
+    if (!/(^|\.)(fqnovelpic\.com|byteimg\.com)$/i.test(u.hostname)) return /^https:/.test(u.href) ? u.href : '';
+    for (const seg of ['/novel-static/', '/novel-pic/']) {
+      const i = u.pathname.indexOf(seg);
+      if (i < 0) continue;
+      const id = u.pathname.slice(i + seg.length).split(/[~.]/)[0];
+      if (/^[0-9a-f]{32}$/i.test(id)) return `https://p3-novel.byteimg.com/img${seg}${id}~tplv-noop.jpeg`;
+    }
+    return /\.heic$/i.test(u.pathname) ? '' : u.href.replace(/^http:/, 'https:');
+  } catch (_) { return ''; }
+}
+
 async function episodeComments({ sid, vid, offset = 0, signal } = {}) {
   const id = idOf(sid), v = idOf(vid);
   if (!id || !v) throw fail('分集编号无效', 'APP_INPUT');
@@ -233,8 +249,10 @@ async function episodeComments({ sid, vid, offset = 0, signal } = {}) {
   const items = (Array.isArray(d.comment) ? d.comment : []).flatMap(c => {
     const text = cleanTitle(c?.text);
     if (!text) return [];
-    const ts = Number(c.create_timestamp) || 0;
-    return [{ author: cleanTitle(c.user_info?.user_name) || '红果用户', avatar: catalogCover(c.user_info?.user_avatar || '') || undefined,
+    // 接口给的是秒，界面按毫秒算（之前显示成 1970 年）
+    let ts = Number(c.create_timestamp) || 0;
+    if (ts > 0 && ts < 1e11) ts *= 1000;
+    return [{ author: cleanTitle(c.user_info?.user_name) || '红果用户', avatar: avatarUrl(c.user_info?.user_avatar) || undefined,
       content: text, created_at: ts, likes: Number(c.digg_count) || 0, replies: Number(c.reply_count) || 0 }];
   });
   const next = Number(d.next_offset) || 0;

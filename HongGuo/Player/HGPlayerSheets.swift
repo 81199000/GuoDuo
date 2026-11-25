@@ -127,7 +127,7 @@ private struct HGReviewRow: View {
             AsyncImage(url: review.avatar.flatMap(URL.init(string:))) { img in img.resizable().scaledToFill() } placeholder: { Color.primary.opacity(0.08) }
                 .frame(width: 32, height: 32).clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
-                Text(review.author.isEmpty ? "红果用户" : review.author).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(review.author.isEmpty ? "红果用户" : review.author).font(.caption.weight(.semibold)).foregroundStyle(.primary.opacity(0.72))
                 Text(review.content).font(.subheadline).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
                 if let t = review.created_at { Text(Self.time(t / 1000)).font(.caption2).foregroundStyle(.secondary) }
             }

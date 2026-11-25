@@ -26,6 +26,7 @@ final class HGCommentsAllEpisodesTests: XCTestCase {
         let title = app.staticTexts["hg.comments.title"].label
         let rows = app.descendants(matching: .any)["hg.comments.list"].staticTexts.count
         print("CMT10 title=\(title) texts=\(rows)")
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "comments"; shot.lifetime = .keepAlways; add(shot)
         XCTAssertGreaterThan(rows, 6, "第 10 集评论没出来")
     }
 }
