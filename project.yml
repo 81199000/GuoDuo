@@ -6,7 +6,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: 1.0.0
+    MARKETING_VERSION: 1.0.1
     CURRENT_PROJECT_VERSION: "42"
     SWIFT_VERSION: "5.0"
     # 编译产物里只留相对路径（#file / 断言 / 调试信息），不写入本机用户目录
