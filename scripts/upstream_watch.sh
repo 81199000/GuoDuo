@@ -2,7 +2,7 @@
 # 定时看上游 hongguo-drama 有没有更新；有就自动同步 + 实测，按结果通知老板。
 #   scripts/upstream_watch.sh            同步 + 实测 + 本地提交，通知老板，等老板说「发」
 #   scripts/upstream_watch.sh --release  实测通过就直接发版（升补丁版本号 → 写更新说明 → release.sh）
-# 由 jibao cron 每小时 :17 跑一次（scripts/）。
+# 可放进定时任务（例如每小时跑一次）。
 # 跑完同步后接着跑 scripts/ref_watch.py：盯参考源绿果TV + 自身取源健康（红果改签名时上游没提交也能发现）。
 # 输出最后一行是给通知用的一句话摘要（以 NOTIFY: 开头）；没有更新时不输出 NOTIFY，保持安静。
 set -u
