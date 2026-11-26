@@ -364,7 +364,16 @@ final class HGPlaybackSession {
     private func load(_ i: Int, at offset: Double) {
         switchT0 = CACurrentMediaTime()
         loadTask?.cancel()
-        index = i; failed = nil; status = "正在获取片源…"
+        index = i; failed = nil
+        // 有首帧海报就先不出转圈（缓存命中时零点几秒就接上，转圈一闪而过就是「闪一下」）；0.6 秒还没好再显示
+        status = posters[episodes[i].vid] == nil ? "正在获取片源…" : nil
+        if status == nil {
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard let self, self.index == i, !self.frameReady, self.failed == nil, self.player.currentItem == nil else { return }
+                self.status = "正在加载…"
+            }
+        }
         position = 0; duration = 0; danmaku = []; danmakuNotice = nil; frameReady = false; displayReady = false
         aheadTask?.cancel()
         player.pause()
@@ -383,7 +392,7 @@ final class HGPlaybackSession {
                 // 边下边播：文件头一到就开播（HGStream.swift）；整集已在缓存就直接放本地文件
                 let playable = try await HGMediaCache.shared.stream(for: vid) { phase in
                     Task { @MainActor in
-                        guard let self, self.index == i, self.status != nil else { return }
+                        guard let self, self.index == i, self.player.currentItem == nil, self.status != nil else { return }
                         switch phase {
                         case .resolving: self.status = "正在获取片源…"
                         case .downloading(let p): self.status = p > 0 ? "正在加载 \(Int(p * 100))%" : "正在加载…"
@@ -401,12 +410,7 @@ final class HGPlaybackSession {
                     let loader = HGStreamLoader(job)
                     self.streamLoader = loader
                     self.attach(loader.makeAsset(), offset: offset)
-                    // 这集下完再预下后面的，别跟正在播的抢带宽
-                    Task { [weak self] in
-                        _ = try? await job.finishedFile()
-                        guard let self, !Task.isCancelled, self.index == i else { return }
-                        self.prefetchAhead(from: i)
-                    }
+                    self.prefetchAhead(from: i)
                 }
             } catch {
                 guard let self, !Task.isCancelled, self.index == i else { return }
@@ -419,6 +423,7 @@ final class HGPlaybackSession {
     }
 
     /// 预下后面几集 + 取首帧海报（推荐流每部只放第 1 集，不预下）
+    /// 边下边播后：海报只要下一集的文件头 + 第一帧那点数据就能出，不等整集；一集下完再下下一集，不跟正在看的抢带宽
     private func prefetchAhead(from i: Int) {
         aheadTask?.cancel()
         guard !feedMode else { return }
@@ -426,22 +431,32 @@ final class HGPlaybackSession {
         let keep = Set([episodes[i].vid] + vids)
         posters = posters.filter { keep.contains($0.key) }
         aheadTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(1200))   // 先让本集起播、缓冲一点
             for vid in vids {
                 // 取消只是不再等，缓存里的下载照常跑完
-                guard let file = try? await HGMediaCache.shared.file(for: vid), !Task.isCancelled else { return }
-                await self?.preparePoster(vid, file: file)
+                guard !Task.isCancelled, let playable = try? await HGMediaCache.shared.stream(for: vid) else { return }
+                await self?.preparePoster(vid, playable: playable)
+                if case .stream(let job) = playable { _ = try? await job.finishedFile() }
             }
         }
     }
 
-    private func preparePoster(_ vid: String, file: URL) async {
+    private func preparePoster(_ vid: String, playable: HGMediaCache.Playable) async {
         guard posters[vid] == nil else { return }
-        let gen = AVAssetImageGenerator(asset: AVURLAsset(url: file))
+        var loader: HGStreamLoader?
+        let asset: AVURLAsset
+        switch playable {
+        case .file(let url): asset = AVURLAsset(url: url)
+        case .stream(let job): let l = HGStreamLoader(job); loader = l; asset = l.makeAsset()
+        }
+        let gen = AVAssetImageGenerator(asset: asset)
         gen.appliesPreferredTrackTransform = true
         gen.maximumSize = CGSize(width: 1080, height: 1080)
         gen.requestedTimeToleranceBefore = .zero
         gen.requestedTimeToleranceAfter = CMTime(seconds: 0.1, preferredTimescale: 600)
-        guard let (cg, _) = try? await gen.image(at: .zero), !Task.isCancelled else { return }
+        let got = try? await gen.image(at: .zero)
+        withExtendedLifetime(loader) {}
+        guard let (cg, _) = got, !Task.isCancelled else { return }
         posters[vid] = UIImage(cgImage: cg)
     }
 

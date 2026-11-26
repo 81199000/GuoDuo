@@ -331,9 +331,14 @@ struct HGPlayerScreen: View {
                              onReadyForDisplay: { [session] in session.setDisplayReady($0) })
                     .scaleEffect(userScale * pinchScale)
                     .clipped()
-                // 第一帧出来之前盖着预取的首帧：滑过来不黑屏、不像卡住
-                if !session.displayReady, let poster = session.posters[ep.vid] {
-                    posterView(poster, size: size).allowsHitTesting(false)
+                // 第一帧出来之前盖着预取的首帧：滑过来不黑屏、不像卡住；
+                // 没有首帧就继续显示滑动途中那张模糊封面（以前这里是纯黑，落地那一下从封面跳成黑屏 = 闪）
+                if !session.displayReady {
+                    if let poster = session.posters[ep.vid] {
+                        posterView(poster, size: size).allowsHitTesting(false)
+                    } else {
+                        HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
+                    }
                 }
                 if danmakuOn && !clean && (!consoleShown || !danmakuInConsole) {
                     DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop, fullPane: consoleShown)
