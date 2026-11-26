@@ -357,6 +357,11 @@ globalThis.HG = {
     const cookie = await accountCookie();
     return accountFeed.addComment({ cookie, sid, vid, text });
   }); },
+  // 手机扫电视登录码：扫码 → 确认（只把本机 cookie 发给红果）
+  tvLoginScan(callId, text) { wrap(callId, async () => accountFeed.tvLoginScan({ cookie: await accountCookie(), text })); },
+  tvLoginConfirm(callId, token, csrfToken, csrfTs) { wrap(callId, async () =>
+    accountFeed.tvLoginConfirm({ cookie: await accountCookie(), token, csrf_token: csrfToken, csrf_ts: csrfTs })); },
+  isLoginQR(callId, text) { wrap(callId, async () => ({ ok: !!accountFeed.parseLoginQR(text) })); },
   postDanmaku(callId, sid, vid, text, offsetMs) { wrap(callId, async () => {
     const cookie = await accountCookie();
     return accountFeed.addDanmaku({ cookie, sid, vid, text, offsetMs });

@@ -14,6 +14,9 @@ struct HGTVRemoteView: View {
     @State private var password = ""
     @State private var busy = false
     @State private var open: HGRemoteTV?
+    /// 扫到电视登录码：确认卡
+    @State private var ticket: HGTVLoginTicket?
+    @State private var loginNote: String?
     /// 我的电视在不在线（逐台探 /api/pair/info）
     @State private var online: [String: Bool] = [:]
 
@@ -22,7 +25,7 @@ struct HGTVRemoteView: View {
             Section {
                 Button { scanning = true } label: {
                     HGSettingRow(icon: "qrcode.viewfinder", tint: HGTheme.accent, title: "扫电视上的二维码",
-                                 subtitle: "电视首页右上角「手机遥控」，或 设置 → 遥控 → 连接手机") { EmptyView() }
+                                 subtitle: "遥控码：电视首页右上角「手机遥控」\n登录码：电视的登录页，扫完用手机账号直接登录电视") { EmptyView() }
                 }
                 .accessibilityIdentifier("hg.tvr.scan")
             } footer: { Text("手机和电视要在同一个 Wi‑Fi。电视上要先装好 GuoDuo TV（我的 → 设置 → 安装到电视）。") }
@@ -93,7 +96,7 @@ struct HGTVRemoteView: View {
         .sheet(isPresented: $scanning) {
             HGQRScanner { text in
                 scanning = false
-                Task { await connectAddress(text) }
+                Task { await handleScan(text) }
             }
             .ignoresSafeArea()
         }
@@ -103,6 +106,18 @@ struct HGTVRemoteView: View {
             Button("连接") { if let tv = pairing { Task { await bind(tv, password: password) } } }
         } message: { Text("这台电视设了遥控密码") }
         .navigationDestination(item: $open) { HGTVRemotePad(tv: $0) }
+        .sheet(item: $ticket) { t in
+            HGTVLoginConfirmSheet(ticket: t) { result in ticket = nil; loginNote = result }
+                .presentationDetents([.height(330)])
+        }
+        .alert(loginNote ?? "", isPresented: Binding(get: { loginNote != nil }, set: { if !$0 { loginNote = nil } })) { Button("好") {} }
+    }
+
+    /// 扫码：红果登录码 → 手机账号确认登录电视；否则当遥控地址
+    private func handleScan(_ text: String) async {
+        guard await HGAPI.isLoginQR(text) else { await connectAddress(text); return }
+        busy = true; defer { busy = false }
+        do { ticket = try await HGAPI.tvLoginScan(text) } catch { loginNote = error.localizedDescription }
     }
 
     private func connectAddress(_ text: String) async {
@@ -359,5 +374,47 @@ struct HGQRScanner: UIViewControllerRepresentable {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             onCode?(s)
         }
+    }
+}
+
+
+/// 扫到电视登录码后：「用这个账号登录电视？」确认（红果官方扫码登录同一流程）
+struct HGTVLoginConfirmSheet: View {
+    let ticket: HGTVLoginTicket
+    let done: (String?) -> Void
+    @State private var busy = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "tv.and.mediabox").font(.system(size: 40)).foregroundStyle(HGTheme.textPrimary).padding(.top, 26)
+            Text("登录电视上的 GuoDuo TV").font(.title3.weight(.bold)).foregroundStyle(HGTheme.textPrimary)
+            Text("用手机这个红果账号登录「\(ticket.title)」。登录后电视有自己的会话，手机不受影响。")
+                .font(.subheadline).foregroundStyle(HGTheme.textSecondary).multilineTextAlignment(.center).padding(.horizontal, 24)
+            if let error { Text(error).font(.footnote).foregroundStyle(HGTheme.accent) }
+            HStack(spacing: 12) {
+                Button { done(nil) } label: {
+                    Text("取消").frame(maxWidth: .infinity, minHeight: 46)
+                        .background(HGTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(HGTheme.textPrimary)
+                }
+                Button { Task { await confirm() } } label: {
+                    Group { if busy { ProgressView().tint(.black) } else { Text("确认登录").fontWeight(.semibold) } }
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(.black)
+                }
+                .disabled(busy)
+                .accessibilityIdentifier("hg.tvlogin.confirm")
+            }
+            .buttonStyle(.plain).padding(.horizontal, 20)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(HGTheme.surface)
+    }
+
+    private func confirm() async {
+        busy = true; defer { busy = false }
+        do { try await HGAPI.tvLoginConfirm(ticket); done("电视已登录，稍等几秒电视会自动进入首页") }
+        catch { self.error = error.localizedDescription }
     }
 }

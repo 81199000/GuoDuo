@@ -333,4 +333,58 @@ async function addDanmaku({ cookie, sid, vid, text, offsetMs, signal } = {}) {
   throw last;
 }
 
-module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity, addComment, addDanmaku };
+// ---------- 手机扫电视登录码（2026-11-26 老板：扫码直接登录电视）----------
+// 电视 GuoDuo TV 的登录码是红果官网扫码登录（hongguoduanju.com get_qrcode，二维码内容 = reading.snssdk.com/…/scan-code.html?token=…&qr_source_aid=513755）。
+// 红果 App 扫到后做两步（APK dh1/c + 页面 scan-code.js 6747 模块）：
+//   1. GET  /passport/mobile/scan_qrcode/?aid=8662&token=   → 电视那边变「已扫码」，返回来源（网页名）和 confirmed_url（带 csrf_token/csrf_ts）
+//   2. POST /passport/mobile/confirm_qrcode/?…  {aid, token, decision:0, csrf_token, csrf_ts} → 电视那边「已确认」，拿到它自己的新会话
+// 只带本机登录 cookie 发给红果，cookie 不经过电视、不进日志。
+const PASSPORT = 'https://api5-normal-sinfonlineb.fqnovel.com';
+function parseLoginQR(text) {
+  let u; try { u = new URL(String(text || '').trim()); } catch (_) { return null; }
+  if (!/(^|\.)snssdk\.com$|(^|\.)hongguoduanju\.com$|(^|\.)fqnovel\.com$/i.test(u.hostname)) return null;
+  const token = u.searchParams.get('token') || '';
+  if (!/^[A-Za-z0-9_\-]{8,80}$/.test(token)) return null;
+  return { token, sourceAid: u.searchParams.get('qr_source_aid') || '' };
+}
+async function passportCall(cookie, path, query, body, signal) {
+  const axios = require('axios');
+  const id = loginIdentity || await getPlaybackDevice(requestJson, { signal });
+  const q = new URLSearchParams({ aid: '8662', device_id: id.device_id || '', iid: id.iid || '', device_platform: 'android', app_name: 'novelread', ...query });
+  const r = await axios({ url: `${PASSPORT}${path}?${q}`, method: body ? 'POST' : 'GET', data: body ? new URLSearchParams(body).toString() : undefined,
+    headers: { 'User-Agent': WRITE_UA, Cookie: cookie, 'Passport-Sdk-Version': '50561', 'X-SS-DP': '8662', Accept: 'application/json',
+      ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
+    timeout: 12000, responseType: 'text', transformResponse: [d => d], validateStatus: () => true, signal })
+    .catch(() => { throw fail('网络连接失败，请稍后重试', 'NETWORK'); });
+  let j = null; try { j = JSON.parse(r.data); } catch (_) {}
+  if (!j) throw fail(`红果没有返回（HTTP ${r.status}）`, 'HTTP');
+  const d = j.data || {};
+  Native.log?.(`tvlogin ${path.split('/')[3]} msg=${j.message} code=${d.error_code ?? ''}`);
+  if (j.message !== 'success') {
+    const desc = String(d.description || '');
+    if (d.error_code === 1071 || /过期/.test(desc)) throw fail('二维码已过期，请在电视上刷新后重扫', 'EXPIRED');
+    if (d.error_code === 1073 || /未登录/.test(desc)) throw fail('手机还没登录红果账号（我的 → 登录）', 'NOT_LOGGED_IN');
+    throw fail(desc || '红果拒绝了这次登录', 'PASSPORT');
+  }
+  return d;
+}
+/** 第 1 步：扫码（电视上会显示「已扫码，请在手机确认」） */
+async function tvLoginScan({ cookie, text, signal }) {
+  if (!cookie) throw fail('手机还没登录红果账号（我的 → 登录）', 'NOT_LOGGED_IN');
+  const qr = parseLoginQR(text);
+  if (!qr) throw fail('这不是红果登录二维码', 'NOT_LOGIN_QR');
+  const d = await passportCall(cookie, '/passport/mobile/scan_qrcode/', { token: qr.token }, null, signal);
+  let csrf = {};
+  try { const cu = new URL(String(d.confirmed_url || ''), 'https://x/'); csrf = { csrf_token: cu.searchParams.get('csrf_token') || '', csrf_ts: cu.searchParams.get('csrf_ts') || '' }; } catch (_) {}
+  const src = d.source || {};
+  return { token: qr.token, title: String(src.title || d.app_name || d.web_name || '网页'), desc: String(src.des || ''), ...csrf };
+}
+/** 第 2 步：确认登录（decision 0 = 同意） */
+async function tvLoginConfirm({ cookie, token, csrf_token, csrf_ts, signal }) {
+  if (!cookie) throw fail('手机还没登录红果账号（我的 → 登录）', 'NOT_LOGGED_IN');
+  const body = { aid: '8662', token, decision: '0', csrf_token: csrf_token || '', csrf_ts: csrf_ts || '' };
+  await passportCall(cookie, '/passport/mobile/confirm_qrcode/', body, body, signal);
+  return { ok: true };
+}
+
+module.exports = { forYou, historyAll, favorites, collectDramas, keepAlive, profile, reservations, useIdentity, addComment, addDanmaku, tvLoginScan, tvLoginConfirm, parseLoginQR };

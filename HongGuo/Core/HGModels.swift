@@ -365,6 +365,18 @@ enum HGAPI {
         guard let id = r.series_id, let c = r.cover, !c.isEmpty else { return nil }
         return HGSeries(series_id: id, series_title: title, cover: c, episode_count: r.episode_count)
     }
+    /// 手机扫电视登录码：第 1 步扫码（电视显示「已扫码」），返回要登录的来源和 csrf
+    static func tvLoginScan(_ text: String) async throws -> HGTVLoginTicket {
+        try core.decode(HGTVLoginTicket.self, try await core.call("tvLoginScan", [text]))
+    }
+    /// 第 2 步：确认登录
+    static func tvLoginConfirm(_ t: HGTVLoginTicket) async throws {
+        _ = try await core.call("tvLoginConfirm", [t.token, t.csrf_token ?? "", t.csrf_ts ?? ""])
+    }
+    static func isLoginQR(_ text: String) async -> Bool {
+        struct R: Codable { let ok: Bool }
+        return (try? core.decode(R.self, try await core.call("isLoginQR", [text])).ok) ?? false
+    }
     static func seriesInfo(_ sid: String) async throws -> HGSeriesInfo { try core.decode(HGSeriesInfo.self, try await core.call("seriesInfo", [sid])) }
     static func seasons(_ sid: String, album: String?) async throws -> HGSeasons {
         try core.decode(HGSeasons.self, try await core.call("seasons", [sid, album ?? ""]))
@@ -396,4 +408,15 @@ struct HGSuggestItem: Codable, Hashable, Identifiable {
     var abstract: String?
     var episodes: Int?
     var id: String { text }
+}
+
+
+/// 扫到的电视登录码（红果网页扫码登录）
+struct HGTVLoginTicket: Codable, Identifiable, Equatable {
+    let token: String
+    let title: String
+    var desc: String?
+    var csrf_token: String?
+    var csrf_ts: String?
+    var id: String { token }
 }
