@@ -178,13 +178,10 @@ python3 scripts/upstream_sync.py           # 同步 → 打本地补丁 → 构�
 
 - 用到的上游文件和本地改动都登记在脚本里的 `FILES` / `PATCHES`。改了上游文件的本地写法，**必须同步登记到 `PATCHES`**，否则下次同步会被上游原文覆盖。
 - 补丁打不上（上游改到同一处），或实测取源成功率低于 80% 时，脚本会自动还原、不提交，交给人处理。
-- `scripts/upstream_watch.sh --release` 可由定时任务每小时跑一次：上游有更新就同步、实测，实测通过后直接发版。
 
-## 发版（维护者）
+## 发版
 
-1. 升 `project.yml` 的 `MARKETING_VERSION`
-2. 写 `docs/releases/v<版本>.md`（App 内更新弹窗直接显示它的内容）
-3. 提交并推送后运行 `./release.sh`：编译未签名 IPA，发布 GitHub Release，并同步 oneduo.app 软件源
+发版（出包、上传发行版、更新软件源）由维护者在本机完成，发版脚本不在开源仓库里。想自己装，按上面「构建」编译即可；新版本见 [Releases](https://github.com/81199000/GuoDuo/releases)。
 
 ## 免责声明
 
