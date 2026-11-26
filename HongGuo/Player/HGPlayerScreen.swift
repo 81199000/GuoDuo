@@ -71,6 +71,8 @@ struct HGPlayerScreen: View {
     @State private var commentsInPane = false
     /// 桌面姿态操作台在：弹幕搬到操作台上，视频上不再画
     @State private var consoleShown = false
+    /// 转屏后一小段时间内，滚动位置变化不当成翻页
+    @State private var resizeGuard = Date.distantPast
     @AppStorage("hg.deskLight") private var deskLight = true
     /// 桌面姿态弹幕位置：false = 影片区（上半屏），true = 触控区（下半屏）
     @AppStorage("hg.danmaku.inConsole") private var danmakuInConsole = false
@@ -91,7 +93,7 @@ struct HGPlayerScreen: View {
     private let feed: HGFeedHooks?
 
     init(request: HGPlayerRequest) {
-        _session = State(initialValue: HGPlaybackSession(request))
+        _session = State(initialValue: HGPlaybackSession.session(for: request))
         _page = State(initialValue: request.index)
         feed = nil
     }
@@ -236,7 +238,7 @@ struct HGPlayerScreen: View {
         }
         .onAppear { HGOrientation.playerAppeared() }
         .onDisappear {
-            if feed == nil { session.stop() }
+            if feed == nil { session.hide() }
             HGOrientation.playerDisappeared()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -293,7 +295,20 @@ struct HGPlayerScreen: View {
             .background(Color.black)
             .offset(x: edgeOffset)
             // 翻页即切集：下一集的播放器早已挂在它那一页上，切集只是转正，不拆不装
-            .onChange(of: page) { _, p in if let p, p != session.index { session.go(to: p) } }
+            .onChange(of: page) { _, p in
+                guard let p, p != session.index else { return }
+                // 刚转屏：页高变了，滚动位置会落到别的页上，不是用户翻页——滚回当前集，不切
+                if Date() < resizeGuard {
+                    HGTrace.log("转屏中 page \(p) ≠ ep\(session.index + 1)，滚回去不切集")
+                    proxy.scrollTo(session.index, anchor: .top); page = session.index; return
+                }
+                session.go(to: p)
+            }
+            .onChange(of: geo.size) { _, s in
+                resizeGuard = Date().addingTimeInterval(0.8)
+                HGTrace.log("pager 尺寸变了 \(Int(s.width))x\(Int(s.height))，停在 ep\(session.index + 1)")
+                proxy.scrollTo(session.index, anchor: .top); page = session.index
+            }
             .onChange(of: session.index) { _, i in if page != i { withAnimation(.easeInOut(duration: 0.3)) { page = i } } }
             // scrollPosition 的初值对 LazyVStack 不生效：首帧后显式滚到起始集
             .onAppear { proxy.scrollTo(session.index, anchor: .top); page = session.index }

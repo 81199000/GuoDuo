@@ -186,7 +186,22 @@ final class HGPlaybackSession {
     private static let aheadCount = 2
     private var primeObs: NSKeyValueObservation?
 
+    /// 同一次「点播放」（同一个 request）只建一个会话：横竖屏切换时 SwiftUI 可能把播放页重建一遍，
+    /// 重建后的页拿回同一个会话接着放，不会从 request 的起点重新开始（老板：外屏横过来总是从头播）
+    private static var live: [UUID: HGPlaybackSession] = [:]
+    static func session(for r: HGPlayerRequest) -> HGPlaybackSession {
+        if let s = live[r.id] {
+            HGTrace.log("session 复用 ep\(s.index + 1) pos=\(Int(s.position))")
+            return s
+        }
+        let s = HGPlaybackSession(r)
+        live[r.id] = s
+        return s
+    }
+    private var requestID: UUID?
+
     init(_ r: HGPlayerRequest, feedMode: Bool = false) {
+        requestID = feedMode ? nil : r.id
         self.feedMode = feedMode
         series = r.series; episodes = r.episodes; index = r.index; startAt = r.startAt
         player.automaticallyWaitsToMinimizeStalling = false
@@ -260,9 +275,39 @@ final class HGPlaybackSession {
     var effectiveRate: Float { boosting || lockedBoost ? 2 : library.rate }
 
     private var started = false
+    private var stopped = false
+    private var pendingStop: Task<Void, Never>?
+    private var playingBeforeHide = false
+
+    /// 播放页消失：可能只是横竖屏切换时重建（马上又出现），先停声音，0.6 秒内没回来才真正停掉
+    func hide() {
+        playingBeforeHide = isPlaying
+        player.pause()
+        pendingStop?.cancel()
+        pendingStop = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard let self, !Task.isCancelled else { return }
+            self.pendingStop = nil
+            self.stop()
+        }
+    }
+
     func start() {
+        // 刚 hide 又回来（横竖屏切换重建播放页）：接着放，不重新装片源、不回到起点
+        if let p = pendingStop {
+            p.cancel(); pendingStop = nil
+            HGTrace.log("player 重新出现 ep\(index + 1) pos=\(Int(position))，接着放")
+            if playingBeforeHide { player.playImmediately(atRate: effectiveRate); isPlaying = true }
+            return
+        }
+        if started, !stopped, player.currentItem != nil {
+            HGTrace.log("player 已在放 ep\(index + 1) pos=\(Int(position))，不重载")
+            return
+        }
         // 第二次 start（推荐页切 tab 回来）：从停下的位置接着放
         let resumeAt = started && position > 1 ? position : startAt
+        HGTrace.log("player start ep\(index + 1) at=\(Int(resumeAt)) again=\(started)")
+        stopped = false
         if started { attachObservers() }
         started = true
         load(index, at: resumeAt)
@@ -383,6 +428,10 @@ final class HGPlaybackSession {
     }
 
     func stop() {
+        pendingStop?.cancel(); pendingStop = nil
+        stopped = true
+        if let requestID { Self.live[requestID] = nil }
+        HGTrace.log("player stop ep\(index + 1) pos=\(Int(position))")
         save(force: true)
         loadTask?.cancel(); danmakuTask?.cancel(); aheadTask?.cancel()
         primeObs?.invalidate(); primeObs = nil
