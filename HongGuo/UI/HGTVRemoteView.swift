@@ -5,6 +5,9 @@ import AVFoundation
 import UIKit
 
 struct HGTVRemoteView: View {
+    /// 从「扫一扫」进来：带着扫到的内容（登录码 / 遥控地址），打开就处理
+    var initialScan: String? = nil
+    @State private var handledInitial = false
     @State private var store = HGTVStore.shared
     @State private var browser = HGTVRemoteBrowser()
     @State private var manual = ""
@@ -82,9 +85,12 @@ struct HGTVRemoteView: View {
         }
         .scrollContentBackground(.hidden)
         .background(HGTheme.background)
-        .navigationTitle("电视遥控")
+        .navigationTitle("连接遥控器")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { browser.start() }
+        .onAppear {
+            browser.start()
+            if let t = initialScan, !handledInitial { handledInitial = true; Task { await handleScan(t) } }
+        }
         .task(id: store.devices.map(\.id)) {
             for tv in store.devices {
                 let ok = (try? await HGTVClient(tv: tv).info()) != nil

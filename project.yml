@@ -46,6 +46,14 @@ targets:
         UIBackgroundModes: [audio]
         CADisableMinimumFrameDurationOnPhone: true
         NSBonjourServices: ["_adb._tcp", "_guoduo._tcp"]
+        # 长按 App 图标的菜单
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: me.rrmm.hongguo.scan
+            UIApplicationShortcutItemTitle: 扫一扫
+            UIApplicationShortcutItemIconSymbolName: qrcode.viewfinder
+          - UIApplicationShortcutItemType: me.rrmm.hongguo.remote
+            UIApplicationShortcutItemTitle: 连接遥控器
+            UIApplicationShortcutItemIconSymbolName: appletvremote.gen4
         # GuoDuo TV 遥控接口是局域网 http（电视上跑的小服务），只放开本地网络，公网仍强制 https
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

@@ -84,6 +84,15 @@ struct HGMineView: View {
                     }
                 }
                 Spacer(minLength: 0)
+                // 2026-11-26 老板：扫一扫放到「我的」右上，不用钻进设置
+                Button { HGRootRouter.shared.scan() } label: {
+                    Image(systemName: "qrcode.viewfinder").font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(HGTheme.textPrimary)
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("扫一扫")
+                .accessibilityIdentifier("hg.mine.scan")
             }
             if signedIn {
                 HStack(alignment: .bottom, spacing: 22) {
@@ -802,7 +811,7 @@ struct HGMineSettings: View {
             // 乌力 wuli-tv-install：手机经 ADB 把电视版 APK 推到家里的安卓电视
             Section {
                 NavigationLink { HGTVRemoteView() } label: {
-                    HGSettingRow(icon: "appletvremote.gen4.fill", tint: .indigo, title: "电视遥控", subtitle: "扫码 / 局域网连接 GuoDuo TV，手机电视互相接着看") { EmptyView() }
+                    HGSettingRow(icon: "appletvremote.gen4.fill", tint: .indigo, title: "连接遥控器", subtitle: "扫码 / 局域网连接 GuoDuo TV，手机电视互相接着看") { EmptyView() }
                 }
                 .accessibilityIdentifier("hg.mine.tvRemote")
                 NavigationLink { HGTVInstallView() } label: {

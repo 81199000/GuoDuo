@@ -42,6 +42,7 @@
 		8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */; };
 		8B1F4A352F1F2FC60D83C550 /* HGTVInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048C67C1934CE5DEC810E132 /* HGTVInstall.swift */; };
 		8ECAFF4624F9CCE8FD289F6A /* HGTVRemote.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD354C7ABBE15B7C3EAD651 /* HGTVRemote.swift */; };
+		92A75B1859BC80A63EF8B4E8 /* HGScanEntryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AECE46B4B0D3DD27D7CEBB4 /* HGScanEntryTests.swift */; };
 		94479E4BB06CF2766D555764 /* DYLiveAdaptiveLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DFA72E179AE3048563564E6 /* DYLiveAdaptiveLayout.swift */; };
 		98593D4B63D69AC788870483 /* HGTVRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBBB890687084FA4F26BCCCF /* HGTVRemoteTests.swift */; };
 		9BBD61815E1592F7C5DC00E1 /* HGUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609E80C9D6B93455E1199D05 /* HGUpdateViews.swift */; };
@@ -100,6 +101,7 @@
 		124F71EBC35D4FE5E4D7A4AD /* DYPictureInPicture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DYPictureInPicture.swift; sourceTree = "<group>"; };
 		13E90C0DB3E0CB3C06EBC423 /* HGConsolePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGConsolePane.swift; sourceTree = "<group>"; };
 		183665EC0E204BCC466345E5 /* HGTVRemoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTVRemoteView.swift; sourceTree = "<group>"; };
+		1AECE46B4B0D3DD27D7CEBB4 /* HGScanEntryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGScanEntryTests.swift; sourceTree = "<group>"; };
 		1C4D0587E49A31FF6A753654 /* HGStorageScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGStorageScreen.swift; sourceTree = "<group>"; };
 		1FCB4AE89C633049C3792826 /* HGModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGModels.swift; sourceTree = "<group>"; };
 		1FDB66150233E1A33BA3F29F /* HGMenuMorphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMenuMorphTests.swift; sourceTree = "<group>"; };
@@ -240,6 +242,7 @@
 				DC347922F734F03DCC9EC290 /* HGPhoneSendProbe.swift */,
 				734656AB064DDD880E3510F9 /* HGPostureTests.swift */,
 				AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */,
+				1AECE46B4B0D3DD27D7CEBB4 /* HGScanEntryTests.swift */,
 				AE942EB67A82278C34B082C2 /* HGSearchSuggestTests.swift */,
 				2AD2E0E242EC2112B6AA43B1 /* HGSettingsShots.swift */,
 				2DC3F9242FACD60B82125A86 /* HGSwipeTiming.swift */,
@@ -460,6 +463,7 @@
 				A36C4D3A29D503B6A5EFBFEA /* HGPhoneSendProbe.swift in Sources */,
 				C112F43131630C8E740D19F9 /* HGPostureTests.swift in Sources */,
 				19FC9B42D5463244E12BAF0A /* HGRailMeasure.swift in Sources */,
+				92A75B1859BC80A63EF8B4E8 /* HGScanEntryTests.swift in Sources */,
 				F2FA82A9B57AEF9335238CC0 /* HGSearchSuggestTests.swift in Sources */,
 				0B7BC8918EB3177B3DCE9342 /* HGSettingsShots.swift in Sources */,
 				7DBC9E95A4F4B7FD4D9EFE2D /* HGSwipeTiming.swift in Sources */,

@@ -1,6 +1,11 @@
 import SwiftUI
 
 final class HGAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let c = UISceneConfiguration(name: nil, sessionRole: session.role)
+        c.delegateClass = HGSceneDelegate.self
+        return c
+    }
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         // 普通 iPhone：播放页在屏上时跟重力感应横竖转，其他页面竖屏；iPad 不限制。
         if UIDevice.current.userInterfaceIdiom == .pad { return .all }
@@ -84,6 +89,53 @@ struct HGSideTabRail: View {
     /// 推荐页横屏返回键 → 切到发现
     var tabRequest: HGRootTab?
     func go(_ t: HGRootTab) { tabRequest = t }
+
+    /// 扫一扫（「我的」右上 / 长按 App 图标）：全屏扫码，扫完按内容分流
+    var scanning = false
+    /// 连接遥控器页（带扫到的内容 = 登录码 / 遥控地址）
+    var remote: HGRemoteSheet?
+    /// 扫到红果分享链接：打开这部剧
+    var detail: HGSeries?
+    var scanNote: String?
+    func scan() { scanning = true }
+    func openRemote(_ scanned: String? = nil) { remote = HGRemoteSheet(scanned: scanned) }
+
+    /// 扫到的内容：红果登录码 / 果多 TV 遥控地址 → 连接遥控器页；红果分享链接 → 打开剧；其它提示
+    func handle(_ text: String) async {
+        if await HGAPI.isLoginQR(text) || hgParseRemoteAddress(text) != nil { openRemote(text); return }
+        if text.contains("http") || text.contains("hongguo") || text.contains("红果") {
+            if let id = try? await HGAPI.resolveShare(text), let d = try? await HGAPI.detail(id) {
+                detail = HGSeries(series_id: d.series_id, series_title: d.series_title, cover: d.cover, episode_count: d.episodes.count, description: d.description)
+                return
+            }
+        }
+        scanNote = "认不出这个二维码。能扫：电视上的遥控码 / 登录码、红果分享链接"
+    }
+}
+
+struct HGRemoteSheet: Identifiable { let id = UUID(); let scanned: String? }
+
+/// 长按 App 图标的快捷菜单：扫一扫 / 连接遥控器（Info.plist UIApplicationShortcutItems）
+enum HGShortcut {
+    static let scan = "me.rrmm.hongguo.scan"
+    static let remote = "me.rrmm.hongguo.remote"
+    @MainActor static func perform(_ type: String) {
+        if type == scan { HGRootRouter.shared.scan() }
+        else if type == remote { HGRootRouter.shared.openRemote() }
+    }
+}
+
+final class HGSceneDelegate: NSObject, UIWindowSceneDelegate {
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
+        // 冷启动从快捷菜单进来：等首页挂好再弹
+        if let item = options.shortcutItem {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { MainActor.assumeIsolated { HGShortcut.perform(item.type) } }
+        }
+    }
+    func windowScene(_ windowScene: UIWindowScene, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
+        MainActor.assumeIsolated { HGShortcut.perform(shortcutItem.type) }
+        completionHandler(true)
+    }
 }
 
 extension EnvironmentValues {
@@ -155,6 +207,14 @@ struct HGRootView: View {
             // 系统会把上次选中的标签恢复回来（DouDuo 也踩过）：冷启动固定回发现页
             .task {
                 #if DEBUG
+                // 测试：模拟长按图标快捷菜单
+                if let sc = ProcessInfo.processInfo.environment["HG_SHORTCUT"] {
+                    try? await Task.sleep(for: .seconds(1)); HGShortcut.perform(sc)
+                }
+                // 测试：模拟扫到一段内容
+                if let t = ProcessInfo.processInfo.environment["HG_FAKE_SCAN"] {
+                    try? await Task.sleep(for: .seconds(1)); await router.handle(t)
+                }
                 if let t = ProcessInfo.processInfo.environment["HG_START_TAB"], let start = HGRootTab.allCases.first(where: { "\($0)" == t }) {
                     // 测试直接进推荐：等 10 部备好、推荐键亮了再切
                     tab = start; return
@@ -190,6 +250,29 @@ struct HGRootView: View {
             .onChange(of: router.tabRequest) { _, t in
                 if let t { tab = t; router.tabRequest = nil }
             }
+            // 扫一扫（全局）：扫完分流到 连接遥控器 / 剧详情
+            .fullScreenCover(isPresented: $router.scanning) {
+                ZStack(alignment: .topTrailing) {
+                    HGQRScanner { text in
+                        router.scanning = false
+                        Task { try? await Task.sleep(for: .milliseconds(400)); await router.handle(text) }
+                    }
+                    .ignoresSafeArea()
+                    Button { router.scanning = false } label: {
+                        Image(systemName: "xmark").font(.headline).foregroundStyle(.white)
+                            .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+                    }
+                    .padding(20)
+                    .accessibilityIdentifier("hg.scan.close")
+                }
+            }
+            .sheet(item: $router.remote) { r in
+                NavigationStack { HGTVRemoteView(initialScan: r.scanned) }.presentationDetents([.large])
+            }
+            .sheet(item: $router.detail) { s in
+                NavigationStack { HGDetailView(series: s) }.presentationDetents([.large])
+            }
+            .alert(router.scanNote ?? "", isPresented: Binding(get: { router.scanNote != nil }, set: { if !$0 { router.scanNote = nil } })) { Button("好") {} }
             .overlay {
                 if sideRail && tab != .feed {
                     // 以屏幕物理右缘为基准（忽略安全区），中线对齐右上信号圈 / 链接键
