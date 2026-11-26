@@ -136,6 +136,8 @@ final class HGPlaybackSession {
     var status: String?
     var failed: String?
     var isPlaying = false
+    /// 用户自己点了暂停（切集途中播放器短暂停着不算）：暂停键 / 极简模式的标题只看这个，滑动时不会闪出来
+    private(set) var userPaused = false
     var position: Double = 0
     var duration: Double = 0
     var videoAspect: Double = 9.0 / 16.0
@@ -308,6 +310,7 @@ final class HGPlaybackSession {
     func togglePlay() {
         if player.timeControlStatus == .paused { player.playImmediately(atRate: effectiveRate) } else { player.pause() }
         isPlaying = player.timeControlStatus != .paused
+        userPaused = !isPlaying
         clock.userToggle(position, playing: isPlaying, rate: Double(effectiveRate))
     }
 
@@ -407,7 +410,7 @@ final class HGPlaybackSession {
         switchT0 = CACurrentMediaTime()
         loadTask?.cancel()
         let from = index
-        index = i; failed = nil
+        index = i; failed = nil; userPaused = false
         position = 0; duration = 0; danmaku = []; danmakuNotice = nil; frameReady = false
         aheadTask?.cancel()
         clock = DYDanmakuClock()

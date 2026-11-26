@@ -389,7 +389,7 @@ struct HGPlayerScreen: View {
                     .accessibilityValue(session.isPlaying && session.position > 0.5 && page == i ? "playing-\(ep.number)" : "idle")
                     .accessibilityHint("pos=\(Int(session.position))")
                 if heartBurst { Image(systemName: "heart.fill").font(.system(size: 96)).foregroundStyle(HGTheme.accent).transition(.scale.combined(with: .opacity)).allowsHitTesting(false) }
-                if !session.isPlaying && session.status == nil && session.failed == nil && !seeking {
+                if session.userPaused && session.status == nil && session.failed == nil && !seeking {
                     Image(systemName: "play.fill").font(.system(size: 54)).foregroundStyle(.white.opacity(0.75)).allowsHitTesting(false)
                 }
                 if session.boosting || (session.lockedBoost && !lockBadgeExpired) { boostBadge }
@@ -412,6 +412,7 @@ struct HGPlayerScreen: View {
     private func posterView(_ img: UIImage, size: CGSize) -> some View {
         let fill = DYVideoFit.presentation(fillWidth: fillWidth, videoAspect: img.size.width / max(img.size.height, 1),
                                            screenAspect: size.width / max(size.height, 1)) == .aspectFill
+        HGTrace.once("poster \(ObjectIdentifier(img).hashValue % 10000) \(fill ? "FILL" : "FIT") img=\(Int(img.size.width))x\(Int(img.size.height)) page=\(Int(size.width))x\(Int(size.height))")
         return Image(uiImage: img).resizable().aspectRatio(contentMode: fill ? .fill : .fit)
             .frame(width: size.width, height: size.height).clipped()
             .accessibilityIdentifier("hg.player.poster")
@@ -431,7 +432,7 @@ struct HGPlayerScreen: View {
         let backOnRail = true
         _ = wide
         // 极简：菜单栏不变；标题平时隐藏（暂停 / 按住返回键时显示），进度条画成返回键外圈
-        let paused = !session.isPlaying && session.status == nil && session.failed == nil && !seeking
+        let paused = session.userPaused && session.status == nil && session.failed == nil && !seeking
         let showInfo = !minimal || peek || paused
         // 矮屏（外屏横屏只有 ~466pt 高）：菜单栏整列放不下会顶出屏幕上沿 →
         // 先把栏底的 56 让出来（栏往下移），还不够再整列等比缩小，保证返回键到「更多」全在屏内
@@ -1054,6 +1055,7 @@ struct HGVideoLayer: UIViewRepresentable {
         let v = HGPlayerLayerView()
         Self.views.setObject(v, forKey: player)
         v.playerLayer.player = player
+        v.watchItem()
         v.container = container
         v.fillWidth = fillWidth
         v.onReadyForDisplay = onReadyForDisplay
@@ -1062,7 +1064,7 @@ struct HGVideoLayer: UIViewRepresentable {
         return v
     }
     func updateUIView(_ v: HGPlayerLayerView, context: Context) {
-        if v.playerLayer.player !== player, UIApplication.shared.applicationState != .background { v.playerLayer.player = player }
+        if v.playerLayer.player !== player, UIApplication.shared.applicationState != .background { v.playerLayer.player = player; v.watchItem() }
         v.container = container
         v.fillWidth = fillWidth
         v.onReadyForDisplay = onReadyForDisplay
@@ -1075,7 +1077,7 @@ final class HGPlayerLayerView: UIView {
     var fillWidth = true
     var container: CGSize = .zero
     weak var pip: DYPictureInPicture?
-    var onReadyForDisplay: ((Bool) -> Void)? { didSet { onReadyForDisplay?(playerLayer.isReadyForDisplay) } }
+    var onReadyForDisplay: ((Bool) -> Void)? { didSet { onReadyForDisplay?(playerLayer.isReadyForDisplay && resolved) } }
     private var readyObs: NSKeyValueObservation?
     private var sizeObs: NSKeyValueObservation?
     private var detached: AVPlayer?
@@ -1088,9 +1090,8 @@ final class HGPlayerLayerView: UIView {
         backgroundColor = .clear
         playerLayer.backgroundColor = UIColor.clear.cgColor
         playerLayer.videoGravity = .resizeAspect
-        readyObs = playerLayer.observe(\.isReadyForDisplay, options: [.new]) { [weak self] l, _ in
-            let r = l.isReadyForDisplay
-            DispatchQueue.main.async { self?.onReadyForDisplay?(r) }
+        readyObs = playerLayer.observe(\.isReadyForDisplay, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.applyGravity(); self?.reportReady() }
         }
         sizeObs = playerLayer.observe(\.videoRect, options: [.new]) { [weak self] _, _ in DispatchQueue.main.async { self?.applyGravity() } }
         let nc = NotificationCenter.default
@@ -1105,7 +1106,7 @@ final class HGPlayerLayerView: UIView {
             nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self, let p = self.detached else { return }
-                    self.playerLayer.player = p; self.detached = nil
+                    self.playerLayer.player = p; self.detached = nil; self.watchItem()
                 }
             },
         ]
@@ -1113,16 +1114,61 @@ final class HGPlayerLayerView: UIView {
     required init?(coder: NSCoder) { fatalError() }
     deinit { bgObs.forEach(NotificationCenter.default.removeObserver) }
     override func layoutSubviews() { super.layoutSubviews(); applyGravity() }
+
+    /// 已经按画面尺寸定好铺满方式的 item。没定好之前画面层不露（DouDuo：surface 首帧前隐藏，看不到中间态）：
+    /// 真机日志——下一集刚备好就滑过去，画面层先按默认「完整画面」出了一帧，80ms 后尺寸到了才改成铺满 = 闪一下
+    private weak var resolvedItem: AVPlayerItem?
+    private var itemObs: NSKeyValueObservation?
+    private var presObs: NSKeyValueObservation?
+    private var reported: Bool?
+
+    /// 画面层换了播放器 / 播放器换了 item：重新盯 presentationSize
+    func watchItem() {
+        itemObs = playerLayer.player?.observe(\.currentItem, options: [.initial, .new]) { [weak self] p, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.presObs = p.currentItem?.observe(\.presentationSize, options: [.initial, .new]) { [weak self] _, _ in
+                    DispatchQueue.main.async { self?.applyGravity(); self?.reportReady() }
+                }
+                self.applyGravity(); self.reportReady()
+            }
+        }
+    }
+
+    private var resolved: Bool {
+        guard let item = playerLayer.player?.currentItem else { return false }
+        return resolvedItem === item
+    }
+
+    /// 只有「画面层有帧 + 铺满方式已按本集尺寸定好」才算出帧（撤海报）
+    func reportReady() {
+        let r = playerLayer.isReadyForDisplay && resolved
+        guard reported != r else { return }
+        reported = r
+        HGTrace.log("layer ready=\(r) gravity=\(playerLayer.videoGravity == .resizeAspectFill ? "FILL" : "FIT") bounds=\(Int(bounds.width))x\(Int(bounds.height))")
+        onReadyForDisplay?(r)
+    }
+
     func applyGravity() {
         let box = container.width > 1 && container.height > 1 ? container : bounds.size
-        guard let size = playerLayer.player?.currentItem?.presentationSize, size.width > 1, size.height > 1,
-              box.width > 1, box.height > 1 else { return }
+        let item = playerLayer.player?.currentItem
+        guard let item, case let size = item.presentationSize, size.width > 1, size.height > 1,
+              box.width > 1, box.height > 1 else {
+            // 尺寸还没到：先藏着，不按默认方式露一帧
+            if !resolved, playerLayer.opacity != 0 {
+                CATransaction.begin(); CATransaction.setDisableActions(true); playerLayer.opacity = 0; CATransaction.commit()
+            }
+            return
+        }
         let g: AVLayerVideoGravity = DYVideoFit.presentation(fillWidth: fillWidth, videoAspect: size.width / size.height,
                                                              screenAspect: box.width / box.height) == .aspectFill ? .resizeAspectFill : .resizeAspect
-        guard playerLayer.videoGravity != g else { return }
-        // 不要隐式动画：改 videoGravity 默认会动画过渡，换集那一下就是「先铺满全屏再缩回中间」
-        CATransaction.begin(); CATransaction.setDisableActions(true)
-        playerLayer.videoGravity = g
+        CATransaction.begin(); CATransaction.setDisableActions(true)   // 不要隐式动画（改 gravity 默认会动画过渡）
+        if playerLayer.videoGravity != g {
+            HGTrace.log("gravity \(g == .resizeAspectFill ? "FILL" : "FIT") video=\(Int(size.width))x\(Int(size.height)) box=\(Int(box.width))x\(Int(box.height))")
+            playerLayer.videoGravity = g
+        }
+        resolvedItem = item
+        if playerLayer.opacity != 1 { playerLayer.opacity = 1 }
         CATransaction.commit()
     }
 }
