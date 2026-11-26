@@ -377,6 +377,7 @@ final class HGPlaybackSession {
     func pauseForBackground() {
         player.pause()
         isPlaying = false
+        userPaused = true
         clock.userToggle(position, playing: false, rate: Double(effectiveRate))
         save(force: true)
     }
