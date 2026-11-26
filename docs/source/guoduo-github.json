@@ -11,6 +11,22 @@
       "name": "GuoDuo",
       "bundleIdentifier": "me.rrmm.hongguo",
       "type": "1",
+      "version": "1.0.1",
+      "versionDate": "2026-11-26T16:49:45+00:00",
+      "versionDescription": "GuoDuo 1.0.1\n\n修复\n- 修复每部剧只显示前 3 集的问题：红果官网收紧了分集列表，现在改从红果 App 接口取完整分集，所有集数都能看到、都能播。\n\n播放\n- 边下边播：点开一集，文件头一到就开始播，不用等整集下完；往后拖到还没下到的地方也能接着播。\n- 上滑下一集更顺：下一集提前准备好，滑过去直接接上，不再闪黑、不再先铺满再缩回。\n- 滑动切集时不再闪出暂停键和标题（极简模式同样）。\n- 折叠屏外屏：横竖屏切换不再从头播放，竖屏转横屏不再黑一下。",
+      "subtitle": "原生 SwiftUI 红果短剧客户端，适配折叠屏与 iPad",
+      "localizedDescription": "GuoDuo：开源免费的红果短剧客户端（非官方），原生 SwiftUI，适配 iPhone Duo 折叠屏、iPad 与普通 iPhone。安装包为未签名 IPA，需要用自己的证书签名。仅供个人学习交流。",
+      "lock": "0",
+      "downloadURL": "https://github.com/81199000/GuoDuo/releases/download/v1.0.1/GuoDuo-1.0.1-unsigned.ipa",
+      "isLanZouCloud": "0",
+      "iconURL": "https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/brand/app-icon.png",
+      "tintColor": "EE3B45",
+      "size": "5439351"
+    },
+    {
+      "name": "GuoDuo",
+      "bundleIdentifier": "me.rrmm.hongguo",
+      "type": "1",
       "version": "1.0.0",
       "versionDate": "2026-11-26T06:35:28+00:00",
       "versionDescription": "GuoDuo 1.0.0\n\n全新首页\n- 奈飞主题首页（默认）：大海报，整页底色跟着封面主色变；继续观看、我的追剧、今日热播 Top 10、各榜单一行一行横着滑。\n- 顶部分区：全部 / 真人剧 / 漫剧 / AI 剧 / 系列剧 / 西饭 / 河马，按屏幕宽度自动排，放不下的收进「类别」。\n- 往下滑分区栏收起，往上滑弹回。也可以在「设置 → 首页主题」切回红果主题（两列大卡）。\n\n搜索\n- 没输入时有「热门搜索」和「为你推荐」，推荐的剧点播放键直接开播。\n- 打字联想带封面和热度；搜索结果都有封面；粘贴红果分享链接直接打开。\n\n电视联动（GuoDuo TV）\n- 「我的 → 设置 → 安装到电视」：手机自动找到家里的安卓电视，把 GuoDuo TV 装上。\n- 「连接遥控器」：扫码或局域网自动发现电视，手机当遥控器用。\n- 手机扫电视登录页上的二维码，用手机的红果账号确认，电视直接登录。\n- 手机看到一半点「更多 → 投到电视」，电视从同一秒接着播；遥控器里点「接到手机继续看」再接回手机。\n- 「我的」右上角加了扫一扫；长按 App 图标也能直接扫一扫、连接遥控器。\n\n播放\n- 黑边环境光：画面两侧透出画面颜色的光，设置里可调强弱或关掉。\n- 「更多」面板改成液态玻璃；「铺满全屏」挪进「更多」里。\n- 推荐页右侧按钮栏和首页菜单一样宽，进出推荐时有过渡动画。\n- 分集评论显示真实昵称和头像，滑到底自动加载更多。\n\n账号与设置\n- 手机号 + 验证码登录；登录后同步推荐、云端观看记录、收藏、预约，观看记录按账号分开存。\n- 设置页重新分组排版；新增「缓存管理」，封面和头像缓存到本地，不再每次重新加载。\n- 关于页：版本、检查更新、开源致谢。",
@@ -70,22 +86,6 @@
       "iconURL": "https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/brand/app-icon.png",
       "tintColor": "EE3B45",
       "size": "4109995"
-    },
-    {
-      "name": "GuoDuo",
-      "bundleIdentifier": "me.rrmm.hongguo",
-      "type": "1",
-      "version": "0.6.7",
-      "versionDate": "2026-11-23T08:42:06+00:00",
-      "versionDescription": "GuoDuo 0.6.7\n\n修复\n- 看剧时点到屏幕顶部（状态栏）会突然跳回第 1 集：竖滑选集和推荐流不再响应系统的「点状态栏回到顶部」，误触不会再把进度甩回开头。\n\n其他\n- 发版脚本、仓库地址等维护性调整，不影响使用。",
-      "subtitle": "原生 SwiftUI 红果短剧客户端，适配折叠屏与 iPad",
-      "localizedDescription": "GuoDuo：开源免费的红果短剧客户端（非官方），原生 SwiftUI，适配 iPhone Duo 折叠屏、iPad 与普通 iPhone。安装包为未签名 IPA，需要用自己的证书签名。仅供个人学习交流。",
-      "lock": "0",
-      "downloadURL": "https://github.com/81199000/GuoDuo/releases/download/v0.6.7/GuoDuo-0.6.7-unsigned.ipa",
-      "isLanZouCloud": "0",
-      "iconURL": "https://raw.githubusercontent.com/81199000/GuoDuo/main/docs/brand/app-icon.png",
-      "tintColor": "EE3B45",
-      "size": "4109211"
     }
   ]
 }
