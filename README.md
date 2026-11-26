@@ -14,6 +14,7 @@
 
 - **[DouDuo](https://github.com/81199000/DouDuo)**：第三方抖音客户端，原生 SwiftUI，适配折叠屏内屏 / iPad，推荐、评论、私信、直播都能用。
 - **[GuoDuo](https://github.com/81199000/GuoDuo)**（本项目）：红果短剧第三方客户端，原生播放，适配折叠屏 / iPad，和 GuoDuo TV 联动。
+- **[GuoDuo TV](https://github.com/81199000/GuoDuo-TV)**：GuoDuo 的安卓电视 / 投影仪版：遥控器刷剧，手机扫码当遥控器，和手机版互相接着看。
 - **[一键签 OneDuo](https://github.com/81199000/OneDuo)**：Windows / Mac 装机工具，用自己的 Apple ID 免费把上面这些 App 签名装到手机，到期自动续签、有新版自动更新。
 - 官网 **[oneduo.app](https://oneduo.app)**：所有项目的统一下载入口。
 
@@ -132,7 +133,7 @@
 
 ### 电视版 GuoDuo TV
 
-安卓电视 / 盒子用的版本。最简单的装法：手机打开 GuoDuo →「我的 → 设置 → 安装到电视」，按提示打开电视的 ADB 调试，手机会自动找到电视并装好。装好后在「连接遥控器」里扫电视上的码，就能遥控和互相接着看。
+安卓电视 / 盒子用的版本，项目主页 **[GuoDuo TV](https://github.com/81199000/GuoDuo-TV)**。最简单的装法：手机打开 GuoDuo →「我的 → 设置 → 安装到电视」，按提示打开电视的 ADB 调试，手机会自动找到电视并装好。装好后在「连接遥控器」里扫电视上的码，就能遥控和互相接着看。
 
 ## 常见问题
 
