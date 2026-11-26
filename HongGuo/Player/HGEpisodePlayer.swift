@@ -100,7 +100,38 @@ final class HGPlaybackSession {
     let series: HGSeries
     let episodes: [HGEpisode]
     private(set) var index: Int
-    let player = AVPlayer()
+    /// 当前集的播放器。DouDuo 同款：下一集提前开好自己的播放器（standby）挂在它那一页上，
+    /// 滑过去只是把它「转正」，画面层和环境光都不拆不装；滑走的那集留着当 previous，往回滑那页还是它的画面
+    private(set) var player = AVPlayer()
+    struct Slot {
+        let vid: String
+        let player: AVPlayer
+        let item: AVPlayerItem
+        let output: AVPlayerItemVideoOutput
+        let asset: AVURLAsset
+        let loader: HGStreamLoader?
+    }
+    /// 下一集（index + 1）预备好的播放器：已装好片源、停在第 0 秒
+    private(set) var standby: Slot?
+    /// 上一集（index - 1）的播放器：停在离开时的画面
+    private(set) var prevSlot: Slot?
+    /// 回收下来的空播放器，下次备下一集时复用
+    private var spare: AVPlayer?
+    /// 画面层已经出了第一帧的播放器
+    private var readyPlayers = Set<ObjectIdentifier>()
+
+    /// 这一页挂哪个播放器：当前集 / 预备好的下一集 / 刚滑走的上一集；其余页没有
+    func slot(for i: Int) -> (player: AVPlayer, output: AVPlayerItemVideoOutput?)? {
+        guard episodes.indices.contains(i) else { return nil }
+        if i == index { return (player, videoOutput) }
+        if i == index + 1, let s = standby, s.vid == episodes[i].vid { return (s.player, s.output) }
+        if i == index - 1, let s = prevSlot, s.vid == episodes[i].vid { return (s.player, s.output) }
+        return nil
+    }
+    func isDisplayReady(_ i: Int) -> Bool {
+        guard let s = slot(for: i) else { return false }
+        return readyPlayers.contains(ObjectIdentifier(s.player))
+    }
 
     var status: String?
     var failed: String?
@@ -138,8 +169,12 @@ final class HGPlaybackSession {
     /// 首帧已解好（预热完成或已开播）
     private(set) var frameReady = false
     /// 画面层已经出了本集第一帧（AVPlayerLayer.isReadyForDisplay）：之前一直盖着首帧海报，不黑屏
-    private(set) var displayReady = false
-    func setDisplayReady(_ r: Bool) { if displayReady != r { displayReady = r } }
+    var displayReady: Bool { readyPlayers.contains(ObjectIdentifier(player)) }
+    func setDisplayReady(_ r: Bool, for p: AVPlayer) {
+        let id = ObjectIdentifier(p)
+        if r { if !readyPlayers.contains(id) { readyPlayers.insert(id) } }
+        else if readyPlayers.contains(id) { readyPlayers.remove(id) }
+    }
     /// 后面几集的首帧（vid → 图）：滑动途中相邻页直接显示真画面，转正后第一帧解出来之前也先盖着它
     private(set) var posters: [String: UIImage] = [:]
     /// 首帧海报做的环境光（和实时环境光同一套处理）：滑过来那一页先用它，衔接不黑边、不跳色
@@ -163,12 +198,15 @@ final class HGPlaybackSession {
     /// 失去前台那一刻因为要退出而先停的：没真进后台（只拉了控制中心 / 通知）就接着放
     private var pausedOnResign = false
 
-    private func attachObservers() {
-        if timeObserver == nil {
-            timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] t in
-                MainActor.assumeIsolated { self?.tick(t.seconds) }
-            }
+    private func addTimeObserver() {
+        guard timeObserver == nil else { return }
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] t in
+            MainActor.assumeIsolated { self?.tick(t.seconds) }
         }
+    }
+
+    private func attachObservers() {
+        addTimeObserver()
         HGAudioSession.activate()
         // 预热中的（挂起）不抢锁屏 / 耳机按键，转正时 resumeIfSuspended 再挂
         if !suspended { setupRemoteCommands() }
@@ -345,6 +383,8 @@ final class HGPlaybackSession {
         loadTask?.cancel(); danmakuTask?.cancel(); aheadTask?.cancel()
         primeObs?.invalidate(); primeObs = nil
         player.pause()
+        for s in [standby, prevSlot].compactMap({ $0 }) { s.player.pause(); s.player.replaceCurrentItem(with: nil) }
+        standby = nil; prevSlot = nil
         if feedMode { player.replaceCurrentItem(with: nil) }
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         timeObserver = nil
@@ -366,7 +406,25 @@ final class HGPlaybackSession {
     private func load(_ i: Int, at offset: Double) {
         switchT0 = CACurrentMediaTime()
         loadTask?.cancel()
+        let from = index
         index = i; failed = nil
+        position = 0; duration = 0; danmaku = []; danmakuNotice = nil; frameReady = false
+        aheadTask?.cancel()
+        clock = DYDanmakuClock()
+        let vid = episodes[i].vid
+        // 下一集 / 上一集的播放器已经挂在那一页上：直接转正，不重新装片源（滑动中画面不断、环境光不重来）
+        if !feedMode, episodes[i].locked != true,
+           let s = [standby, prevSlot].compactMap({ $0 }).first(where: { $0.vid == vid }) {
+            HGTrace.log("full ep\(i + 1) 转正（\(s.player === standby?.player ? "下一集" : "上一集")预备好的）from ep\(from + 1)")
+            status = nil
+            startAtForDanmaku = offset
+            loadDanmaku(vid)
+            swapIn(s, from: from)
+            activate(item: s.item, output: s.output, asset: s.asset, offset: offset)
+            prefetchAhead(from: i)
+            return
+        }
+        HGTrace.log("full ep\(i + 1) 现装片源 from ep\(from + 1)")
         // 有首帧海报就先不出转圈（缓存命中时零点几秒就接上，转圈一闪而过就是「闪一下」）；0.6 秒还没好再显示
         status = posters[episodes[i].vid] == nil ? "正在获取片源…" : nil
         if status == nil {
@@ -376,12 +434,9 @@ final class HGPlaybackSession {
                 self.status = "正在加载…"
             }
         }
-        position = 0; duration = 0; danmaku = []; danmakuNotice = nil; frameReady = false; displayReady = false
-        aheadTask?.cancel()
         player.pause()
         player.replaceCurrentItem(with: nil)
-        clock = DYDanmakuClock()
-        let vid = episodes[i].vid
+        setDisplayReady(false, for: player)
         if episodes[i].locked == true {
             status = nil; failed = "本集在来源平台需要解锁，暂不能播放"
             if feedMode { onFeedEnd?() }
@@ -424,6 +479,70 @@ final class HGPlaybackSession {
         }
     }
 
+    /// 把预备好的播放器转正：旧的当前集变成 previous（停在原画面），更早的 previous 回收
+    private func swapIn(_ s: Slot, from: Int) {
+        let old = player
+        old.pause()
+        if let timeObserver { old.removeTimeObserver(timeObserver) }
+        timeObserver = nil
+        let wasStandby = s.player === standby?.player
+        let oldSlot: Slot? = {
+            guard let item = old.currentItem, let out = videoOutput, let asset = item.asset as? AVURLAsset,
+                  episodes.indices.contains(from) else { return nil }
+            return Slot(vid: episodes[from].vid, player: old, item: item, output: out, asset: asset, loader: streamLoader)
+        }()
+        if wasStandby {
+            if let p = prevSlot { recycle(p) }
+            prevSlot = oldSlot
+            standby = nil
+        } else {
+            // 往回滑到上一集：原来的当前集正好是新的下一集
+            if let st = standby { recycle(st) }
+            standby = oldSlot.map { o in
+                o.player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+                return o
+            }
+            prevSlot = nil
+        }
+        if oldSlot == nil { recycle(old) }
+        player = s.player
+        streamLoader = s.loader
+        addTimeObserver()
+    }
+
+    private func recycle(_ s: Slot) { recycle(s.player) }
+    private func recycle(_ p: AVPlayer) {
+        guard p !== player else { return }
+        p.pause()
+        p.replaceCurrentItem(with: nil)
+        setDisplayReady(false, for: p)
+        spare = p
+    }
+
+    /// 给下一集开好播放器：装好片源、停着不放，画面层挂在它那一页上会先解出第一帧
+    private func prepareStandby(_ vid: String, playable: HGMediaCache.Playable) {
+        guard !feedMode, episodes.indices.contains(index + 1), episodes[index + 1].vid == vid, standby?.vid != vid else { return }
+        if let st = standby { recycle(st) }
+        let loader: HGStreamLoader?
+        let asset: AVURLAsset
+        switch playable {
+        case .file(let url): loader = nil; asset = AVURLAsset(url: url)
+        case .stream(let job): let l = HGStreamLoader(job); loader = l; asset = l.makeAsset()
+        }
+        let item = AVPlayerItem(asset: asset)
+        let out = AVPlayerItemVideoOutput(pixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
+        item.add(out)   // 环境光取帧输出：起播前就挂（起播后再挂会让管线重建）
+        item.audioTimePitchAlgorithm = .timeDomain
+        let p = spare ?? AVPlayer()
+        spare = nil
+        p.automaticallyWaitsToMinimizeStalling = false
+        p.allowsExternalPlayback = true
+        p.pause()
+        p.replaceCurrentItem(with: item)
+        standby = Slot(vid: vid, player: p, item: item, output: out, asset: asset, loader: loader)
+        HGTrace.log("full ep\(index + 2) 播放器预备好")
+    }
+
     /// 预下后面几集 + 取首帧海报（推荐流每部只放第 1 集，不预下）
     /// 边下边播后：海报只要下一集的文件头 + 第一帧那点数据就能出，不等整集；一集下完再下下一集，不跟正在看的抢带宽
     private func prefetchAhead(from i: Int) {
@@ -438,6 +557,8 @@ final class HGPlaybackSession {
             for vid in vids {
                 // 取消只是不再等，缓存里的下载照常跑完
                 guard !Task.isCancelled, let playable = try? await HGMediaCache.shared.stream(for: vid) else { return }
+                guard !Task.isCancelled else { return }
+                self?.prepareStandby(vid, playable: playable)
                 await self?.preparePoster(vid, playable: playable)
                 if case .stream(let job) = playable { _ = try? await job.finishedFile() }
             }
@@ -501,8 +622,13 @@ final class HGPlaybackSession {
         let item = AVPlayerItem(asset: asset)
         let out = AVPlayerItemVideoOutput(pixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
         item.add(out)
-        videoOutput = out
         item.audioTimePitchAlgorithm = .timeDomain
+        activate(item: item, output: out, asset: asset, offset: offset)
+    }
+
+    /// 让 item 成为当前集开始放（新装的或预备好转正的都走这里）
+    private func activate(item: AVPlayerItem, output out: AVPlayerItemVideoOutput, asset: AVURLAsset, offset: Double) {
+        videoOutput = out
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -511,7 +637,7 @@ final class HGPlaybackSession {
                 if self.hasNext { self.next() } else { self.save(force: true, finished: true); self.isPlaying = false }
             }
         }
-        player.replaceCurrentItem(with: item)
+        if player.currentItem !== item { player.replaceCurrentItem(with: item) }
         switchArmed = !suspended   // 预热的（挂起）等转正时再计时
         let gen = AVAssetImageGenerator(asset: item.asset)
         gen.appliesPreferredTrackTransform = true

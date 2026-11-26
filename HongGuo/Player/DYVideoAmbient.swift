@@ -41,6 +41,7 @@ struct DYAmbientBackdrop: UIViewRepresentable {
     func updateUIView(_ v: DYAmbientFrameView, context: Context) {
         v.player = player
         v.output = output
+        v.setSeed(seed)
         v.dim = dim
         v.fillWidth = fillWidth
         v.active = active
@@ -90,6 +91,13 @@ final class DYAmbientFrameView: UIView {
     }
     required init?(coder: NSCoder) { fatalError() }
     deinit { link?.invalidate() }
+
+    /// 预备页先用海报做的光；已经换成实时帧就不动
+    func setSeed(_ seed: UIImage?) {
+        guard let seed, !live, imageView.image !== seed else { return }
+        imageView.image = seed
+        imageView.alpha = 1; dimView.alpha = 1
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

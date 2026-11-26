@@ -71,7 +71,6 @@ struct HGPlayerScreen: View {
     @State private var commentsInPane = false
     /// 桌面姿态操作台在：弹幕搬到操作台上，视频上不再画
     @State private var consoleShown = false
-    @State private var scrollIdle = true
     @AppStorage("hg.deskLight") private var deskLight = true
     /// 桌面姿态弹幕位置：false = 影片区（上半屏），true = 触控区（下半屏）
     @AppStorage("hg.danmaku.inConsole") private var danmakuInConsole = false
@@ -293,13 +292,8 @@ struct HGPlayerScreen: View {
             .ignoresSafeArea()
             .background(Color.black)
             .offset(x: edgeOffset)
-            // 滑动/回弹还没停就不切集：切集会把画面层和环境光从旧页挪到新页，旧页还露着半屏就瞬间变成封面
-            // = 上滑时「先闪一个全屏」。停稳了再切（DouDuo：每页自己的画面和环境光一直挂着，滑动中不重挂）
-            .onChange(of: page) { _, p in if let p, p != session.index, scrollIdle { session.go(to: p) } }
-            .onScrollPhaseChange { _, phase in
-                scrollIdle = phase == .idle
-                if scrollIdle, let p = page, p != session.index { session.go(to: p) }
-            }
+            // 翻页即切集：下一集的播放器早已挂在它那一页上，切集只是转正，不拆不装
+            .onChange(of: page) { _, p in if let p, p != session.index { session.go(to: p) } }
             .onChange(of: session.index) { _, i in if page != i { withAnimation(.easeInOut(duration: 0.3)) { page = i } } }
             // scrollPosition 的初值对 LazyVStack 不生效：首帧后显式滚到起始集
             .onAppear { proxy.scrollTo(session.index, anchor: .top); page = session.index }
@@ -325,29 +319,41 @@ struct HGPlayerScreen: View {
     private func pageView(_ i: Int, _ ep: HGEpisode, size: CGSize) -> some View {
         ZStack {
             Color.black
-            if i == session.index {
-                // 环境光：跟随「设置 → 环境光」（关 / 亮 / 中 / 暗 / 很暗，DouDuo 同款）
+            // DouDuo 同款：有播放器的页（当前集 / 预备好的下一集 / 刚滑走的上一集）各自挂着自己的环境光和画面层，
+            // 这一块不放在「是不是当前集」的分支里——切集时视图身份不变，滑动途中不拆不装、不重新淡入
+            if let s = session.slot(for: i) {
                 if ambientLevel > 0 {
-                    DYAmbientBackdrop(player: session.player, output: session.videoOutput, active: true,
+                    DYAmbientBackdrop(player: s.player, output: s.output, active: true,
                                       dim: Double(ambientLevel) / 100, fillWidth: fillWidth,
                                       seed: session.ambientSeeds[ep.vid])
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
-                        .accessibilityIdentifier("hg.player.ambient")
+                        .accessibilityIdentifier(i == session.index ? "hg.player.ambient" : "hg.player.ambient.side")
                 }
-                HGVideoLayer(player: session.player, fillWidth: fillWidth, pip: session.pip, container: size,
-                             onReadyForDisplay: { [session] in session.setDisplayReady($0) })
-                    .scaleEffect(userScale * pinchScale)
+                HGVideoLayer(player: s.player, fillWidth: fillWidth, pip: session.pip, container: size,
+                             isCurrent: i == session.index,
+                             onReadyForDisplay: { [session, p = s.player] in session.setDisplayReady($0, for: p) })
+                    .scaleEffect(i == session.index ? userScale * pinchScale : 1)
                     .clipped()
-                // 第一帧出来之前盖着预取的首帧：滑过来不黑屏、不像卡住；
-                // 没有首帧就继续显示滑动途中那张模糊封面（以前这里是纯黑，落地那一下从封面跳成黑屏 = 闪）
-                if !session.displayReady {
-                    if let poster = session.posters[ep.vid] {
-                        posterView(poster, size: size).allowsHitTesting(false)
-                    } else {
-                        HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
+            } else if let poster = session.posters[ep.vid], ambientLevel > 0, let seed = session.ambientSeeds[ep.vid] {
+                Image(uiImage: seed).resizable().scaledToFill()
+                    .frame(width: size.width, height: size.height).clipped()
+                    .overlay(Color.black.opacity(Double(ambientLevel) / 100))
+                    .ignoresSafeArea().allowsHitTesting(false)
+                    .overlay { posterView(poster, size: size).allowsHitTesting(false) }
+            }
+            // 画面层还没出第一帧：盖首帧海报（有的话），没有就模糊封面
+            if !session.isDisplayReady(i), session.slot(for: i) != nil || session.posters[ep.vid] == nil {
+                if let poster = session.posters[ep.vid] {
+                    posterView(poster, size: size).allowsHitTesting(false)
+                } else {
+                    HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
+                    if i != session.index {
+                        Text("第 \(ep.number) 集").font(.headline).foregroundStyle(.white.opacity(0.7))
                     }
                 }
+            }
+            if i == session.index {
                 if danmakuOn && !clean && (!consoleShown || !danmakuInConsole) {
                     DYDanmakuLayer(items: session.danmaku, clock: session.clock, topInset: safeTop, fullPane: consoleShown)
                         .accessibilityElement()
@@ -390,19 +396,6 @@ struct HGPlayerScreen: View {
                 if seeking && !consoleShown { seekOverlay }
                 statusOverlay
                 if feed == nil { chromeLayer(ep) }   // 横屏评论从右滑出时，视频缩到左边，菜单栏仍贴视频右侧
-            } else if let poster = session.posters[ep.vid] {
-                // 已预下的集：滑动途中就是本集第一帧真画面 + 用它做的环境光，跟起播后一模一样（停稳切过去不跳）
-                if ambientLevel > 0, let seed = session.ambientSeeds[ep.vid] {
-                    Image(uiImage: seed).resizable().scaledToFill()
-                        .frame(width: size.width, height: size.height).clipped()
-                        .overlay(Color.black.opacity(Double(ambientLevel) / 100))
-                        .ignoresSafeArea().allowsHitTesting(false)
-                }
-                posterView(poster, size: size).allowsHitTesting(false)
-            } else {
-                // 相邻页只显示封面占位，滑动时不黑屏
-                HGCover(url: session.series.coverURL).blur(radius: 18).opacity(0.35).allowsHitTesting(false)
-                Text("第 \(ep.number) 集").font(.headline).foregroundStyle(.white.opacity(0.7))
             }
         }
         .clipped()
@@ -1043,6 +1036,8 @@ struct HGVideoLayer: UIViewRepresentable {
     let pip: DYPictureInPicture
     /// 这一页的尺寸：铺满 / 完整画面按它判断，不按画面层的临时 bounds（换页挪 view 时会有一瞬是错的尺寸）
     var container: CGSize = .zero
+    /// 当前集那一页才接画中画（预备页的画面层不接）
+    var isCurrent = true
     var onReadyForDisplay: ((Bool) -> Void)? = nil
     /// 同一个 AVPlayer 复用同一块画面层：推荐页预热的下一部转正时，页面从「预热画面」换成完整播放页，
     /// 新建 AVPlayerLayer 会让解码管线重建（真机：起播 1.5 秒、播 1 秒跳回开头）。挪同一个 view 过去就不重建
@@ -1063,13 +1058,15 @@ struct HGVideoLayer: UIViewRepresentable {
         v.fillWidth = fillWidth
         v.onReadyForDisplay = onReadyForDisplay
         v.pip = pip
-        pip.prepareManual(layer: v.playerLayer)   // 不建控制器：退出 App 不会自动画中画
+        if isCurrent { pip.prepareManual(layer: v.playerLayer) }   // 不建控制器：退出 App 不会自动画中画
         return v
     }
     func updateUIView(_ v: HGPlayerLayerView, context: Context) {
         if v.playerLayer.player !== player, UIApplication.shared.applicationState != .background { v.playerLayer.player = player }
         v.container = container
         v.fillWidth = fillWidth
+        v.onReadyForDisplay = onReadyForDisplay
+        if isCurrent { v.pip = pip; pip.prepareManual(layer: v.playerLayer) }
         v.applyGravity()
     }
 }
