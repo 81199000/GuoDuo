@@ -34,7 +34,8 @@ final class HGCore: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
 
         def("log", { [weak self] (s: String) in
             self?.log(s)
-            if s.hasPrefix("comment/") { HGTrace.log(s) }   // 发评论结果落到真机日志，方便拉回来看
+            // 发评论、取源的结果落到真机日志，方便拉回来看（不含 cookie / 密钥 / 地址）
+            if s.hasPrefix("comment/") || s.hasPrefix("source ") { HGTrace.log(s) }
         } as @convention(block) (String) -> Void)
         def("timer", { [weak self] (id: Int, ms: Double) in
             self?.queue.asyncAfter(deadline: .now() + ms / 1000) {

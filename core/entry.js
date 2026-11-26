@@ -125,6 +125,22 @@ async function phoneDone(r) {
   return { state: done?.signedIn ? 'ok' : 'cancelled' };
 }
 
+// App 详情接口的分集列表（全集）；同 stats() 用的接口
+async function appEpisodeList(sid) {
+  const body = { series_id: String(sid), biz_param: { caller_scene: 'single_col', detail_page_version: 0, from_video_id: '',
+    need_all_video_definition: false, need_mp4_align: false, source: 4, video_id_type: 1 } };
+  const s = signedMetadataRequest('/novel/player/video_detail/v1/', {}, body);
+  const j = await requestJson(s.url, { method: 'POST', headers: s.headers, data: s.body }, Date.now() + 10000);
+  if (!j || Number(j.code) !== 0) throw Object.assign(new Error('App 剧集详情不可用'), { code: 'APP_DETAIL' });
+  const vd = j.data?.video_data || {};
+  if (String(vd.series_id_str || vd.series_id || sid) !== String(sid)) throw new Error('App 剧集详情不匹配');
+  const list = (vd.video_list || []).filter(e => /^\d{1,30}$/.test(String(e.vid)));
+  if (!list.length) throw Object.assign(new Error('App 分集列表为空'), { code: 'APP_DETAIL' });
+  return { series_id: String(sid), series_title: String(vd.series_title || vd.title || '未命名短剧'),
+    cover: String(vd.series_cover || vd.cover || ''), description: String(vd.series_intro || vd.abstract || ''),
+    episodes: list.map((e, i) => ({ vid: String(e.vid), number: Number(e.vid_index) || i + 1 })) };
+}
+
 const normEpisodes = d => ({ series_id: String(d.series_id), series_title: String(d.series_title || '未命名短剧'),
   cover: d.cover || '', description: d.description || '',
   episodes: (d.episodes || []).map((e, i) => ({ vid: String(e.vid), number: Number(e.number || e.vid_index) || i + 1, locked: e.locked === true })) });
@@ -177,7 +193,19 @@ globalThis.HG = {
   episodes(callId, sid) { wrap(callId, async () => {
     const other = sourceOf(sid);
     if (other) return normEpisodes(await other.fetchEpisodeList(String(sid)));
-    return normEpisodes(parseDetail(await website(`/player/${sid}`), String(sid)));
+    // 2026-11-27 起官网剧集页 vid_list 只给前 3 集（accessible_episode_cnt=3），整部剧只剩 3 集；
+    // 集列表改用 App 详情接口（全集），官网只补剧名 / 封面 / 简介；App 接口不可用再退回官网
+    const web = await website(`/player/${sid}`).then(h => parseDetail(h, String(sid))).catch(e => { Native.log(`source eplist web err ${e.message}`); return null; });
+    try {
+      const app = await appEpisodeList(String(sid));
+      if (app.episodes.length > (web?.episodes.length || 0)) {
+        Native.log(`source eplist sid=${sid} app=${app.episodes.length} web=${web?.episodes.length ?? 'x'}`);
+        return normEpisodes({ ...app, ...(web ? { series_title: web.series_title, cover: web.cover || app.cover, description: web.description || app.description } : {}),
+          episodes: app.episodes });
+      }
+    } catch (e) { Native.log(`source eplist app err sid=${sid} ${e.code || ''} ${String(e.message).slice(0, 80)}`); if (!web) throw e; }
+    if (!web) throw new Error('剧集列表不可用');
+    return normEpisodes(web);
   }); },
   // 只返回原生能播的编码；签名和 contentKey 原样透传，不改动。
   source(callId, vid, quality) {
@@ -212,7 +240,7 @@ globalThis.HG = {
           try { s = await fetchPublicFallback(String(vid), controller.signal); Native.log(`source web-fallback vid=${vid}`); }
           catch (e) { Native.log(`source web-fallback fail vid=${vid} ${e.code || ''} ${e.message}`); if (!lastErr) lastErr = e; }
         }
-        if (!s) throw lastErr || new Error('取源失败');
+        if (!s) { Native.log(`source fail vid=${vid} code=${lastErr?.code || ''} biz=${lastErr?.businessCode || ''} http=${lastErr?.status || ''} ${String(lastErr?.message || '').slice(0, 120)}`); throw lastErr || new Error('取源失败'); }
         const all = s.variants || [s];
         const variants = all.filter(v => PLAYABLE.includes(String(v.codec).toLowerCase()))
           .map(v => ({ url: v.url, contentKey: v.contentKey || null, codec: v.codec, quality: v.quality || s.quality || '', userAgent: v.userAgent || s.userAgent || '', referer: v.referer || '' }));
