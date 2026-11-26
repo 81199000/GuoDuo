@@ -831,7 +831,7 @@ struct HGSearchView: View {
             await home.load("all", "ranklist_hot_search_sc")
             await home.load("all", "ranklist_hot_sc")
         }
-        .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }
+        .hgPresentsPlayer($playing)
         .onChange(of: source) { _, _ in Task { await load(more: false) } }
     }
 

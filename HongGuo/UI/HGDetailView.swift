@@ -40,7 +40,7 @@ struct HGDetailView: View {
         .task { if detail == nil { await load() } }
         .task { await loadExtras() }
 
-        .fullScreenCover(item: $playing) { req in HGPlayerScreen(request: req) }
+        .hgPresentsPlayer($playing)
     }
 
     private var regular: some View {

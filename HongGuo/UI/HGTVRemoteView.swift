@@ -198,7 +198,7 @@ struct HGTVRemotePad: View {
                 try? await Task.sleep(for: .seconds(1.5))
             }
         }
-        .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }
+        .hgPresentsPlayer($playing)
         .sensoryFeedback(.impact(weight: .light), trigger: note)
     }
 

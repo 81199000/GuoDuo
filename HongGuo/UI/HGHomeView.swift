@@ -181,7 +181,7 @@ struct HGHomeView: View {
         .navigationDestination(item: $openSeries) { HGDetailView(series: $0) }
         .navigationDestination(item: $find) { HGFindScreen(title: $0.title, preset: $0.preset) }
         .navigationDestination(item: $sourceGenre) { HGSourceGenreScreen(route: $0) }
-        .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }
+        .hgPresentsPlayer($playing)
     }
 
     // MARK: 顶部

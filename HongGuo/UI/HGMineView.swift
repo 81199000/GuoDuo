@@ -50,7 +50,7 @@ struct HGMineView: View {
         .sheet(isPresented: $showSettings) { NavigationStack { HGMineSettings(signedIn: signedIn, onLogout: {
             Task { await logout() }
         }) }.presentationDetents([.large]) }
-        .fullScreenCover(item: $resume) { HGPlayerScreen(request: $0) }
+        .hgPresentsPlayer($resume)
         .navigationDestination(item: $openDetail) { HGDetailView(series: $0) }
     }
 

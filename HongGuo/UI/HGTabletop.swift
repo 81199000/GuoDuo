@@ -231,7 +231,7 @@ struct HGDiscoverTabletop: View {
             .accessibilityIdentifier("hg.tabletop.episodes")
         }
         .task(id: focus?.id) { await loadDetail() }
-        .fullScreenCover(item: $playing) { HGPlayerScreen(request: $0) }
+        .hgPresentsPlayer($playing)
     }
 
     private func play(_ s: HGSeries, _ d: HGDetail, _ i: Int, resume: Bool) {

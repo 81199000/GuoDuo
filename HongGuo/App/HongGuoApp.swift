@@ -86,6 +86,9 @@ struct HGSideTabRail: View {
 /// 根级小路由：右侧胶囊里的「链接」键 → 发现页弹粘贴链接面板
 @MainActor @Observable final class HGRootRouter {
     static let shared = HGRootRouter()
+    /// 播放页挂在根上，不挂在各个 tab 页上：外屏竖转横时系统把标签栏变竖栏、重建 tab 页，
+    /// 挂在 tab 页上的播放页会被跟着拆掉重建（真机日志：一次转屏重建 4 遍 = 黑一下闪一下）
+    var player: HGPlayerRequest?
     /// 推荐页横屏返回键 → 切到发现
     var tabRequest: HGRootTab?
     func go(_ t: HGRootTab) { tabRequest = t }
@@ -247,6 +250,7 @@ struct HGRootView: View {
                 HGUpdateSheet(update: u)
                     .onDisappear { HGUpdateChecker.dismiss(u) }
             }
+            .fullScreenCover(item: $router.player) { HGPlayerScreen(request: $0) }
             .onChange(of: router.tabRequest) { _, t in
                 if let t { tab = t; router.tabRequest = nil }
             }
@@ -338,6 +342,18 @@ struct HGRootView: View {
                 .background(HGTheme.background)
                 .navigationDestination(for: HGSeries.self) { HGDetailView(series: $0) }
                 .navigationDestination(for: HGReviewsRoute.self) { HGReviewsScreen(seriesID: $0.seriesID, title: $0.title) }
+        }
+    }
+}
+
+
+extension View {
+    /// 各页的「播放」交给根上的播放页弹出（见 HGRootRouter.player）
+    func hgPresentsPlayer(_ request: Binding<HGPlayerRequest?>) -> some View {
+        onChange(of: request.wrappedValue?.id) { _, id in
+            guard id != nil, let r = request.wrappedValue else { return }
+            HGRootRouter.shared.player = r
+            request.wrappedValue = nil
         }
     }
 }

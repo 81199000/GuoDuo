@@ -190,10 +190,7 @@ final class HGPlaybackSession {
     /// 重建后的页拿回同一个会话接着放，不会从 request 的起点重新开始（老板：外屏横过来总是从头播）
     private static var live: [UUID: HGPlaybackSession] = [:]
     static func session(for r: HGPlayerRequest) -> HGPlaybackSession {
-        if let s = live[r.id] {
-            HGTrace.log("session 复用 ep\(s.index + 1) pos=\(Int(s.position))")
-            return s
-        }
+        if let s = live[r.id] { return s }   // 父视图每次刷新都会走到这里，别写日志
         let s = HGPlaybackSession(r)
         live[r.id] = s
         return s
