@@ -6,7 +6,7 @@ final class HGSwipeFlashRec: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["HG_START_TAB"] = "discover"
         if let k = ProcessInfo.processInfo.environment["HG_STREAM_THROTTLE_KBPS"] { app.launchEnvironment["HG_STREAM_THROTTLE_KBPS"] = k }
-        XCUIDevice.shared.orientation = .portrait
+        if ProcessInfo.processInfo.environment["HG_KEEP_ORIENT"] != "1" { XCUIDevice.shared.orientation = .portrait }
         app.launch()
         let tab = app.buttons["搜索"].firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 20)); tab.tap()

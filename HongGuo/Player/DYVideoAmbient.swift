@@ -13,6 +13,16 @@ enum DYVideoAmbient {
     /// 0 = 关（退回模糊封面）；其余数值 = 压暗百分比
     static let levels = [0, 45, 60, 70, 80]
     static let defaultLevel = 60
+    /// 和实时取帧同一套处理（缩成 48px 宽、模糊、降饱和）：给还没起播的页用首帧海报先做出一样的环境光
+    static func image(from cg: CGImage) -> UIImage? {
+        let src = CIImage(cgImage: cg)
+        let scale = 48 / max(src.extent.width, 1)
+        let small = src.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let blurred = small.clampedToExtent().applyingGaussianBlur(sigma: 3).cropped(to: small.extent)
+            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0.85])
+        guard let out = CIContext(options: [.cacheIntermediates: false]).createCGImage(blurred, from: small.extent) else { return nil }
+        return UIImage(cgImage: out)
+    }
     static func title(_ v: Int) -> String {
         switch v { case 0: "关"; case 45: "亮"; case 60: "中"; case 70: "暗"; default: "很暗" }
     }
@@ -25,7 +35,9 @@ struct DYAmbientBackdrop: UIViewRepresentable {
     var active: Bool
     var dim: Double
     var fillWidth: Bool
-    func makeUIView(context: Context) -> DYAmbientFrameView { DYAmbientFrameView(player: player) }
+    /// 起播前先显示的环境光（本集首帧海报做的）；没有就沿用上一集最后一帧
+    var seed: UIImage? = nil
+    func makeUIView(context: Context) -> DYAmbientFrameView { DYAmbientFrameView(player: player, seed: seed) }
     func updateUIView(_ v: DYAmbientFrameView, context: Context) {
         v.player = player
         v.output = output
@@ -51,8 +63,10 @@ final class DYAmbientFrameView: UIView {
     private var working = false
     /// 最近一帧环境光（各页共用，新页先用它顶着）
     private static var lastImage: UIImage?
+    /// 已经换成本集实时帧（之前显示的是海报做的 / 上一集的光，第一次换要渐变）
+    private var live = false
 
-    init(player: AVPlayer) {
+    init(player: AVPlayer, seed: UIImage? = nil) {
         self.player = player
         super.init(frame: .zero)
         // 出第一帧之前透明，下面的模糊封面先顶着
@@ -62,7 +76,7 @@ final class DYAmbientFrameView: UIView {
         imageView.contentMode = .scaleAspectFill
         imageView.layer.magnificationFilter = .linear
         // 换集时这一页是新建的：先顶上一集最后一帧的环境光，不从全黑再淡入（上滑切集「两边先黑一下再亮」）
-        if let last = Self.lastImage {
+        if let last = seed ?? Self.lastImage {
             imageView.image = last
             imageView.alpha = 1
             dimView.alpha = 1
@@ -136,7 +150,7 @@ final class DYAmbientFrameView: UIView {
                 if let cg {
                     let img = UIImage(cgImage: cg)
                     // 新一集的第一帧：从上一集的光渐变过去，不硬切
-                    if self.imageView.image != nil, self.imageView.image === Self.lastImage, self.imageView.alpha == 1 {
+                    if self.imageView.image != nil, !self.live, self.imageView.alpha == 1 {
                         UIView.transition(with: self.imageView, duration: 0.25, options: [.transitionCrossDissolve, .allowUserInteraction]) {
                             self.imageView.image = img
                         }
@@ -144,6 +158,7 @@ final class DYAmbientFrameView: UIView {
                         self.imageView.image = img
                     }
                     Self.lastImage = img
+                    self.live = true
                 }
                 if let proj { DYDeskLightHub.publish(proj.image, glow: proj.glow, aspect: aspect) }
                 if self.imageView.alpha == 0, cg != nil {

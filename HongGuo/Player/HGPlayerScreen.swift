@@ -71,6 +71,7 @@ struct HGPlayerScreen: View {
     @State private var commentsInPane = false
     /// 桌面姿态操作台在：弹幕搬到操作台上，视频上不再画
     @State private var consoleShown = false
+    @State private var scrollIdle = true
     @AppStorage("hg.deskLight") private var deskLight = true
     /// 桌面姿态弹幕位置：false = 影片区（上半屏），true = 触控区（下半屏）
     @AppStorage("hg.danmaku.inConsole") private var danmakuInConsole = false
@@ -292,7 +293,13 @@ struct HGPlayerScreen: View {
             .ignoresSafeArea()
             .background(Color.black)
             .offset(x: edgeOffset)
-            .onChange(of: page) { _, p in if let p, p != session.index { session.go(to: p) } }
+            // 滑动/回弹还没停就不切集：切集会把画面层和环境光从旧页挪到新页，旧页还露着半屏就瞬间变成封面
+            // = 上滑时「先闪一个全屏」。停稳了再切（DouDuo：每页自己的画面和环境光一直挂着，滑动中不重挂）
+            .onChange(of: page) { _, p in if let p, p != session.index, scrollIdle { session.go(to: p) } }
+            .onScrollPhaseChange { _, phase in
+                scrollIdle = phase == .idle
+                if scrollIdle, let p = page, p != session.index { session.go(to: p) }
+            }
             .onChange(of: session.index) { _, i in if page != i { withAnimation(.easeInOut(duration: 0.3)) { page = i } } }
             // scrollPosition 的初值对 LazyVStack 不生效：首帧后显式滚到起始集
             .onAppear { proxy.scrollTo(session.index, anchor: .top); page = session.index }
@@ -322,7 +329,8 @@ struct HGPlayerScreen: View {
                 // 环境光：跟随「设置 → 环境光」（关 / 亮 / 中 / 暗 / 很暗，DouDuo 同款）
                 if ambientLevel > 0 {
                     DYAmbientBackdrop(player: session.player, output: session.videoOutput, active: true,
-                                      dim: Double(ambientLevel) / 100, fillWidth: fillWidth)
+                                      dim: Double(ambientLevel) / 100, fillWidth: fillWidth,
+                                      seed: session.ambientSeeds[ep.vid])
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
                         .accessibilityIdentifier("hg.player.ambient")
@@ -383,7 +391,13 @@ struct HGPlayerScreen: View {
                 statusOverlay
                 if feed == nil { chromeLayer(ep) }   // 横屏评论从右滑出时，视频缩到左边，菜单栏仍贴视频右侧
             } else if let poster = session.posters[ep.vid] {
-                // 已预下的集：滑动途中就是本集第一帧真画面
+                // 已预下的集：滑动途中就是本集第一帧真画面 + 用它做的环境光，跟起播后一模一样（停稳切过去不跳）
+                if ambientLevel > 0, let seed = session.ambientSeeds[ep.vid] {
+                    Image(uiImage: seed).resizable().scaledToFill()
+                        .frame(width: size.width, height: size.height).clipped()
+                        .overlay(Color.black.opacity(Double(ambientLevel) / 100))
+                        .ignoresSafeArea().allowsHitTesting(false)
+                }
                 posterView(poster, size: size).allowsHitTesting(false)
             } else {
                 // 相邻页只显示封面占位，滑动时不黑屏

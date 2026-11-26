@@ -142,6 +142,8 @@ final class HGPlaybackSession {
     func setDisplayReady(_ r: Bool) { if displayReady != r { displayReady = r } }
     /// 后面几集的首帧（vid → 图）：滑动途中相邻页直接显示真画面，转正后第一帧解出来之前也先盖着它
     private(set) var posters: [String: UIImage] = [:]
+    /// 首帧海报做的环境光（和实时环境光同一套处理）：滑过来那一页先用它，衔接不黑边、不跳色
+    var ambientSeeds: [String: UIImage] = [:]
     private var aheadTask: Task<Void, Never>?
     /// 往后预下几集：只备 1 集时连滑两下就得等下载
     private static let aheadCount = 2
@@ -430,6 +432,7 @@ final class HGPlaybackSession {
         let vids = episodes.dropFirst(i + 1).prefix(Self.aheadCount).filter { $0.locked != true }.map(\.vid)
         let keep = Set([episodes[i].vid] + vids)
         posters = posters.filter { keep.contains($0.key) }
+        ambientSeeds = ambientSeeds.filter { keep.contains($0.key) }
         aheadTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(1200))   // 先让本集起播、缓冲一点
             for vid in vids {
@@ -458,6 +461,7 @@ final class HGPlaybackSession {
         withExtendedLifetime(loader) {}
         guard let (cg, _) = got, !Task.isCancelled else { return }
         posters[vid] = UIImage(cgImage: cg)
+        ambientSeeds[vid] = await Task.detached(priority: .utility) { DYVideoAmbient.image(from: cg) }.value
     }
 
     /// 弹幕：等本集时长出来后一次拉完整集（核心里按 30 秒窗 + cursor 续页，每页 200 条）。
