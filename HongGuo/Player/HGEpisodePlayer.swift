@@ -553,8 +553,9 @@ final class HGPlaybackSession {
         posters = posters.filter { keep.contains($0.key) }
         ambientSeeds = ambientSeeds.filter { keep.contains($0.key) }
         aheadTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(1200))   // 先让本集起播、缓冲一点
-            for vid in vids {
+            // 下一集的播放器马上备（老板一秒一滑，等 1.2 秒就永远赶不上）；再后面的才让本集先缓冲一会
+            for (k, vid) in vids.enumerated() {
+                if k == 1 { try? await Task.sleep(for: .milliseconds(800)) }
                 // 取消只是不再等，缓存里的下载照常跑完
                 guard !Task.isCancelled, let playable = try? await HGMediaCache.shared.stream(for: vid) else { return }
                 guard !Task.isCancelled else { return }
