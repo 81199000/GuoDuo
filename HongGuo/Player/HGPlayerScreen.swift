@@ -894,6 +894,7 @@ struct HGPlayerScreen: View {
         .frame(height: 24)
         .padding(.horizontal, 16)
         .accessibilityIdentifier("hg.player.progress")
+        .accessibilityValue("\(Int(session.position))")
     }
 
     private var seekOverlay: some View {

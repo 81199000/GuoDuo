@@ -380,9 +380,10 @@ final class HGPlaybackSession {
         loadDanmaku(vid)
         loadTask = Task { [weak self] in
             do {
-                let file = try await HGMediaCache.shared.file(for: vid) { phase in
+                // 边下边播：文件头一到就开播（HGStream.swift）；整集已在缓存就直接放本地文件
+                let playable = try await HGMediaCache.shared.stream(for: vid) { phase in
                     Task { @MainActor in
-                        guard let self, self.index == i else { return }
+                        guard let self, self.index == i, self.status != nil else { return }
                         switch phase {
                         case .resolving: self.status = "正在获取片源…"
                         case .downloading(let p): self.status = p > 0 ? "正在加载 \(Int(p * 100))%" : "正在加载…"
@@ -391,8 +392,22 @@ final class HGPlaybackSession {
                     }
                 }
                 guard let self, !Task.isCancelled, self.index == i else { return }
-                self.attach(file, offset: offset)
-                self.prefetchAhead(from: i)
+                switch playable {
+                case .file(let file):
+                    self.streamLoader = nil
+                    self.attach(AVURLAsset(url: file), offset: offset)
+                    self.prefetchAhead(from: i)
+                case .stream(let job):
+                    let loader = HGStreamLoader(job)
+                    self.streamLoader = loader
+                    self.attach(loader.makeAsset(), offset: offset)
+                    // 这集下完再预下后面的，别跟正在播的抢带宽
+                    Task { [weak self] in
+                        _ = try? await job.finishedFile()
+                        guard let self, !Task.isCancelled, self.index == i else { return }
+                        self.prefetchAhead(from: i)
+                    }
+                }
             } catch {
                 guard let self, !Task.isCancelled, self.index == i else { return }
                 self.status = nil
@@ -460,8 +475,11 @@ final class HGPlaybackSession {
         }
     }
 
-    private func attach(_ file: URL, offset: Double) {
-        let item = AVPlayerItem(url: file)
+    /// 边下边播时 AVURLAsset 对资源 delegate 是弱引用：播放器自己持有，换集时换掉
+    private var streamLoader: HGStreamLoader?
+
+    private func attach(_ asset: AVURLAsset, offset: Double) {
+        let item = AVPlayerItem(asset: asset)
         let out = AVPlayerItemVideoOutput(pixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
         item.add(out)
         videoOutput = out
@@ -484,7 +502,7 @@ final class HGPlaybackSession {
         imageGenerator = gen
         seekPreviewImage = nil
         Task { [weak self] in
-            if let track = try? await AVURLAsset(url: file).loadTracks(withMediaType: .video).first,
+            if let track = try? await asset.loadTracks(withMediaType: .video).first,
                let (size, transform) = try? await track.load(.naturalSize, .preferredTransform) {
                 let r = size.applying(transform)
                 if abs(r.height) > 1 { self?.videoAspect = Double(abs(r.width) / abs(r.height)) }

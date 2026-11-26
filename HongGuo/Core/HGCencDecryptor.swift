@@ -82,6 +82,116 @@ enum HGCencDecryptor {
         return out
     }
 
+    // MARK: - 边下边播：只拿文件头就能算出解密后文件的头，正文按区间现场解密
+
+    struct StreamSample { let off: Int; let size: Int; let iv: [UInt8] }
+    /// 解密后文件 = header + 源文件[bodyStart...] 逐样本解密；输出偏移 o（≥ header.count）对应源偏移 o + delta
+    struct StreamPlan {
+        let header: [UInt8]
+        let delta: Int
+        let bodyStart: Int
+        let samples: [StreamSample]   // 按源偏移升序
+        let key: Data
+    }
+
+    /// head：源文件开头若干字节，必须完整包含 moov（moov 在 mdat 前面）；total：源文件总长。
+    /// 样本表 / IV 的取法与 decrypt() 第 1 步逐行一致，header 与 decrypt() 输出的开头逐字节相同。
+    static func streamPlan(head: [UInt8], total: Int, keyHex: String) throws -> StreamPlan {
+        guard let key = Data(hex: keyHex), key.count == 16 else { throw HGError.message("视频密钥无效") }
+        var d = head
+        let top = parseBoxes(d, 0, d.count)
+        guard let moov = top.first(where: { $0.typ == "moov" }) else { throw HGError.message("文件头里没有 moov") }
+        guard !top.contains(where: { $0.typ == "mdat" && $0.off < moov.off }) else { throw HGError.message("moov 不在文件头") }
+        let lim = d.count
+        var samples: [StreamSample] = []
+        for stbl in walk(top).filter({ $0.typ == "stbl" }) {
+            let kids = stbl.children ?? []
+            guard let stsz = kids.first(where: { $0.typ == "stsz" }),
+                  let stco = kids.first(where: { $0.typ == "stco" }),
+                  let stsc = kids.first(where: { $0.typ == "stsc" }) else { continue }
+            let senc = kids.first(where: { $0.typ == "senc" })
+            let ss = Int(u32(d, stsz.off + 12)), n = Int(u32(d, stsz.off + 16))
+            guard n <= 1_000_000, ss != 0 || stsz.off + 20 + n * 4 <= lim else { throw HGError.message("视频采样表无效") }
+            let sizes: [Int] = ss == 0 ? (0..<n).map { Int(u32(d, stsz.off + 20 + $0 * 4)) } : Array(repeating: ss, count: n)
+            let nc = Int(u32(d, stco.off + 12))
+            guard nc <= 1_000_000, stco.off + 16 + nc * 4 <= lim else { throw HGError.message("视频块表无效") }
+            let chunkOffs = (0..<nc).map { Int(u32(d, stco.off + 16 + $0 * 4)) }
+            let ns = Int(u32(d, stsc.off + 12))
+            guard ns <= 1_000_000, stsc.off + 16 + ns * 12 <= lim else { throw HGError.message("视频块映射无效") }
+            let tab = (0..<ns).map { (Int(u32(d, stsc.off + 16 + $0 * 12)), Int(u32(d, stsc.off + 20 + $0 * 12))) }
+            var ivs: [Int] = []
+            if let senc {
+                let sc = Int(u32(d, senc.off + 12))
+                guard senc.off + 16 + sc * 8 <= lim else { throw HGError.message("视频加密格式不受支持") }
+                ivs = (0..<sc).map { senc.off + 16 + $0 * 8 }
+            }
+            var spc = [Int](repeating: 1, count: nc)
+            for (i, entry) in tab.enumerated() {
+                let next = i + 1 < tab.count ? tab[i + 1].0 : nc + 1
+                var ci = entry.0 - 1
+                while ci < next - 1 { if ci >= 0 && ci < nc { spc[ci] = entry.1 }; ci += 1 }
+            }
+            var si = 0
+            for ci in 0..<nc {
+                var off = chunkOffs[ci]
+                for _ in 0..<spc[ci] {
+                    if si >= n { break }
+                    let sz = sizes[si]
+                    if off >= 0, off + sz <= total, si < ivs.count, sz > 0 {
+                        samples.append(StreamSample(off: off, size: sz, iv: Array(d[ivs[si]..<(ivs[si] + 8)])))
+                    }
+                    off += sz; si += 1
+                }
+            }
+        }
+        samples.sort { $0.off < $1.off }
+        let newMoov = try rebuildMoov(&d, moovOff: moov.off, moovSize: moov.size, moovBox: moov)
+        return StreamPlan(header: Array(d[0..<moov.off]) + newMoov, delta: moov.size - newMoov.count,
+                          bodyStart: moov.off + moov.size, samples: samples, key: key)
+    }
+
+    /// buf = 源文件 [srcStart, srcStart + buf.count) 的原始字节，原地解密其中落在加密样本里的部分。
+    static func decrypt(_ buf: inout [UInt8], at srcStart: Int, plan: StreamPlan) throws {
+        let end = srcStart + buf.count
+        let ss = plan.samples
+        var lo = 0, hi = ss.count
+        while lo < hi { let m = (lo + hi) / 2; if ss[m].off + ss[m].size <= srcStart { lo = m + 1 } else { hi = m } }
+        var i = lo
+        while i < ss.count, ss[i].off < end {
+            let s = ss[i]
+            let a = max(s.off, srcStart), b = min(s.off + s.size, end)
+            if b > a { try ctrRange(&buf, at: a - srcStart, count: b - a, key: plan.key, iv8: s.iv, skip: a - s.off) }
+            i += 1
+        }
+    }
+
+    /// 从样本内第 skip 字节开始的 AES-CTR：计数器跳到 skip/16，块内再丢掉 skip%16 字节密钥流
+    private static func ctrRange(_ d: inout [UInt8], at off: Int, count: Int, key: Data, iv8: [UInt8], skip: Int) throws {
+        var iv = [UInt8](repeating: 0, count: 16)
+        for i in 0..<8 { iv[i] = iv8[i] }
+        let block = UInt64(skip / 16)
+        for i in 0..<8 { iv[8 + i] = UInt8((block >> (56 - 8 * UInt64(i))) & 0xff) }
+        var ref: CCCryptorRef?
+        let created = key.withUnsafeBytes { k in
+            CCCryptorCreateWithMode(CCOperation(kCCEncrypt), CCMode(kCCModeCTR), CCAlgorithm(kCCAlgorithmAES), CCPadding(ccNoPadding),
+                                    iv, k.baseAddress, 16, nil, 0, 0, CCModeOptions(kCCModeOptionCTR_BE), &ref)
+        }
+        guard created == kCCSuccess, let ref else { throw HGError.message("解密器初始化失败") }
+        defer { CCCryptorRelease(ref) }
+        var moved = 0
+        if skip % 16 > 0 {
+            let n = skip % 16
+            var junk = [UInt8](repeating: 0, count: n)
+            let st = junk.withUnsafeMutableBytes { b in CCCryptorUpdate(ref, b.baseAddress, n, b.baseAddress, n, &moved) }
+            guard st == kCCSuccess else { throw HGError.message("视频样本解密失败") }
+        }
+        let status = d.withUnsafeMutableBytes { buf -> CCCryptorStatus in
+            let p = buf.baseAddress! + off
+            return CCCryptorUpdate(ref, p, count, p, count, &moved)
+        }
+        guard status == kCCSuccess, moved == count else { throw HGError.message("视频样本解密失败") }
+    }
+
     // MARK: - moov 重建（对应 rebuildMoov）
 
     private static func rebuildMoov(_ d: inout [UInt8], moovOff: Int, moovSize: Int, moovBox: Box) throws -> [UInt8] {
