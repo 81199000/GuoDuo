@@ -12,7 +12,8 @@ final class HGSwipeFlashRec: XCTestCase {
         XCTAssertTrue(tab.waitForExistence(timeout: 20)); tab.tap()
         let field = app.textFields["hg.search.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap()
-        field.typeText("https://hongguoduanju.com/player/7708882670633094206\n")
+        let sid = ProcessInfo.processInfo.environment["HG_SID"] ?? "7708882670633094206"
+        field.typeText("https://hongguoduanju.com/player/\(sid)\n")
         XCTAssertTrue(app.buttons["hg.episode.1"].waitForExistence(timeout: 25))
         sleep(2)
         let ep = app.buttons["hg.episode.3"]
@@ -22,6 +23,10 @@ final class HGSwipeFlashRec: XCTestCase {
         XCTAssertTrue(wait(surface, "playing-3", 30))
         // 开始录屏的标记（脚本据此对齐时间）
         print("HGREC mark-play3 \(Date().timeIntervalSince1970)")
+        if ProcessInfo.processInfo.environment["HG_ORIENT"] == "landscape" {
+            XCUIDevice.shared.orientation = .landscapeLeft   // 宽屏：竖视频居中、两边环境光（Duo 展开同款）
+            sleep(2)
+        }
         sleep(UInt32(ProcessInfo.processInfo.environment["HG_WATCH_S"] ?? "6") ?? 6)
         print("HGREC swipe1 \(Date().timeIntervalSince1970)")
         surface.swipeUp(velocity: .fast)

@@ -49,6 +49,8 @@ final class DYAmbientFrameView: UIView {
     private static let queue = DispatchQueue(label: "guoduo.ambient", qos: .utility)
     /// 上一帧还没处理完就不取新帧（不堆积）
     private var working = false
+    /// 最近一帧环境光（各页共用，新页先用它顶着）
+    private static var lastImage: UIImage?
 
     init(player: AVPlayer) {
         self.player = player
@@ -59,8 +61,15 @@ final class DYAmbientFrameView: UIView {
         clipsToBounds = true
         imageView.contentMode = .scaleAspectFill
         imageView.layer.magnificationFilter = .linear
-        imageView.alpha = 0
-        dimView.alpha = 0
+        // 换集时这一页是新建的：先顶上一集最后一帧的环境光，不从全黑再淡入（上滑切集「两边先黑一下再亮」）
+        if let last = Self.lastImage {
+            imageView.image = last
+            imageView.alpha = 1
+            dimView.alpha = 1
+        } else {
+            imageView.alpha = 0
+            dimView.alpha = 0
+        }
         dimView.backgroundColor = UIColor.black.withAlphaComponent(dim)
         addSubview(imageView)
         addSubview(dimView)
@@ -124,7 +133,18 @@ final class DYAmbientFrameView: UIView {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.working = false
-                if let cg { self.imageView.image = UIImage(cgImage: cg) }
+                if let cg {
+                    let img = UIImage(cgImage: cg)
+                    // 新一集的第一帧：从上一集的光渐变过去，不硬切
+                    if self.imageView.image != nil, self.imageView.image === Self.lastImage, self.imageView.alpha == 1 {
+                        UIView.transition(with: self.imageView, duration: 0.25, options: [.transitionCrossDissolve, .allowUserInteraction]) {
+                            self.imageView.image = img
+                        }
+                    } else {
+                        self.imageView.image = img
+                    }
+                    Self.lastImage = img
+                }
                 if let proj { DYDeskLightHub.publish(proj.image, glow: proj.glow, aspect: aspect) }
                 if self.imageView.alpha == 0, cg != nil {
                     UIView.animate(withDuration: 0.25) { self.imageView.alpha = 1; self.dimView.alpha = 1 }

@@ -327,7 +327,7 @@ struct HGPlayerScreen: View {
                         .allowsHitTesting(false)
                         .accessibilityIdentifier("hg.player.ambient")
                 }
-                HGVideoLayer(player: session.player, fillWidth: fillWidth, pip: session.pip,
+                HGVideoLayer(player: session.player, fillWidth: fillWidth, pip: session.pip, container: size,
                              onReadyForDisplay: { [session] in session.setDisplayReady($0) })
                     .scaleEffect(userScale * pinchScale)
                     .clipped()
@@ -1027,6 +1027,8 @@ struct HGVideoLayer: UIViewRepresentable {
     let player: AVPlayer
     let fillWidth: Bool
     let pip: DYPictureInPicture
+    /// 这一页的尺寸：铺满 / 完整画面按它判断，不按画面层的临时 bounds（换页挪 view 时会有一瞬是错的尺寸）
+    var container: CGSize = .zero
     var onReadyForDisplay: ((Bool) -> Void)? = nil
     /// 同一个 AVPlayer 复用同一块画面层：推荐页预热的下一部转正时，页面从「预热画面」换成完整播放页，
     /// 新建 AVPlayerLayer 会让解码管线重建（真机：起播 1.5 秒、播 1 秒跳回开头）。挪同一个 view 过去就不重建
@@ -1035,6 +1037,7 @@ struct HGVideoLayer: UIViewRepresentable {
     func makeUIView(context: Context) -> HGPlayerLayerView {
         if let v = Self.views.object(forKey: player) {
             v.removeFromSuperview()
+            v.container = container
             v.fillWidth = fillWidth
             v.onReadyForDisplay = onReadyForDisplay
             return v
@@ -1042,6 +1045,7 @@ struct HGVideoLayer: UIViewRepresentable {
         let v = HGPlayerLayerView()
         Self.views.setObject(v, forKey: player)
         v.playerLayer.player = player
+        v.container = container
         v.fillWidth = fillWidth
         v.onReadyForDisplay = onReadyForDisplay
         v.pip = pip
@@ -1050,6 +1054,7 @@ struct HGVideoLayer: UIViewRepresentable {
     }
     func updateUIView(_ v: HGPlayerLayerView, context: Context) {
         if v.playerLayer.player !== player, UIApplication.shared.applicationState != .background { v.playerLayer.player = player }
+        v.container = container
         v.fillWidth = fillWidth
         v.applyGravity()
     }
@@ -1057,6 +1062,7 @@ struct HGVideoLayer: UIViewRepresentable {
 
 final class HGPlayerLayerView: UIView {
     var fillWidth = true
+    var container: CGSize = .zero
     weak var pip: DYPictureInPicture?
     var onReadyForDisplay: ((Bool) -> Void)? { didSet { onReadyForDisplay?(playerLayer.isReadyForDisplay) } }
     private var readyObs: NSKeyValueObservation?
@@ -1097,11 +1103,16 @@ final class HGPlayerLayerView: UIView {
     deinit { bgObs.forEach(NotificationCenter.default.removeObserver) }
     override func layoutSubviews() { super.layoutSubviews(); applyGravity() }
     func applyGravity() {
+        let box = container.width > 1 && container.height > 1 ? container : bounds.size
         guard let size = playerLayer.player?.currentItem?.presentationSize, size.width > 1, size.height > 1,
-              bounds.width > 1, bounds.height > 1 else { return }
+              box.width > 1, box.height > 1 else { return }
         let g: AVLayerVideoGravity = DYVideoFit.presentation(fillWidth: fillWidth, videoAspect: size.width / size.height,
-                                                             screenAspect: bounds.width / bounds.height) == .aspectFill ? .resizeAspectFill : .resizeAspect
-        if playerLayer.videoGravity != g { playerLayer.videoGravity = g }
+                                                             screenAspect: box.width / box.height) == .aspectFill ? .resizeAspectFill : .resizeAspect
+        guard playerLayer.videoGravity != g else { return }
+        // 不要隐式动画：改 videoGravity 默认会动画过渡，换集那一下就是「先铺满全屏再缩回中间」
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        playerLayer.videoGravity = g
+        CATransaction.commit()
     }
 }
 
