@@ -153,9 +153,9 @@ extension EnvironmentValues {
 }
 
 enum HGRootTab: String, CaseIterable, Hashable {
-    // 搜索并进发现页顶部的搜索框（2026-11-24 老板：菜单栏的搜索去掉）
+    // 搜索并进发现页顶部的搜索框
     // 顺序同奈飞：首页 / 推荐（片段）/ 我的
-    // 2026-11-25 老板：搜索收进标签栏胶囊（奈飞同款：首页 / 推荐 / 搜索 / 我的）
+    // 搜索收进标签栏胶囊（奈飞同款：首页 / 推荐 / 搜索 / 我的）
     case discover = "发现", feed = "推荐", search = "搜索", mine = "我的"
     var icon: String {
         switch self {
@@ -181,8 +181,8 @@ struct HGRootView: View {
     var body: some View {
         GeometryReader { geo in
             // 横屏大屏：系统标签栏换成右侧液态玻璃竖栏（图标 + 文字，宽度对齐右上信号栏），内容让出位置不被遮
-            // Duo（外屏 / 内屏）也用：系统竖向标签栏只显示图标，老板要图标下面带文字（2026-11-25）
-            // 2026-11-25 老板：主菜单换回系统原生标签栏（Duo 上系统竖栏、只出图标，自带液态玻璃透光）；自绘胶囊停用
+            // Duo（外屏 / 内屏）也用：系统竖向标签栏只显示图标，图标下面带文字
+            // 主菜单换回系统原生标签栏（Duo 上系统竖栏、只出图标，自带液态玻璃透光）；自绘胶囊停用
             let sideRail = false
             let reserve = HGSideTabRail.reserve(trailingSafeArea: geo.safeAreaInsets.trailing)
             TabView(selection: $tab) {

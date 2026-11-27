@@ -24,7 +24,7 @@ struct HGPlayerRequest: Identifiable {
         HGAudioKeepAlive.start()
     }
     /// 退出 App（没开听书、没在画中画）：交还音频会话、清掉锁屏 / 灵动岛的「正在播放」，
-    /// 否则系统会把刚暂停的会话当成还在放，灵动岛闪一下播放图标（老板 2026-11-19 反馈）
+    /// 否则系统会把刚暂停的会话当成还在放，灵动岛闪一下播放图标
     static func releaseForBackground() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         HGAudioKeepAlive.release()
@@ -35,7 +35,7 @@ struct HGPlayerRequest: Identifiable {
 
 /// 静音保活：播放页在前台时常开一路全零音频，音频输出链路不断。
 /// 真机（蓝牙耳机）实测 2026-11-24：AVPlayer 每换一集都要重新拉起蓝牙音频链路，画面等声音约 1.4 秒才动
-/// （老板反馈「滑到下一集会暂停一会才播、推荐里卡很久」），挂上保活后切集起播 1.7 秒 → 0.5 秒。
+/// 挂上保活后切集起播 1.7 秒 → 0.5 秒。
 /// 全零样本不出声，只多一点点耗电；退到后台（没开听书）随音频会话一起停。
 @MainActor enum HGAudioKeepAlive {
     private static var engine: AVAudioEngine?
@@ -187,7 +187,7 @@ final class HGPlaybackSession {
     private var primeObs: NSKeyValueObservation?
 
     /// 同一次「点播放」（同一个 request）只建一个会话：横竖屏切换时 SwiftUI 可能把播放页重建一遍，
-    /// 重建后的页拿回同一个会话接着放，不会从 request 的起点重新开始（老板：外屏横过来总是从头播）
+    /// 重建后的页拿回同一个会话接着放，不会从 request 的起点重新开始
     private static var live: [UUID: HGPlaybackSession] = [:]
     static func session(for r: HGPlayerRequest) -> HGPlaybackSession {
         if let s = live[r.id] { return s }   // 父视图每次刷新都会走到这里，别写日志
@@ -603,7 +603,7 @@ final class HGPlaybackSession {
         posters = posters.filter { keep.contains($0.key) }
         ambientSeeds = ambientSeeds.filter { keep.contains($0.key) }
         aheadTask = Task { [weak self] in
-            // 下一集的播放器马上备（老板一秒一滑，等 1.2 秒就永远赶不上）；再后面的才让本集先缓冲一会
+            // 下一集的播放器马上备（连续快速上滑，等 1.2 秒就永远赶不上）；再后面的才让本集先缓冲一会
             for (k, vid) in vids.enumerated() {
                 if k == 1 { try? await Task.sleep(for: .milliseconds(800)) }
                 // 取消只是不再等，缓存里的下载照常跑完

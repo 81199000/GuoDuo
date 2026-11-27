@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 本集热评面板（DouDuo DYCommentPanel 经典样式）：标题「N 条评论」居中 + 右侧关闭、分隔线、
 /// 头像 32 / 昵称 caption 次要色 / 正文 subheadline / 时间 caption2 / 右侧点赞列。
-/// 内容只放官网公开的前 15 条热评（老板定）；总数取 App 详情接口的本集评论数。
+/// 内容只放官网公开的前 15 条热评；总数取 App 详情接口的本集评论数。
 enum HGCommentPolicy {
     /// 以前走官网公开页只有前 5 集有评论；现在走 App 分集评论接口（同绿果TV），每一集都能看
     static let publicEpisodes = Int.max
@@ -12,7 +12,7 @@ struct HGCommentPanel: View {
     let series: HGSeries
     let episode: HGEpisode
     var total: Int?
-    /// 2026-11-26 老板：发评论关掉（红果把非官方客户端发的评论降成「仅自己可见」）；参数先留着
+    /// 发评论关掉（红果把非官方客户端发的评论降成「仅自己可见」）；参数先留着
     var session: HGPlaybackSession? = nil
     let onClose: (() -> Void)?
     var fillsPane = false

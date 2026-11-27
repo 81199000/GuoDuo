@@ -139,7 +139,7 @@ struct HGMarkdownView: View {
     }
 }
 
-/// 「设置」里的「关于」：只留一行入口（右边显示版本号），点进去是详情页（2026-11-26 老板）
+/// 「设置」里的「关于」：只留一行入口（右边显示版本号），点进去是详情页
 struct HGAboutSection: View {
     var body: some View {
         Section {

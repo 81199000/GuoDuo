@@ -2,7 +2,7 @@ import SwiftUI
 import CoreImage
 import UIKit
 
-// 奈飞式首页（老板 2026-11-25 截图为准）：
+// 奈飞式首页：
 // 顶部「logo + 首页」大标题 + 玻璃圆角药丸分类（真人剧 / 漫剧 / AI剧 / 系列剧 / 类别 ▾），滚动后顶栏垫磨砂；
 // 大海报卡（取封面主色给整页染底色）+ 播放 / 追剧；下面一行一类左右滑：继续观看、我的追剧、Top 10（描边大数字）、各榜单。
 // 纯黑底、海报小圆角、行标题加粗、海报底部红白角标、TOP 10 角标；数据全部来自红果榜单接口，滑到哪行才拉哪行。
@@ -59,7 +59,7 @@ struct HGHomeRow: Identifiable, Hashable {
 }
 
 struct HGHomeView: View {
-    /// 分区（空 = 全部）。2026-11-26 老板：AI剧 / 系列剧放回顶部，再加西饭 / 河马；
+    /// 分区（空 = 全部）。AI剧 / 系列剧放回顶部，再加西饭 / 河马；
     /// 顶部按屏宽自适应——放得下几个摆几个，放不下的从后往前收进「类别」菜单最底下（`fittingPills`）
     static let zoneChips: [(id: String, name: String, genre: String)] = [
         ("human", "真人剧", "short_play"), ("comic_series_rank", "漫剧", "comic_series"),
@@ -107,12 +107,12 @@ struct HGHomeView: View {
     @State private var openSeries: HGSeries?
 
     /// 顶栏离屏幕上沿（整页忽略顶部安全区，自己算）。
-    /// Duo 展开：照老板 11-25 奈飞截图实测（截图短边 900px ≈ 内屏短边 1003pt）——N 标志竖屏 49～94pt、横屏 47～90pt，
+    /// Duo 展开：照奈飞截图实测（截图短边 900px ≈ 内屏短边 1003pt）——N 标志竖屏 49～94pt、横屏 47～90pt，
     /// 中线都在约 70pt，跟右上角时间同一行；我们 logo 行高约 34pt → 行顶 53pt，竖横屏一样（不跟系统安全区走）。
     /// 外屏：保持原位（按系统安全区）；其它设备按系统安全区
     static func topInset(width: CGFloat, safeTop: CGFloat) -> CGFloat {
         guard DYDuoMetrics.isDuoHardware else { return safeTop }
-        // 外屏：老板 11-25 嫌 logo 太贴顶 → 往下半个图标（logo 高 30 → 15pt）
+        // 外屏：logo 往下半个图标（logo 高 30 → 15pt）
         return width >= 600 ? 53 : safeTop + 15
     }
     /// 往下滑分类药丸那行弹上去收起，往上滑弹回来（奈飞同款）
@@ -195,7 +195,7 @@ struct HGHomeView: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    // 2026-11-26 老板：选了分区不再把别的藏起来，只把选中的那个字变主题色；最前面加「全部」
+                    // 选了分区不再把别的藏起来，只把选中的那个字变主题色；最前面加「全部」
                     chip("全部", on: zone.isEmpty) { withAnimation(.snappy) { zone = "" } }
                     ForEach(Self.zoneChips.prefix(pillCount), id: \.id) { c in
                         chip(c.name, on: zone == c.id) { withAnimation(.snappy) { zone = c.id } }
@@ -258,7 +258,7 @@ struct HGHomeView: View {
 
     private var categoryMenu: some View {
         Menu {
-            // 顶部放不下的分区（按屏宽自适应）：放菜单最上面（2026-11-26 老板），单独一组 + 图标 + 说明
+            // 顶部放不下的分区（按屏宽自适应）：放菜单最上面，单独一组 + 图标 + 说明
             let hidden = Array(Self.zoneChips.dropFirst(pillCount))
             if !hidden.isEmpty {
                 Section("更多分区") {

@@ -84,7 +84,7 @@ struct HGMineView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                // 2026-11-26 老板：扫一扫放到「我的」右上，不用钻进设置
+                // 扫一扫放到「我的」右上，不用钻进设置
                 Button { HGRootRouter.shared.scan() } label: {
                     Image(systemName: "qrcode.viewfinder").font(.system(size: 22, weight: .regular))
                         .foregroundStyle(HGTheme.textPrimary)
@@ -748,7 +748,7 @@ extension HGCloudHistoryRow {
     }
 }
 
-/// 设置（2026-11-26 老板：改美观一些）：iOS 设置同款——每行左边一个彩色圆角图标块，按「外观 / 播放 / 缓存 / 账号」分组，
+/// 设置：iOS 设置同款——每行左边一个彩色圆角图标块，按「外观 / 播放 / 缓存 / 账号」分组，
 /// 首页样式改叫「首页主题」（奈飞 / 红果），储存空间改叫「缓存管理」并直接显示当前缓存占用
 struct HGMineSettings: View {
     let signedIn: Bool

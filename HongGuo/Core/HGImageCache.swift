@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import CryptoKit
 
-/// 封面 / 头像缓存（2026-11-26 老板：不要每次打开都重新加载）。
+/// 封面 / 头像缓存。
 /// AsyncImage 每次出现都先显示占位、再走网络/URLCache 解码一遍，翻回来就是一闪一闪重新加载。
 /// 这里两级：内存（解码好的 UIImage，命中时同步出图，不闪）+ 磁盘（Caches/hg-covers，按 URL 的 SHA256 存原始字节，
 /// 重启 App 也不用重下）。磁盘超过上限时启动后按最久没用的先删。「缓存管理」清理会一起清掉。

@@ -401,7 +401,7 @@ struct HGFeedView: View {
             .clipped()
             // 顶部频道：推荐 / 真人剧 / 漫剧（红果首页同款；登录了按账号推荐）
             .overlay(alignment: .top) {
-                // 2026-11-26 老板：点不中 → 每个字四周加大点击区（横向各 9、竖向到 44 高），字间距不变
+                // 点不中 → 每个字四周加大点击区（横向各 9、竖向到 44 高），字间距不变
                 HStack(spacing: 0) {
                     ForEach(HGFeedModel.channels, id: \.0) { id, name in
                         let on = id == model.channel

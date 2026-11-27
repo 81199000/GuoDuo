@@ -155,7 +155,7 @@ async function suggest({ query = '', signal } = {}) {
     if (text && text.length <= 40 && !seen.has(text) && (v.title || v.text)) { seen.add(text); out.push(text); }
     for (const k of Object.keys(v)) if (v[k] && typeof v[k] === 'object') walk(v[k], d + 1);
   })(j.data?.suggest_result || j.data, 0);
-  // 2026-11-26 老板：打字联想要带封面。query_result_v2 每条带类型（剧名 / 演员 / 合集 / 普通词）、
+  // 打字联想要带封面。query_result_v2 每条带类型（剧名 / 演员 / 合集 / 普通词）、
   // 剧名条带 video_data（series_id + HEIC 封面 → 转公开 JPEG）、演员条带「参演短剧·68部」小字
   const items = [];
   for (const r of Array.isArray(j.data?.query_result_v2) ? j.data.query_result_v2 : []) {

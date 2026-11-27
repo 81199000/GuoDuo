@@ -1,4 +1,4 @@
-// 果多 TV 遥控（2026-11-26 老板：把 GuoDuo TV 的手机遥控融进 App，扫码 / 局域网连接都能控，看到一半可以手机 ↔ 电视互相接着播）。
+// 果多 TV 遥控。
 // 电视端（guoduo-tv LocalService）已有的接口，App 直接用，不改电视：
 //   Bonjour `_guoduo._tcp`（TXT id / api / app）· 端口 8765 起
 //   GET  /api/pair/info                 公开：电视名 / 型号 / 要不要密码 / 这台手机绑过没有

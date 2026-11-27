@@ -15,7 +15,7 @@ struct HGFeedHooks {
     var previous: () -> Void = {}
 }
 
-/// 右侧栏数字的上一次值：划到下一部、新数字还没读到时先显示上一部的，读到了再换（老板 2026-11-25：别缩短再拉长）
+/// 右侧栏数字的上一次值：划到下一部、新数字还没读到时先显示上一部的，读到了再换
 enum HGRailMemo {
     nonisolated(unsafe) private static var last: [String: String] = [:]
     static func text(_ key: String, _ value: String?) -> String {
@@ -56,7 +56,7 @@ struct HGPlayerScreen: View {
     @State private var peek = false
 
     @State private var clean = false               // 沉浸式（原「全屏」）：只留画面
-    /// 沉浸式下 2× 锁定提示只显示 5 秒（老板 2026-11-19 要求）
+    /// 沉浸式下 2× 锁定提示只显示 5 秒
     @State private var lockBadgeExpired = false
     @State private var lockBadgeTask: Task<Void, Never>?
     @State private var showComments = false
@@ -206,7 +206,7 @@ struct HGPlayerScreen: View {
         .persistentSystemOverlays(clean ? .hidden : .automatic)
         .overlay(alignment: .top) { toastView }
         .sheet(isPresented: $showMore) {
-            // 2026-11-26 老板：更多面板做液态玻璃——底透出视频，按钮 / 选项是玻璃小块
+            // 更多面板做液态玻璃——底透出视频，按钮 / 选项是玻璃小块
             moreSheet
                 .presentationDetents([.height(moreSheetHeight), .large])
                 .presentationDragIndicator(.visible)
@@ -443,7 +443,7 @@ struct HGPlayerScreen: View {
     private func chrome(_ ep: HGEpisode) -> some View {
         // 横屏（宽 > 高）：返回键并到右侧菜单栏最上面（跟首页右侧胶囊一个位置逻辑）
         let wide = isLandscapeWindow
-        // 返回键放到右侧菜单栏最上面：推荐页、完整播放页，外屏 / 展开、横竖屏一律这样（老板 2026-11-19）
+        // 返回键放到右侧菜单栏最上面：推荐页、完整播放页，外屏 / 展开、横竖屏一律这样
         let backOnRail = true
         _ = wide
         // 极简：菜单栏不变；标题平时隐藏（暂停 / 按住返回键时显示），进度条画成返回键外圈
@@ -512,7 +512,7 @@ struct HGPlayerScreen: View {
         guard DYDuoMetrics.isDuoHardware,
               let w = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size,
               w.width < 600 else { return 16 }
-        // 老板 11-25 截图：信号圈下缘 ≈159pt，栏顶 168 只空 9pt 太挤 → 栏顶压到 192（空 ~33pt）
+        // 信号圈下缘 ≈159pt，栏顶 168 只空 9pt 太挤 → 栏顶压到 192（空 ~33pt）
         return w.width < w.height ? 180 : 16
     }
 
@@ -531,7 +531,7 @@ struct HGPlayerScreen: View {
         let below = max(safeBottom, 18) + 36
         let above = max(safeTop, 12) + statusClearance
         let room = window.height - below - above
-        // 栏底空白 36（原 DouDuo 56；老板 2026-11-25：整列再往下一点，别贴着信号圈）
+        // 栏底空白 36
         // 展开（regular）再低 28pt：横屏信号圈竖在右上，栏顶要离它远一点
         let gap: CGFloat = hSize == .regular ? 8 : 36
         guard window.height > 0 else { return (gap, 1) }
@@ -550,7 +550,7 @@ struct HGPlayerScreen: View {
 
     /// 胶囊宽度（DDActionRail：外屏 50 / 展开 54）
     private var railCapsuleWidth: CGFloat { tabCapsule?.width ?? (hSize == .compact ? DDMedia.railWidthCompact : DDMedia.railWidthRegular) }
-    /// 首页系统标签栏胶囊（同一窗口尺寸下量到的）：右侧栏照它的宽度和中线（2026-11-26 老板：两个菜单一样宽）
+    /// 首页系统标签栏胶囊（同一窗口尺寸下量到的）：右侧栏照它的宽度和中线
     private var tabCapsule: CGRect? {
         guard let w = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.bounds.size else { return nil }
         return HGTabBarMetrics.capsule(for: w)
@@ -587,7 +587,7 @@ struct HGPlayerScreen: View {
     /// 极简返回键：DouDuo 极简入口同款——外圈是视频进度（环 50pt、线宽 3.2、底轨 22%，12 点顺时针，拖进度变粗）；
     /// 单击返回，按住显示标题、松手消失
     private var ringBackButton: some View {
-        // 外径跟下面胶囊同宽（老板 2026-11-25：返回键进度条宽度跟胶囊一致）
+        // 外径跟下面胶囊同宽
         let d: CGFloat = railCapsuleWidth, lw: CGFloat = 3
         let pos = seeking ? seekPreview : session.position
         let frac = session.duration > 0 ? min(1, max(0, pos / session.duration)) : 0
@@ -692,7 +692,7 @@ struct HGPlayerScreen: View {
     }
 
     /// 底部安全区：用播放层自己量到的（DouDuo 同款，读整个窗口的在展开横屏会偏大、把菜单栏抬高）
-    /// 外屏竖屏保持原来的（老板确认外屏是对的）：读窗口
+    /// 外屏竖屏保持原来的：读窗口
     private var safeBottom: CGFloat {
         outerPortrait ? ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.bottom ?? 34) : layerInsets.bottom
     }
@@ -736,7 +736,7 @@ struct HGPlayerScreen: View {
         items.append(.init(id: "hg.rail.favorite", icon: fav ? "star.fill" : "star",
                            text: HGRailMemo.text("favorite", session.stats?.follows.map { DDMedia.count($0 + (fav ? 1 : 0)) }),
                            tint: fav ? DDMedia.warning : .white, reservesText: true) { library.toggleFavorite(session.series) })
-        // 2026-11-26 老板：铺满按钮从右侧栏挪进「更多」（hg.more.fill）；双指捏合照样能切
+        // 铺满按钮从右侧栏挪进「更多」（hg.more.fill）；双指捏合照样能切
         return DDActionRail(items: items, width: tabCapsule?.width) { showMore = true }
             .overlay(alignment: .topLeading) {
                 if commentTip {
@@ -751,7 +751,7 @@ struct HGPlayerScreen: View {
             .accessibilityValue(fav ? "已收藏" : "未收藏")
     }
 
-    /// 「更多」面板（2026-11-19 老板：竖屏 / 横屏展开都不协调、标题压在拖动条上）：
+    /// 「更多」面板：
     /// 顶部让开拖动条；内容限宽 560 居中；功能格用自适应列（宽屏不再被拉散）；
     /// 下面是倍速、弹幕（密度 / 透明度 / 字号）两组，统一「标签在左、选项在右」；放不下就滚动。
     private var moreSheet: some View {
@@ -952,7 +952,7 @@ struct HGPlayerScreen: View {
         .allowsHitTesting(false)
     }
 
-    /// 长按 2× / 锁定提示：屏幕最上方居中（2026-11-19 老板要求）
+    /// 长按 2× / 锁定提示：屏幕最上方居中
     private var boostBadge: some View {
         Text(session.lockedBoost ? "2× 已锁定 · 上滑解锁" : "2× 快进中 · 下滑锁定")
             .font(.caption.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 6)
@@ -1010,7 +1010,7 @@ struct HGPlayerScreen: View {
         Task { try? await Task.sleep(for: .milliseconds(650)); withAnimation(.easeOut(duration: 0.2)) { heartBurst = false } }
     }
 
-    /// 手机 → 电视：电视从这一集这一秒接着播，手机暂停（2026-11-26 老板）
+    /// 手机 → 电视：电视从这一集这一秒接着播，手机暂停
     private func castToTV() {
         let tvs = HGTVStore.shared.devices
         guard !tvs.isEmpty else { castSetup = true; return }
@@ -1189,7 +1189,7 @@ final class HGPlayerLayerView: UIView {
 }
 
 /// 普通 iPhone（非 Duo、非 iPad）的横竖屏：
-/// - 播放页（推荐页 / 完整播放页）在屏上时跟着手机重力感应转（老板 2026-11-19：Air 上横过来不转）；
+/// - 播放页（推荐页 / 完整播放页）在屏上时跟着手机重力感应转；
 /// - 离开播放页回到发现 / 搜索 / 我的：锁回竖屏，并主动把界面转回来；
 /// - 「更多 → 横屏 / 竖屏」仍可手动强制。
 @MainActor enum HGOrientation {
@@ -1270,7 +1270,7 @@ extension View {
     }
 
     /// 面板里的按钮 / 选项块：未选是白 10% 薄片（玻璃上再垫一层亮）；
-    /// 选中（2026-11-26 老板：红色换掉）= 白底黑字（跟首页标签栏选中的白一致，玻璃上最清楚、不跟视频抢色）
+    /// 选中 = 白底黑字（跟首页标签栏选中的白一致，玻璃上最清楚、不跟视频抢色）
     func hgGlassTile(on: Bool, radius: CGFloat, solidWhenOn: Bool) -> some View {
         background {
             let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)

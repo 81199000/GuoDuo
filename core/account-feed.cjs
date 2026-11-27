@@ -269,7 +269,7 @@ async function signedPost(cookie, apiPath, payload, signal, aid = '8662') {
   // 只记返回码 / 提示，不记 cookie、正文
   Native.log?.(`comment/add ${payload.__tag || ''} aid=${aid} code=${code} msg=${msg.slice(0, 60)} id=${j.data?.comment_info?.comment_id || j.data?.comment_id || ''}`);
   if (code === 100004 || /session_expired/i.test(msg)) throw fail('登录已失效，请重新登录', 'SESSION_EXPIRED');
-  // 有评论 id 就算发出去了（老板实测：提示失败但其实发布了）
+  // 有评论 id 就算发出去了
   if (j.data?.comment_info?.comment_id || j.data?.comment_id) return j.data;
   if (code !== 0) throw Object.assign(fail(msg && !/^success$/i.test(msg) ? `发送失败：${msg}（${code}）` : `发送失败（${code}）`, 'APP_BUSINESS'), { upstreamCode: code });
   return j.data || {};
@@ -333,7 +333,7 @@ async function addDanmaku({ cookie, sid, vid, text, offsetMs, signal } = {}) {
   throw last;
 }
 
-// ---------- 手机扫电视登录码（2026-11-26 老板：扫码直接登录电视）----------
+// ---------- 手机扫电视登录码 ----------
 // 电视 GuoDuo TV 的登录码是红果官网扫码登录（hongguoduanju.com get_qrcode，二维码内容 = reading.snssdk.com/…/scan-code.html?token=…&qr_source_aid=513755）。
 // 红果 App 扫到后做两步（APK dh1/c + 页面 scan-code.js 6747 模块）：
 //   1. GET  /passport/mobile/scan_qrcode/?aid=8662&token=   → 电视那边变「已扫码」，返回来源（网页名）和 confirmed_url（带 csrf_token/csrf_ts）

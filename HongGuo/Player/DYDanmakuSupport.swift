@@ -182,7 +182,7 @@ struct DYDanmakuLayer: View {
     let clock: DYDanmakuClock
     let topInset: CGFloat
     /// 竖屏半折叠：视频只有上半块（~370pt），默认「上 1/3、顶部再让 64」的区域高度为 0、一条轨道都没有 →
-    /// 改用整块视频窗格，从顶部开始往下排（老板：从顶部显示），底部留 12%
+    /// 改用整块视频窗格，从顶部开始往下排，底部留 12%
     var fullPane = false
     @AppStorage(DYDanmakuPolicy.densityKey) private var densityRaw = DYDanmakuPolicy.Density.standard.rawValue
     @AppStorage(DYDanmakuPolicy.deduplicateKey) private var deduplicate = true

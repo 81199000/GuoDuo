@@ -755,7 +755,7 @@ struct HGSearchView: View {
     @State private var error: String?
     /// 边打字边出的联想（红果官方搜索联想，剧名条带封面）
     @State private var suggestions: [HGSuggestItem] = []
-    /// 没输入时：热门搜索 + 为你推荐（奈飞搜索页同款，2026-11-26 老板）
+    /// 没输入时：热门搜索 + 为你推荐
     @State private var home = HGHomeModel.shared
     @State private var playing: HGPlayerRequest?
     @FocusState private var focused: Bool

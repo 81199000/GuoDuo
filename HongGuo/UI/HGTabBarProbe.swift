@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// 量系统标签栏（Duo 上是右侧竖向玻璃胶囊）的实际宽度和中线：推荐页右侧栏照它对齐（2026-11-26 老板：两个菜单一样宽）
+/// 量系统标签栏（Duo 上是右侧竖向玻璃胶囊）的实际宽度和中线：推荐页右侧栏照它对齐
 @MainActor enum HGTabBarMetrics {
     /// 量到的胶囊（窗口坐标），按窗口尺寸分开存（外屏 / 内屏、横竖屏各一份）
     private static var byWindow: [String: CGRect] = [:]
