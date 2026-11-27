@@ -25,3 +25,4 @@ final class HGAmbientShots: XCTestCase {
     }
     func testAmbient() throws { play("60"); play("0") }
 }
+
