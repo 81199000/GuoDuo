@@ -357,4 +357,3 @@ extension View {
         }
     }
 }
-
