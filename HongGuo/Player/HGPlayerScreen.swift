@@ -25,7 +25,8 @@ enum HGRailMemo {
 }
 
 /// 推荐页当前视频的菜单栏（右侧按钮栏 / 标题 / 返回键）：由当前这部交出来，推荐页画在滚动视图上面，滑动时不动
-struct HGFeedChrome { let id: String; let size: CGSize; let view: AnyView }
+/// bare：沉浸式 / 极简播放中——推荐页顶部频道跟着藏；极简暂停时显示
+struct HGFeedChrome { let id: String; let size: CGSize; let view: AnyView; var bare = false }
 struct HGFeedChromeKey: PreferenceKey {
     static var defaultValue: HGFeedChrome? { nil }
     static func reduce(value: inout HGFeedChrome?, nextValue: () -> HGFeedChrome?) { if let n = nextValue() { value = n } }
@@ -62,9 +63,11 @@ struct HGPlayerScreen: View {
     @State private var showComments = false
     @State private var showEpisodes = false
     @State private var showMore = false
-    /// 投到电视：绑过多台时弹选择；一台没绑过进遥控页
+    /// 投到电视：绑过多台时弹选择；一台没绑过走系统投屏列表
     @State private var castPick = false
-    @State private var castSetup = false
+    /// 普通投屏：选电视 / 当前投屏状态
+    @State private var castPickerShown = false
+    @State private var cast = HGCastSession.shared
     @State private var commentTip = false
     @State private var commentTipTask: Task<Void, Never>?
     /// 评论是否占着一侧（侧滑 / 半折常驻）：本视图自己的 body 里算出来，不能用环境值读回自己
@@ -212,10 +215,15 @@ struct HGPlayerScreen: View {
                 .presentationDragIndicator(.visible)
                 .hgGlassPanelBackground()
         }
+        .sheet(isPresented: $castPickerShown) {
+            NavigationStack { HGCastPicker { t in startCast(t) } }.presentationDetents([.medium, .large])
+        }
+        .overlay(alignment: .top) {
+            HGCastBanner(session: cast) { stopCast() }.padding(.top, safeTop + (feed != nil ? 44 : 8))
+        }
         .confirmationDialog("投到哪台电视", isPresented: $castPick, titleVisibility: .visible) {
             ForEach(HGTVStore.shared.devices) { tv in Button(tv.name) { cast(to: tv) } }
         }
-        .sheet(isPresented: $castSetup) { NavigationStack { HGTVRemoteView() }.presentationDetents([.large]) }
         .sheet(isPresented: $showEpisodes) {
             HGEpisodeSheet(session: session) { showEpisodes = false }
                 .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
@@ -404,7 +412,7 @@ struct HGPlayerScreen: View {
                     .accessibilityValue(session.isPlaying && session.position > 0.5 && page == i ? "playing-\(ep.number)" : "idle")
                     .accessibilityHint("pos=\(Int(session.position))")
                 if heartBurst { Image(systemName: "heart.fill").font(.system(size: 96)).foregroundStyle(HGTheme.accent).transition(.scale.combined(with: .opacity)).allowsHitTesting(false) }
-                if session.userPaused && session.status == nil && session.failed == nil && !seeking {
+                if pausedByUser {
                     Image(systemName: "play.fill").font(.system(size: 54)).foregroundStyle(.white.opacity(0.75)).allowsHitTesting(false)
                 }
                 if session.boosting || (session.lockedBoost && !lockBadgeExpired) { boostBadge }
@@ -416,11 +424,15 @@ struct HGPlayerScreen: View {
         .clipped()
         // 推荐页：菜单栏不画在这一页里（页会跟着手指滑）——交给推荐页，画在滚动视图外面的固定层（DouDuo DYActiveVideoActionsKey 同款）
         .preference(key: HGFeedChromeKey.self,
-                    value: feed != nil && i == session.index ? HGFeedChrome(id: ep.vid, size: size, view: AnyView(chromeLayer(ep))) : nil)
+                    value: feed != nil && i == session.index ? HGFeedChrome(id: ep.vid, size: size, view: AnyView(chromeLayer(ep)), bare: clean || (minimal && !pausedByUser)) : nil)
     }
 
+    /// 用户自己点了暂停（加载中 / 出错 / 拖进度时不算）
+    private var pausedByUser: Bool { session.userPaused && session.status == nil && session.failed == nil && !seeking }
+
     @ViewBuilder private func chromeLayer(_ ep: HGEpisode) -> some View {
-        if clean { exitCleanButton } else if consoleShown { consoleTitle(ep) } else { chrome(ep) }
+        // 沉浸式：播放时连退出键也藏，单击暂停才出来
+        if clean { if pausedByUser { exitCleanButton } } else if consoleShown { consoleTitle(ep) } else { chrome(ep) }
     }
 
     /// 首帧海报：铺满规则与画面层一致（DYVideoFit）
@@ -447,7 +459,7 @@ struct HGPlayerScreen: View {
         let backOnRail = true
         _ = wide
         // 极简：菜单栏不变；标题平时隐藏（暂停 / 按住返回键时显示），进度条画成返回键外圈
-        let paused = session.userPaused && session.status == nil && session.failed == nil && !seeking
+        let paused = pausedByUser
         let showInfo = !minimal || peek || paused
         // 矮屏（外屏横屏只有 ~466pt 高）：菜单栏整列放不下会顶出屏幕上沿 →
         // 先把栏底的 56 让出来（栏往下移），还不够再整列等比缩小，保证返回键到「更多」全在屏内
@@ -781,9 +793,9 @@ struct HGPlayerScreen: View {
                         fillWidth.toggle(); userScale = 1
                         flash(fillWidth ? "铺满：开" : "完整画面")
                     }
-                    moreItem("tv", "投到电视", id: "hg.more.tv") {
+                    moreItem("tv", cast.active ? "停止投屏" : "投到电视", on: cast.active, id: "hg.more.tv") {
                         showMore = false
-                        castToTV()
+                        if cast.active { stopCast() } else { castToTV() }
                     }
                     moreItem("arrow.up.left.and.arrow.down.right.rectangle", "沉浸式", id: "hg.more.clean") {
                         showMore = false; withAnimation(.easeOut(duration: 0.2)) { clean = true }
@@ -1013,8 +1025,40 @@ struct HGPlayerScreen: View {
     /// 手机 → 电视：电视从这一集这一秒接着播，手机暂停
     private func castToTV() {
         let tvs = HGTVStore.shared.devices
-        guard !tvs.isEmpty else { castSetup = true; return }
+        // 一台 GuoDuo TV 都没绑过：普通投屏（AirPlay / DLNA 推网址，电视自己来拉）
+        guard !tvs.isEmpty else { castPickerShown = true; return }
         if tvs.count == 1 { cast(to: tvs[0]) } else { castPick = true }
+    }
+
+    private func startCast(_ t: HGCastTarget) {
+        let ep = session.episode, t0 = session.position
+        let title = "\(session.series.series_title) 第 \(ep.number) 集"
+        // 投出去的这集手机先停（不跟电视双声道）；手机可以接着划别的视频，各放各的
+        if session.isPlaying { session.togglePlay() }
+        Task {
+            do {
+                try await cast.cast(vid: ep.vid, title: title, from: t0, to: t)
+                flash(feed != nil ? "电视在放了，手机可以接着刷" : "电视在放了")
+            }
+            catch {
+                HGTrace.log("cast 失败 \(error.localizedDescription)")
+                cast.note = nil; flash("投屏失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// 停止投屏：手机正停在电视放的那集 → 从电视的进度接着放；已经划到别的视频 → 只关电视，不动手机
+    private func stopCast() {
+        Task {
+            let same = cast.vid == session.episode.vid
+            let pos = same ? await cast.position() : nil
+            await cast.stop()
+            HGTrace.log("cast 收回 同一集=\(same) 电视进度=\(pos.map { String(Int($0)) } ?? "-")")
+            guard same else { flash("已停止投屏"); return }
+            if let pos, pos > 1 { session.seek(to: pos) }
+            if !session.isPlaying { session.togglePlay() }
+            flash("已收回手机")
+        }
     }
 
     private func cast(to tv: HGRemoteTV) {

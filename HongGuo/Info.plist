@@ -29,6 +29,7 @@
 	<array>
 		<string>_adb._tcp</string>
 		<string>_guoduo._tcp</string>
+		<string>_airplay._tcp</string>
 	</array>
 	<key>UIApplicationShortcutItems</key>
 	<array>

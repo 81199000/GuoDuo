@@ -232,16 +232,16 @@ final class HGTVInstaller {
     func start(_ tv: HGTVDevice) {
         guard !busy else { return }
         phase = .connecting; launched = nil; installedBefore = nil
-        UIApplication.shared.isIdleTimerDisabled = true      // 安装时别让手机锁屏，iOS 一退后台连接就断
+        HGScreenAwake.set("tv-install", true)      // 安装时别让手机锁屏，iOS 一退后台连接就断
         task = Task { [weak self] in
             await self?.run(tv)
-            UIApplication.shared.isIdleTimerDisabled = false
+            HGScreenAwake.set("tv-install", false)
         }
     }
 
     func cancel() {
         task?.cancel(); session?.close(); session = nil
-        UIApplication.shared.isIdleTimerDisabled = false
+        HGScreenAwake.set("tv-install", false)
         phase = .idle
     }
 

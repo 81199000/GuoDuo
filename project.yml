@@ -48,7 +48,7 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UIBackgroundModes: [audio]
         CADisableMinimumFrameDurationOnPhone: true
-        NSBonjourServices: ["_adb._tcp", "_guoduo._tcp"]
+        NSBonjourServices: ["_adb._tcp", "_guoduo._tcp", "_airplay._tcp"]
         # 长按 App 图标的菜单
         UIApplicationShortcutItems:
           - UIApplicationShortcutItemType: me.rrmm.hongguo.scan

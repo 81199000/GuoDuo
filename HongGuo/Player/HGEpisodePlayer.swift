@@ -33,6 +33,20 @@ struct HGPlayerRequest: Identifiable {
     }
 }
 
+/// 屏幕常亮（放视频时不能到了自动锁屏时间就息屏）：按「理由」计数，
+/// 有任何一个理由（在放视频 / 投屏中 / 装电视版）就不自动锁屏，全部撤掉才恢复系统息屏。
+/// 各处只登记自己的理由，不直接写 isIdleTimerDisabled——不然一处关掉会把别处的常亮一起关了。
+@MainActor enum HGScreenAwake {
+    private static var reasons = Set<String>()
+    static func set(_ reason: String, _ on: Bool) {
+        if on { reasons.insert(reason) } else { reasons.remove(reason) }
+        let want = !reasons.isEmpty
+        guard UIApplication.shared.isIdleTimerDisabled != want else { return }
+        UIApplication.shared.isIdleTimerDisabled = want
+        HGTrace.log("screen 常亮=\(want) \(reasons.sorted())")
+    }
+}
+
 /// 静音保活：播放页在前台时常开一路全零音频，音频输出链路不断。
 /// 真机（蓝牙耳机）实测 2026-11-24：AVPlayer 每换一集都要重新拉起蓝牙音频链路，画面等声音约 1.4 秒才动
 /// 挂上保活后切集起播 1.7 秒 → 0.5 秒。
@@ -159,6 +173,10 @@ final class HGPlaybackSession {
     private var loadTask: Task<Void, Never>?
     private var danmakuTask: Task<Void, Never>?
     private var timeObserver: Any?
+    private var externalObs: NSKeyValueObservation?
+    /// 当前播放器在放（含缓冲）→ 屏幕常亮；换播放器时重挂
+    private var awakeObs: NSKeyValueObservation?
+    private var awakeKey: String { "play-\(ObjectIdentifier(self).hashValue)" }
     private var endObserver: NSObjectProtocol?
     private var lastSaved = Date.distantPast
     private let library = HGLibrary.shared
@@ -203,6 +221,10 @@ final class HGPlaybackSession {
         series = r.series; episodes = r.episodes; index = r.index; startAt = r.startAt
         player.automaticallyWaitsToMinimizeStalling = false
         player.allowsExternalPlayback = true
+        externalObs = player.observe(\.isExternalPlaybackActive, options: [.new]) { p, _ in
+            HGTrace.log("cast 系统投屏 active=\(p.isExternalPlaybackActive)")
+        }
+        watchAwake()
         attachObservers()
     }
     private var bgObserver: NSObjectProtocol?
@@ -429,6 +451,8 @@ final class HGPlaybackSession {
         stopped = true
         if let requestID { Self.live[requestID] = nil }
         HGTrace.log("player stop ep\(index + 1) pos=\(Int(position))")
+        awakeObs?.invalidate(); awakeObs = nil
+        HGScreenAwake.set(awakeKey, false)
         save(force: true)
         loadTask?.cancel(); danmakuTask?.cancel(); aheadTask?.cancel()
         primeObs?.invalidate(); primeObs = nil
@@ -558,6 +582,21 @@ final class HGPlaybackSession {
         player = s.player
         streamLoader = s.loader
         addTimeObserver()
+        watchAwake()
+    }
+
+    /// 只看当前这台播放器：在放 / 缓冲中 = 常亮；暂停、放完、被停 = 交还系统息屏
+    private func watchAwake() {
+        awakeObs?.invalidate()
+        let key = awakeKey
+        awakeObs = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] p, _ in
+            let on = p.timeControlStatus != .paused
+            Task { @MainActor in
+                guard let self else { HGScreenAwake.set(key, false); return }   // 会话没了，别把常亮留下
+                guard self.player === p, !self.stopped else { return }
+                HGScreenAwake.set(key, on)
+            }
+        }
     }
 
     private func recycle(_ s: Slot) { recycle(s.player) }

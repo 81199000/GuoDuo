@@ -43,6 +43,9 @@ actor HGMediaCache {
     /// 推荐存货：淘汰时跳过
     private var pinned = Set<String>()
     func setPinned(_ vids: Set<String>) { pinned = vids }
+    /// 正在投到电视的那集：手机接着刷别的时不能被淘汰（电视还在从手机上拉）
+    private var castPin: String?
+    func setCastPin(_ vid: String?) { castPin = vid }
 
     /// 同步判断（不进 actor）：推荐存货恢复时用
     nonisolated static func hasFile(_ vid: String) -> Bool {
@@ -107,7 +110,7 @@ actor HGMediaCache {
         var i = 0
         while order.count - pinned.count > keep - Self.pinBudget, i < order.count {
             let old = order[i]
-            if pinned.contains(old) { i += 1; continue }
+            if pinned.contains(old) || old == castPin { i += 1; continue }
             order.remove(at: i)
             try? FileManager.default.removeItem(at: dir.appendingPathComponent("\(old).mp4"))
         }

@@ -400,7 +400,8 @@ struct HGFeedView: View {
             }
             .clipped()
             // 顶部频道：推荐 / 真人剧 / 漫剧（红果首页同款；登录了按账号推荐）
-            .overlay(alignment: .top) {
+            .overlayPreferenceValue(HGFeedChromeKey.self, alignment: .top) { c in
+              if c?.bare != true {
                 // 点不中 → 每个字四周加大点击区（横向各 9、竖向到 44 高），字间距不变
                 HStack(spacing: 0) {
                     ForEach(HGFeedModel.channels, id: \.0) { id, name in
@@ -424,9 +425,12 @@ struct HGFeedView: View {
                         .accessibilityAddTraits(on ? .isSelected : [])
                     }
                 }
-                .padding(.top, max(outer.safeAreaInsets.top, 12) - 9)
+                // 整层忽略了安全区，outer 量到的 top 恒为 0：Duo 窗口本身从时钟下方开始所以没事，
+                // 直板机（灵动岛 / 刘海）会顶到状态栏上 → 非 Duo 读窗口真实顶部安全区
+                .padding(.top, max(DYDuoMetrics.isDuoHardware ? outer.safeAreaInsets.top : DYDuoMetrics.windowSafeTop, 12) - 9)
                 .opacity(Double(railMorph))
                 .offset(y: (1 - railMorph) * -12)
+              }
             }
             if sideRail { Color.black.frame(width: railReserve) }
           }

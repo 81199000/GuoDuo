@@ -30,6 +30,7 @@
 		49FA5DA4AEF09A647279EEAC /* HGConsolePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E90C0DB3E0CB3C06EBC423 /* HGConsolePane.swift */; };
 		4C9B1D54475DA87F7A8B4D7F /* HGTVRemoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 183665EC0E204BCC466345E5 /* HGTVRemoteView.swift */; };
 		5775BD7AB5FD261DA6D52D5F /* HGMediaCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0090B4685D32319D9E2379CC /* HGMediaCache.swift */; };
+		590870D3CB81D98F8361458B /* HGCastPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3991D02E06DBE0C7195F45F5 /* HGCastPicker.swift */; };
 		64E467E5DCBC4B78E2361A43 /* HGTabletopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98AE9622D9B7714A7764A4FA /* HGTabletopTests.swift */; };
 		66D6A1C40DECDC5AF75F6051 /* HGDiscoverBoardsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E079683201F11611AB8979 /* HGDiscoverBoardsTests.swift */; };
 		67BA49D1C11F6D3651BC89FE /* HGModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCB4AE89C633049C3792826 /* HGModels.swift */; };
@@ -39,6 +40,7 @@
 		7DBC9E95A4F4B7FD4D9EFE2D /* HGSwipeTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC3F9242FACD60B82125A86 /* HGSwipeTiming.swift */; };
 		828EF0ACED39D4092D79971F /* HongGuoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 788133021D40CA13E6BF8B34 /* HongGuoApp.swift */; };
 		850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA08D8E530DCC1B07CC6F0D5 /* DYVideoFit.swift */; };
+		885C7355B0ECE77CAA60AEAC /* HGCast.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0BA26FBB30311062637477 /* HGCast.swift */; };
 		8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */; };
 		8B1F4A352F1F2FC60D83C550 /* HGTVInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048C67C1934CE5DEC810E132 /* HGTVInstall.swift */; };
 		8ECAFF4624F9CCE8FD289F6A /* HGTVRemote.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD354C7ABBE15B7C3EAD651 /* HGTVRemote.swift */; };
@@ -118,6 +120,7 @@
 		3305DD8EFC71C8F7354144EF /* HGEpisodePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGEpisodePlayer.swift; sourceTree = "<group>"; };
 		346514085D78AF5C874C3F45 /* HGHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGHomeView.swift; sourceTree = "<group>"; };
 		384B996C591FDC9541415513 /* HGFeedChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFeedChromeTests.swift; sourceTree = "<group>"; };
+		3991D02E06DBE0C7195F45F5 /* HGCastPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCastPicker.swift; sourceTree = "<group>"; };
 		40BD52F43AAC9294B5A26030 /* HGPlayerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGPlayerScreen.swift; sourceTree = "<group>"; };
 		47D031FBB3C9275059558A96 /* HGSwipeFlashRec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGSwipeFlashRec.swift; sourceTree = "<group>"; };
 		49BFA89D516CC5604083F9B0 /* HGImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGImageCache.swift; sourceTree = "<group>"; };
@@ -151,6 +154,7 @@
 		A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCencDecryptor.swift; sourceTree = "<group>"; };
 		A4678CF6F59364B77B55B578 /* HGFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGFeedView.swift; sourceTree = "<group>"; };
 		ACD354C7ABBE15B7C3EAD651 /* HGTVRemote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGTVRemote.swift; sourceTree = "<group>"; };
+		AD0BA26FBB30311062637477 /* HGCast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGCast.swift; sourceTree = "<group>"; };
 		AE942EB67A82278C34B082C2 /* HGSearchSuggestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGSearchSuggestTests.swift; sourceTree = "<group>"; };
 		AF1789A12B0088CFC69C1422 /* HGRailMeasure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGRailMeasure.swift; sourceTree = "<group>"; };
 		B7EA34D56203BB82C3E2F95C /* HGMineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HGMineView.swift; sourceTree = "<group>"; };
@@ -267,6 +271,7 @@
 			isa = PBXGroup;
 			children = (
 				25929D23E827F51B444FF335 /* HGAdb.swift */,
+				AD0BA26FBB30311062637477 /* HGCast.swift */,
 				A1366EAB97A044D67FD6D39D /* HGCencDecryptor.swift */,
 				7A0B2924EF8146BCC3B5DD83 /* HGCore.swift */,
 				49BFA89D516CC5604083F9B0 /* HGImageCache.swift */,
@@ -287,6 +292,7 @@
 		BEFC247AB706278DCCD0E5E4 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				3991D02E06DBE0C7195F45F5 /* HGCastPicker.swift */,
 				7C825B6CC5D5894AC3629B67 /* HGDetailView.swift */,
 				D7DB59C8E69E602684F2BFB8 /* HGDiscoverView.swift */,
 				A4678CF6F59364B77B55B578 /* HGFeedView.swift */,
@@ -500,6 +506,8 @@
 				3A9EC27C1A804BB0D5532186 /* DYVideoAmbient.swift in Sources */,
 				850D33A8A0947B385567D5C6 /* DYVideoFit.swift in Sources */,
 				C04C06B3073C3CD29FD1D244 /* HGAdb.swift in Sources */,
+				885C7355B0ECE77CAA60AEAC /* HGCast.swift in Sources */,
+				590870D3CB81D98F8361458B /* HGCastPicker.swift in Sources */,
 				8871E283FC026BB9DCBAC4CB /* HGCencDecryptor.swift in Sources */,
 				49FA5DA4AEF09A647279EEAC /* HGConsolePane.swift in Sources */,
 				127BBA386DD160EF0ECCD9DC /* HGCore.swift in Sources */,
